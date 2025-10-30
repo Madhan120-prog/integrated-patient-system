@@ -353,6 +353,18 @@ async def initialize_data():
     result = await populate_sample_data()
     return result
 
+@api_router.post("/clear-data")
+async def clear_data():
+    \"\"\"Clear all patient data from database\"\"\"
+    await db.profiles.delete_many({})
+    await db.mri_records.delete_many({})
+    await db.xray_records.delete_many({})
+    await db.ecg_records.delete_many({})
+    await db.treatment_records.delete_many({})
+    await db.blood_profile_records.delete_many({})
+    await db.ct_scan_records.delete_many({})
+    return {\"message\": \"All data cleared successfully\"}
+
 @api_router.get("/search")
 async def search_patient(term: str = Query(..., description="Patient ID or Name to search")):
     """Search patient records across all departments
