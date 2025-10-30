@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Query
+from fastapi import FastAPI, APIRouter, Query, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -28,7 +28,38 @@ api_router = APIRouter(prefix="/api")
 # Initialize Faker
 fake = Faker()
 
+# Sample medical report image URLs
+MEDICAL_IMAGES = {
+    "xray": [
+        "https://images.unsplash.com/photo-1564725075388-cc8338732289",
+        "https://images.unsplash.com/photo-1648025487795-2f7bd6d620bf"
+    ],
+    "ecg": [
+        "https://images.unsplash.com/photo-1682706841281-f723c5bfcd83",
+        "https://images.unsplash.com/photo-1682706841289-9d7ddf5eb999"
+    ],
+    "mri": [
+        "https://images.pexels.com/photos/7089020/pexels-photo-7089020.jpeg"
+    ],
+    "ct": [
+        "https://images.unsplash.com/photo-1631563019676-dade0dbdb8fc"
+    ],
+    "blood": [
+        "https://images.unsplash.com/photo-1639772823849-6efbd173043c",
+        "https://images.unsplash.com/photo-1606206591513-adbfbdd7a177"
+    ]
+}
+
 # Define Models
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+class LoginResponse(BaseModel):
+    success: bool
+    message: str
+    user: Optional[dict] = None
+
 class Profile(BaseModel):
     model_config = ConfigDict(extra="ignore")
     patient_id: str
@@ -48,6 +79,7 @@ class MRIRecord(BaseModel):
     test_date: str
     result: str
     doctor: str
+    report_image: str
 
 class XRayRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -57,6 +89,7 @@ class XRayRecord(BaseModel):
     test_date: str
     result: str
     doctor: str
+    report_image: str
 
 class ECGRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -66,6 +99,7 @@ class ECGRecord(BaseModel):
     test_date: str
     result: str
     doctor: str
+    report_image: str
 
 class TreatmentRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -76,12 +110,34 @@ class TreatmentRecord(BaseModel):
     result: str
     doctor: str
 
+class BloodProfileRecord(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    patient_id: str
+    name: str
+    test_name: str
+    test_date: str
+    result: str
+    doctor: str
+    report_image: str
+
+class CTScanRecord(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    patient_id: str
+    name: str
+    test_name: str
+    test_date: str
+    result: str
+    doctor: str
+    report_image: str
+
 class SearchResponse(BaseModel):
     profile: Optional[Profile] = None
     mri_records: List[MRIRecord] = []
     xray_records: List[XRayRecord] = []
     ecg_records: List[ECGRecord] = []
     treatment_records: List[TreatmentRecord] = []
+    blood_profile_records: List[BloodProfileRecord] = []
+    ct_scan_records: List[CTScanRecord] = []
 
 # Helper function to generate sample data
 async def populate_sample_data():
@@ -93,6 +149,8 @@ async def populate_sample_data():
     await db.xray_records.delete_many({})
     await db.ecg_records.delete_many({})
     await db.treatment_records.delete_many({})
+    await db.blood_profile_records.delete_many({})
+    await db.ct_scan_records.delete_many({})
     
     # Generate 15 patients
     patients = []
@@ -125,7 +183,8 @@ async def populate_sample_data():
                     "test_name": random.choice(mri_tests),
                     "test_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
                     "result": random.choice(["Normal", "Abnormal - Minor", "Requires Follow-up", "Critical"]),
-                    "doctor": f"Dr. {fake.last_name()}"
+                    "doctor": f"Dr. {fake.last_name()}",
+                    "report_image": random.choice(MEDICAL_IMAGES["mri"])
                 })
     if mri_records:
         await db.mri_records.insert_many(mri_records)
@@ -142,7 +201,8 @@ async def populate_sample_data():
                     "test_name": random.choice(xray_tests),
                     "test_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
                     "result": random.choice(["Clear", "Fracture Detected", "Inflammation", "Normal"]),
-                    "doctor": f"Dr. {fake.last_name()}"
+                    "doctor": f"Dr. {fake.last_name()}",
+                    "report_image": random.choice(MEDICAL_IMAGES["xray"])
                 })
     if xray_records:
         await db.xray_records.insert_many(xray_records)
@@ -159,7 +219,8 @@ async def populate_sample_data():
                     "test_name": random.choice(ecg_tests),
                     "test_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
                     "result": random.choice(["Normal Sinus Rhythm", "Arrhythmia Detected", "Tachycardia", "Normal"]),
-                    "doctor": f"Dr. {fake.last_name()}"
+                    "doctor": f"Dr. {fake.last_name()}",
+                    "report_image": random.choice(MEDICAL_IMAGES["ecg"])
                 })
     if ecg_records:
         await db.ecg_records.insert_many(ecg_records)
@@ -181,13 +242,74 @@ async def populate_sample_data():
     if treatment_records:
         await db.treatment_records.insert_many(treatment_records)
     
+    # Generate Blood Profile records
+    blood_tests = ["Complete Blood Count", "Lipid Profile", "Liver Function Test", "Kidney Function Test", "Thyroid Panel"]
+    blood_records = []
+    for patient in patients:
+        if random.random() > 0.2:  # 80% chance of having blood tests
+            for _ in range(random.randint(1, 3)):
+                blood_records.append({
+                    "patient_id": patient["patient_id"],
+                    "name": patient["name"],
+                    "test_name": random.choice(blood_tests),
+                    "test_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
+                    "result": random.choice(["Normal", "Abnormal - High", "Abnormal - Low", "Within Range"]),
+                    "doctor": f"Dr. {fake.last_name()}",
+                    "report_image": random.choice(MEDICAL_IMAGES["blood"])
+                })
+    if blood_records:
+        await db.blood_profile_records.insert_many(blood_records)
+    
+    # Generate CT Scan records
+    ct_tests = ["Head CT Scan", "Chest CT Scan", "Abdominal CT Scan", "Pelvic CT Scan", "Spine CT Scan"]
+    ct_records = []
+    for patient in patients:
+        if random.random() > 0.5:  # 50% chance of having CT scan
+            for _ in range(random.randint(1, 2)):
+                ct_records.append({
+                    "patient_id": patient["patient_id"],
+                    "name": patient["name"],
+                    "test_name": random.choice(ct_tests),
+                    "test_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
+                    "result": random.choice(["Normal", "Abnormality Detected", "Requires Further Investigation", "Clear"]),
+                    "doctor": f"Dr. {fake.last_name()}",
+                    "report_image": random.choice(MEDICAL_IMAGES["ct"])
+                })
+    if ct_records:
+        await db.ct_scan_records.insert_many(ct_records)
+    
     return {"message": "Sample data populated successfully", "patients_created": len(patients)}
 
 # Routes
 @api_router.get("/")
 async def root():
     """Root endpoint"""
-    return {"message": "Hospital Patient Data Retrieval System API"}
+    return {"message": "United Patient Record System API"}
+
+@api_router.post("/login", response_model=LoginResponse)
+async def login(credentials: LoginRequest):
+    """Simple demo login endpoint"""
+    # Demo credentials
+    valid_users = {
+        "doctor": {"password": "doctor123", "role": "Doctor", "name": "Dr. Smith"},
+        "nurse": {"password": "nurse123", "role": "Nurse", "name": "Nurse Johnson"},
+        "admin": {"password": "admin123", "role": "Administrator", "name": "Admin Davis"}
+    }
+    
+    if credentials.username in valid_users:
+        user_data = valid_users[credentials.username]
+        if credentials.password == user_data["password"]:
+            return LoginResponse(
+                success=True,
+                message="Login successful",
+                user={
+                    "username": credentials.username,
+                    "role": user_data["role"],
+                    "name": user_data["name"]
+                }
+            )
+    
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 
 @api_router.post("/init-data")
 async def initialize_data():
@@ -222,19 +344,25 @@ async def search_patient(term: str = Query(..., description="Patient ID or Name 
     xray_records = await db.xray_records.find(query, {"_id": 0}).to_list(1000)
     ecg_records = await db.ecg_records.find(query, {"_id": 0}).to_list(1000)
     treatment_records = await db.treatment_records.find(query, {"_id": 0}).to_list(1000)
+    blood_profile_records = await db.blood_profile_records.find(query, {"_id": 0}).to_list(1000)
+    ct_scan_records = await db.ct_scan_records.find(query, {"_id": 0}).to_list(1000)
     
     # Sort records by date (ascending)
     mri_records = sorted(mri_records, key=lambda x: x.get("test_date", ""))
     xray_records = sorted(xray_records, key=lambda x: x.get("test_date", ""))
     ecg_records = sorted(ecg_records, key=lambda x: x.get("test_date", ""))
     treatment_records = sorted(treatment_records, key=lambda x: x.get("treatment_date", ""))
+    blood_profile_records = sorted(blood_profile_records, key=lambda x: x.get("test_date", ""))
+    ct_scan_records = sorted(ct_scan_records, key=lambda x: x.get("test_date", ""))
     
     return {
         "profile": profile,
         "mri_records": mri_records,
         "xray_records": xray_records,
         "ecg_records": ecg_records,
-        "treatment_records": treatment_records
+        "treatment_records": treatment_records,
+        "blood_profile_records": blood_profile_records,
+        "ct_scan_records": ct_scan_records
     }
 
 @api_router.get("/patients")

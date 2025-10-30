@@ -10,6 +10,12 @@ import {
   TableHeader,
   TableRow,
 } from '../components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 import axios from 'axios';
 import { toast } from 'sonner';
 
@@ -23,6 +29,8 @@ const ResultsPage = () => {
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [reportImage, setReportImage] = useState(null);
+  const [reportOpen, setReportOpen] = useState(false);
 
   useEffect(() => {
     if (searchTerm) {
@@ -51,6 +59,17 @@ const ResultsPage = () => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+  };
+
+  const handleViewReport = (imageUrl) => {
+    setReportImage(imageUrl);
+    setReportOpen(true);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('isAuthenticated');
+    localStorage.removeItem('user');
+    navigate('/');
   };
 
   if (loading) {
@@ -108,6 +127,13 @@ const ResultsPage = () => {
             </svg>
             New Search
           </button>
+          <Button
+            onClick={handleLogout}
+            variant="outline"
+            data-testid="logout-button"
+          >
+            Logout
+          </Button>
         </div>
 
         {/* Patient Profile */}
@@ -171,6 +197,7 @@ const ResultsPage = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Result</TableHead>
                     <TableHead>Doctor</TableHead>
+                    <TableHead>Report</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -188,6 +215,17 @@ const ResultsPage = () => {
                         </span>
                       </TableCell>
                       <TableCell>{record.doctor}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewReport(record.report_image)}
+                          className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                          data-testid={`view-report-mri-${index}`}
+                        >
+                          View Report
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -215,6 +253,7 @@ const ResultsPage = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Result</TableHead>
                     <TableHead>Doctor</TableHead>
+                    <TableHead>Report</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -231,6 +270,17 @@ const ResultsPage = () => {
                         </span>
                       </TableCell>
                       <TableCell>{record.doctor}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewReport(record.report_image)}
+                          className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                          data-testid={`view-report-xray-${index}`}
+                        >
+                          View Report
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -258,6 +308,7 @@ const ResultsPage = () => {
                     <TableHead>Date</TableHead>
                     <TableHead>Result</TableHead>
                     <TableHead>Doctor</TableHead>
+                    <TableHead>Report</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -274,6 +325,127 @@ const ResultsPage = () => {
                         </span>
                       </TableCell>
                       <TableCell>{record.doctor}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewReport(record.report_image)}
+                          className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                          data-testid={`view-report-ecg-${index}`}
+                        >
+                          View Report
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        )}
+
+        {/* Blood Profile Records */}
+        {data.blood_profile_records && data.blood_profile_records.length > 0 && (
+          <Card className="p-6 mb-6 bg-white shadow-lg border-0" data-testid="blood-profile-section">
+            <div className="flex items-center mb-4">
+              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800">Blood Profile Records</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Test Name</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Result</TableHead>
+                    <TableHead>Doctor</TableHead>
+                    <TableHead>Report</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.blood_profile_records.map((record, index) => (
+                    <TableRow key={index} data-testid={`blood-record-${index}`}>
+                      <TableCell className="font-medium">{record.test_name}</TableCell>
+                      <TableCell>{formatDate(record.test_date)}</TableCell>
+                      <TableCell>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          record.result.includes('Normal') || record.result.includes('Within Range') ? 'bg-green-100 text-green-700' :
+                          'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {record.result}
+                        </span>
+                      </TableCell>
+                      <TableCell>{record.doctor}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewReport(record.report_image)}
+                          className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                          data-testid={`view-report-blood-${index}`}
+                        >
+                          View Report
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
+        )}
+
+        {/* CT Scan Records */}
+        {data.ct_scan_records && data.ct_scan_records.length > 0 && (
+          <Card className="p-6 mb-6 bg-white shadow-lg border-0" data-testid="ct-scan-section">
+            <div className="flex items-center mb-4">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800">CT Scan Records</h2>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Test Name</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Result</TableHead>
+                    <TableHead>Doctor</TableHead>
+                    <TableHead>Report</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {data.ct_scan_records.map((record, index) => (
+                    <TableRow key={index} data-testid={`ct-record-${index}`}>
+                      <TableCell className="font-medium">{record.test_name}</TableCell>
+                      <TableCell>{formatDate(record.test_date)}</TableCell>
+                      <TableCell>
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          record.result.includes('Normal') || record.result.includes('Clear') ? 'bg-green-100 text-green-700' :
+                          'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {record.result}
+                        </span>
+                      </TableCell>
+                      <TableCell>{record.doctor}</TableCell>
+                      <TableCell>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleViewReport(record.report_image)}
+                          className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
+                          data-testid={`view-report-ct-${index}`}
+                        >
+                          View Report
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -286,8 +458,8 @@ const ResultsPage = () => {
         {data.treatment_records && data.treatment_records.length > 0 && (
           <Card className="p-6 mb-6 bg-white shadow-lg border-0" data-testid="treatment-section">
             <div className="flex items-center mb-4">
-              <div className="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center mr-3">
-                <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-3">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
                 </svg>
               </div>
@@ -330,12 +502,33 @@ const ResultsPage = () => {
         {(!data.mri_records || data.mri_records.length === 0) &&
          (!data.xray_records || data.xray_records.length === 0) &&
          (!data.ecg_records || data.ecg_records.length === 0) &&
-         (!data.treatment_records || data.treatment_records.length === 0) && (
+         (!data.treatment_records || data.treatment_records.length === 0) &&
+         (!data.blood_profile_records || data.blood_profile_records.length === 0) &&
+         (!data.ct_scan_records || data.ct_scan_records.length === 0) && (
           <Card className="p-8 bg-white shadow-lg text-center">
             <p className="text-gray-600">No medical records found for this patient.</p>
           </Card>
         )}
       </div>
+
+      {/* Report Image Modal */}
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Medical Report</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            {reportImage && (
+              <img 
+                src={reportImage} 
+                alt="Medical Report" 
+                className="w-full h-auto rounded-lg shadow-lg"
+                data-testid="report-image"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
