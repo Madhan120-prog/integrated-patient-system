@@ -355,7 +355,7 @@ async def initialize_data():
 
 @api_router.post("/clear-data")
 async def clear_data():
-    \"\"\"Clear all patient data from database\"\"\"
+    """Clear all patient data from database"""
     await db.profiles.delete_many({})
     await db.mri_records.delete_many({})
     await db.xray_records.delete_many({})
@@ -363,7 +363,7 @@ async def clear_data():
     await db.treatment_records.delete_many({})
     await db.blood_profile_records.delete_many({})
     await db.ct_scan_records.delete_many({})
-    return {\"message\": \"All data cleared successfully\"}
+    return {"message": "All data cleared successfully"}
 
 @api_router.get("/search")
 async def search_patient(term: str = Query(..., description="Patient ID or Name to search")):
