@@ -31,6 +31,7 @@ const ResultsPage = () => {
   const [data, setData] = useState(null);
   const [reportImage, setReportImage] = useState(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [allRecordsChronological, setAllRecordsChronological] = useState([]);
 
   useEffect(() => {
     if (searchTerm) {
@@ -46,6 +47,37 @@ const ResultsPage = () => {
       
       if (!response.data.profile) {
         toast.error('No patient found with that ID or Name');
+      } else {
+        // Combine all records into chronological order
+        const allRecords = [];
+        
+        response.data.mri_records?.forEach(record => {
+          allRecords.push({...record, type: 'MRI', date: record.test_date, department: 'MRI'});
+        });
+        
+        response.data.xray_records?.forEach(record => {
+          allRecords.push({...record, type: 'X-Ray', date: record.test_date, department: 'X-Ray'});
+        });
+        
+        response.data.ecg_records?.forEach(record => {
+          allRecords.push({...record, type: 'ECG', date: record.test_date, department: 'ECG'});
+        });
+        
+        response.data.blood_profile_records?.forEach(record => {
+          allRecords.push({...record, type: 'Blood Profile', date: record.test_date, department: 'Blood Profile'});
+        });
+        
+        response.data.ct_scan_records?.forEach(record => {
+          allRecords.push({...record, type: 'CT Scan', date: record.test_date, department: 'CT Scan'});
+        });
+        
+        response.data.treatment_records?.forEach(record => {
+          allRecords.push({...record, type: 'Treatment', date: record.treatment_date, department: 'Treatment'});
+        });
+        
+        // Sort by date (ascending - oldest first)
+        allRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
+        setAllRecordsChronological(allRecords);
       }
     } catch (error) {
       console.error('Error fetching patient data:', error);
@@ -66,10 +98,10 @@ const ResultsPage = () => {
     setReportOpen(true);
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('user');
-    navigate('/');
+  const handleViewAnalytics = () => {
+    if (data?.profile) {
+      navigate(`/analytics?patient_id=${data.profile.patient_id}`);
+    }
   };
 
   if (loading) {
@@ -128,11 +160,14 @@ const ResultsPage = () => {
             New Search
           </button>
           <Button
-            onClick={handleLogout}
-            variant="outline"
-            data-testid="logout-button"
+            onClick={handleViewAnalytics}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+            data-testid="view-analytics-button"
           >
-            Logout
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            View Patient Analytics
           </Button>
         </div>
 
@@ -178,333 +213,91 @@ const ResultsPage = () => {
           </div>
         </Card>
 
-        {/* MRI Records */}
-        {data.mri_records && data.mri_records.length > 0 && (
-          <Card className="p-6 mb-6 bg-white shadow-lg border-0" data-testid="mri-section">
-            <div className="flex items-center mb-4">
-              <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center mr-3">
-                <svg className="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">MRI Records</h2>
+        {/* All Records in Chronological Order */}
+        <Card className="p-6 mb-6 bg-white shadow-lg border-0" data-testid="chronological-records">
+          <div className="flex items-center mb-4">
+            <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-lg flex items-center justify-center mr-3">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Test Name</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Result</TableHead>
-                    <TableHead>Doctor</TableHead>
-                    <TableHead>Report</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.mri_records.map((record, index) => (
-                    <TableRow key={index} data-testid={`mri-record-${index}`}>
-                      <TableCell className="font-medium">{record.test_name}</TableCell>
-                      <TableCell>{formatDate(record.test_date)}</TableCell>
-                      <TableCell>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          record.result.includes('Normal') ? 'bg-green-100 text-green-700' :
-                          record.result.includes('Critical') ? 'bg-red-100 text-red-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {record.result}
-                        </span>
-                      </TableCell>
-                      <TableCell>{record.doctor}</TableCell>
-                      <TableCell>
+            <h2 className="text-2xl font-bold text-gray-800">Complete Medical History (Chronological)</h2>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">All tests and treatments sorted by date</p>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Test/Treatment</TableHead>
+                  <TableHead>Result</TableHead>
+                  <TableHead>Doctor</TableHead>
+                  <TableHead>Medicines</TableHead>
+                  <TableHead>Report</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {allRecordsChronological.map((record, index) => (
+                  <TableRow key={index} data-testid={`chronological-record-${index}`}>
+                    <TableCell className="font-medium">{formatDate(record.date)}</TableCell>
+                    <TableCell>
+                      <span className={`px-2 py-1 rounded-md text-xs font-semibold ${
+                        record.department === 'MRI' ? 'bg-teal-100 text-teal-700' :
+                        record.department === 'X-Ray' ? 'bg-cyan-100 text-cyan-700' :
+                        record.department === 'ECG' ? 'bg-blue-100 text-blue-700' :
+                        record.department === 'Blood Profile' ? 'bg-red-100 text-red-700' :
+                        record.department === 'CT Scan' ? 'bg-purple-100 text-purple-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {record.department}
+                      </span>
+                    </TableCell>
+                    <TableCell>{record.test_name || record.treatment_name}</TableCell>
+                    <TableCell>
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        record.result?.includes('Normal') || record.result?.includes('Clear') || 
+                        record.result?.includes('Within Range') || record.result?.includes('Completed') || 
+                        record.result?.includes('Successful') ? 'bg-green-100 text-green-700' :
+                        record.result?.includes('Critical') ? 'bg-red-100 text-red-700' :
+                        record.result?.includes('Progress') ? 'bg-blue-100 text-blue-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {record.result}
+                      </span>
+                    </TableCell>
+                    <TableCell>{record.doctor}</TableCell>
+                    <TableCell>
+                      {record.medicines ? (
+                        <span className="text-sm text-gray-700">{record.medicines}</span>
+                      ) : (
+                        <span className="text-xs text-gray-400">N/A</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {record.report_image ? (
                         <Button
                           size="sm"
                           variant="outline"
                           onClick={() => handleViewReport(record.report_image)}
                           className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
-                          data-testid={`view-report-mri-${index}`}
+                          data-testid={`view-report-${index}`}
                         >
                           View Report
                         </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
-        )}
-
-        {/* X-Ray Records */}
-        {data.xray_records && data.xray_records.length > 0 && (
-          <Card className="p-6 mb-6 bg-white shadow-lg border-0" data-testid="xray-section">
-            <div className="flex items-center mb-4">
-              <div className="w-10 h-10 bg-cyan-100 rounded-lg flex items-center justify-center mr-3">
-                <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">X-Ray Records</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Test Name</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Result</TableHead>
-                    <TableHead>Doctor</TableHead>
-                    <TableHead>Report</TableHead>
+                      ) : (
+                        <span className="text-xs text-gray-400">N/A</span>
+                      )}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.xray_records.map((record, index) => (
-                    <TableRow key={index} data-testid={`xray-record-${index}`}>
-                      <TableCell className="font-medium">{record.test_name}</TableCell>
-                      <TableCell>{formatDate(record.test_date)}</TableCell>
-                      <TableCell>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          record.result.includes('Clear') || record.result.includes('Normal') ? 'bg-green-100 text-green-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {record.result}
-                        </span>
-                      </TableCell>
-                      <TableCell>{record.doctor}</TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewReport(record.report_image)}
-                          className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
-                          data-testid={`view-report-xray-${index}`}
-                        >
-                          View Report
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
-        )}
-
-        {/* ECG Records */}
-        {data.ecg_records && data.ecg_records.length > 0 && (
-          <Card className="p-6 mb-6 bg-white shadow-lg border-0" data-testid="ecg-section">
-            <div className="flex items-center mb-4">
-              <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center mr-3">
-                <svg className="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">ECG Records</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Test Name</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Result</TableHead>
-                    <TableHead>Doctor</TableHead>
-                    <TableHead>Report</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.ecg_records.map((record, index) => (
-                    <TableRow key={index} data-testid={`ecg-record-${index}`}>
-                      <TableCell className="font-medium">{record.test_name}</TableCell>
-                      <TableCell>{formatDate(record.test_date)}</TableCell>
-                      <TableCell>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          record.result.includes('Normal') ? 'bg-green-100 text-green-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {record.result}
-                        </span>
-                      </TableCell>
-                      <TableCell>{record.doctor}</TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewReport(record.report_image)}
-                          className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
-                          data-testid={`view-report-ecg-${index}`}
-                        >
-                          View Report
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
-        )}
-
-        {/* Blood Profile Records */}
-        {data.blood_profile_records && data.blood_profile_records.length > 0 && (
-          <Card className="p-6 mb-6 bg-white shadow-lg border-0" data-testid="blood-profile-section">
-            <div className="flex items-center mb-4">
-              <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center mr-3">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">Blood Profile Records</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Test Name</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Result</TableHead>
-                    <TableHead>Doctor</TableHead>
-                    <TableHead>Report</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.blood_profile_records.map((record, index) => (
-                    <TableRow key={index} data-testid={`blood-record-${index}`}>
-                      <TableCell className="font-medium">{record.test_name}</TableCell>
-                      <TableCell>{formatDate(record.test_date)}</TableCell>
-                      <TableCell>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          record.result.includes('Normal') || record.result.includes('Within Range') ? 'bg-green-100 text-green-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {record.result}
-                        </span>
-                      </TableCell>
-                      <TableCell>{record.doctor}</TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewReport(record.report_image)}
-                          className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
-                          data-testid={`view-report-blood-${index}`}
-                        >
-                          View Report
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
-        )}
-
-        {/* CT Scan Records */}
-        {data.ct_scan_records && data.ct_scan_records.length > 0 && (
-          <Card className="p-6 mb-6 bg-white shadow-lg border-0" data-testid="ct-scan-section">
-            <div className="flex items-center mb-4">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center mr-3">
-                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">CT Scan Records</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Test Name</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Result</TableHead>
-                    <TableHead>Doctor</TableHead>
-                    <TableHead>Report</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.ct_scan_records.map((record, index) => (
-                    <TableRow key={index} data-testid={`ct-record-${index}`}>
-                      <TableCell className="font-medium">{record.test_name}</TableCell>
-                      <TableCell>{formatDate(record.test_date)}</TableCell>
-                      <TableCell>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          record.result.includes('Normal') || record.result.includes('Clear') ? 'bg-green-100 text-green-700' :
-                          'bg-yellow-100 text-yellow-700'
-                        }`}>
-                          {record.result}
-                        </span>
-                      </TableCell>
-                      <TableCell>{record.doctor}</TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => handleViewReport(record.report_image)}
-                          className="text-teal-600 hover:text-teal-700 hover:bg-teal-50"
-                          data-testid={`view-report-ct-${index}`}
-                        >
-                          View Report
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
-        )}
-
-        {/* Treatment Records */}
-        {data.treatment_records && data.treatment_records.length > 0 && (
-          <Card className="p-6 mb-6 bg-white shadow-lg border-0" data-testid="treatment-section">
-            <div className="flex items-center mb-4">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center mr-3">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800">Treatment Records</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Treatment Name</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Doctor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.treatment_records.map((record, index) => (
-                    <TableRow key={index} data-testid={`treatment-record-${index}`}>
-                      <TableCell className="font-medium">{record.treatment_name}</TableCell>
-                      <TableCell>{formatDate(record.treatment_date)}</TableCell>
-                      <TableCell>
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          record.result.includes('Completed') || record.result.includes('Successful') ? 'bg-green-100 text-green-700' :
-                          record.result.includes('Progress') ? 'bg-blue-100 text-blue-700' :
-                          'bg-gray-100 text-gray-700'
-                        }`}>
-                          {record.result}
-                        </span>
-                      </TableCell>
-                      <TableCell>{record.doctor}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </Card>
-        )}
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Card>
 
         {/* No Records Message */}
-        {(!data.mri_records || data.mri_records.length === 0) &&
-         (!data.xray_records || data.xray_records.length === 0) &&
-         (!data.ecg_records || data.ecg_records.length === 0) &&
-         (!data.treatment_records || data.treatment_records.length === 0) &&
-         (!data.blood_profile_records || data.blood_profile_records.length === 0) &&
-         (!data.ct_scan_records || data.ct_scan_records.length === 0) && (
+        {allRecordsChronological.length === 0 && (
           <Card className="p-8 bg-white shadow-lg text-center">
             <p className="text-gray-600">No medical records found for this patient.</p>
           </Card>
