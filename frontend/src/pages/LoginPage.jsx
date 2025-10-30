@@ -56,8 +56,8 @@ const LoginPage = () => {
         backgroundPosition: 'center'
       }}
     >
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+      {/* Overlay with reduced opacity to show background more */}
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"></div>
       
       <div className="relative z-10 max-w-md w-full">
         <Card className="p-10 bg-white/95 backdrop-blur-md shadow-2xl border-0">
@@ -65,13 +65,14 @@ const LoginPage = () => {
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
               <svg className="w-11 h-11 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
             </div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2" data-testid="login-heading">
-              United Patient Record System
+            <h1 className="text-3xl font-bold text-gray-800 mb-1" data-testid="login-heading">
+              City General Hospital
             </h1>
-            <p className="text-gray-600">Healthcare Staff Portal</p>
+            <p className="text-lg text-teal-600 font-semibold mb-1">United Patient Record System</p>
+            <p className="text-gray-600 text-sm">Healthcare Staff Portal</p>
           </div>
 
           {/* Login Form */}

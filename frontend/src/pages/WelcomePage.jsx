@@ -37,37 +37,19 @@ const WelcomePage = () => {
     navigate('/search');
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('user');
-    navigate('/');
-  };
-
   return (
     <div 
-      className="min-h-screen flex items-center justify-center p-4 relative"
+      className="min-h-screen flex items-center justify-center p-4 pt-20 relative"
       style={{
         backgroundImage: 'url(https://images.unsplash.com/photo-1565262353342-6e919eab5b58)',
         backgroundSize: 'cover',
         backgroundPosition: 'center'
       }}
     >
-      {/* Overlay */}
-      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm"></div>
+      {/* Overlay with reduced opacity */}
+      <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px]"></div>
       
       <div className="relative z-10 max-w-4xl w-full">
-        {/* Logout Button */}
-        <div className="flex justify-end mb-4">
-          <Button
-            onClick={handleLogout}
-            variant="outline"
-            className="bg-white/90"
-            data-testid="logout-button"
-          >
-            Logout
-          </Button>
-        </div>
-
         <div className="text-center mb-12 space-y-6">
           {/* Medical Icon */}
           <div className="flex justify-center mb-6">
@@ -104,7 +86,7 @@ const WelcomePage = () => {
           </div>
 
           {/* Subheading */}
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-lg text-gray-700 max-w-2xl mx-auto leading-relaxed font-medium">
             Seamlessly access and integrate patient records from multiple hospital departments including MRI, X-Ray, ECG, CT Scan, Blood Profile, and Treatment centers - all in one unified platform.
           </p>
         </div>
@@ -134,11 +116,11 @@ const WelcomePage = () => {
           <Card className="p-6 bg-white/90 backdrop-blur-sm border-teal-100 hover:shadow-lg transition-all duration-300 hover:-translate-y-1" data-testid="feature-card-organized">
             <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center mb-4">
               <svg className="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Medical Reports</h3>
-            <p className="text-sm text-gray-600">View detailed medical imaging and test reports with visual documentation</p>
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">Patient Analytics</h3>
+            <p className="text-sm text-gray-600">View comprehensive patient analytics with visit history and health trends</p>
           </Card>
         </div>
 

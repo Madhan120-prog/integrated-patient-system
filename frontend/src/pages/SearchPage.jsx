@@ -15,12 +15,6 @@ const SearchPage = () => {
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('isAuthenticated');
-    localStorage.removeItem('user');
-    navigate('/');
-  };
-
   const departments = [
     {
       name: 'MRI Scan',
@@ -59,8 +53,8 @@ const SearchPage = () => {
       background: 'linear-gradient(135deg, #e8f4f8 0%, #f0f9fc 100%)'
     }}>
       <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        {/* Back Button */}
+        <div className="mb-8">
           <button
             onClick={() => navigate('/welcome')}
             className="flex items-center text-gray-600 hover:text-teal-600 transition-colors"
@@ -71,13 +65,6 @@ const SearchPage = () => {
             </svg>
             Back to Home
           </button>
-          <Button
-            onClick={handleLogout}
-            variant="outline"
-            data-testid="logout-button"
-          >
-            Logout
-          </Button>
         </div>
 
         <div className="grid lg:grid-cols-2 gap-8">

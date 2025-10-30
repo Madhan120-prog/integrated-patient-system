@@ -10,6 +10,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 from faker import Faker
 import random
+from collections import Counter
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -49,6 +50,20 @@ MEDICAL_IMAGES = {
         "https://images.unsplash.com/photo-1606206591513-adbfbdd7a177"
     ]
 }
+
+# Medicine lists
+MEDICINES = [
+    "Amoxicillin 500mg",
+    "Ibuprofen 400mg",
+    "Metformin 850mg",
+    "Lisinopril 10mg",
+    "Atorvastatin 20mg",
+    "Omeprazole 20mg",
+    "Aspirin 75mg",
+    "Paracetamol 500mg",
+    "Ciprofloxacin 500mg",
+    "Levothyroxine 50mcg"
+]
 
 # Define Models
 class LoginRequest(BaseModel):
@@ -109,6 +124,7 @@ class TreatmentRecord(BaseModel):
     treatment_date: str
     result: str
     doctor: str
+    medicines: str
 
 class BloodProfileRecord(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -139,9 +155,23 @@ class SearchResponse(BaseModel):
     blood_profile_records: List[BloodProfileRecord] = []
     ct_scan_records: List[CTScanRecord] = []
 
+class PatientAnalytics(BaseModel):
+    total_visits: int
+    total_tests: int
+    departments_visited: dict
+    visit_timeline: List[dict]
+    treatment_summary: dict
+    health_trend: str
+    recent_results: List[dict]
+
 # Helper function to generate sample data
 async def populate_sample_data():
     """Populate all department collections with sample patient data using Faker"""
+    
+    # Check if data already exists
+    existing_count = await db.profiles.count_documents({})
+    if existing_count > 0:
+        return {"message": "Data already exists", "patients_created": existing_count}
     
     # Clear existing data
     await db.profiles.delete_many({})
@@ -225,19 +255,25 @@ async def populate_sample_data():
     if ecg_records:
         await db.ecg_records.insert_many(ecg_records)
     
-    # Generate Treatment records
+    # Generate Treatment records with medicines
     treatments = ["Physical Therapy", "Medication - Antibiotics", "Surgery - Minor", "Chemotherapy", "Dialysis", "Vaccination"]
     treatment_records = []
     for patient in patients:
         if random.random() > 0.1:  # 90% chance of having treatment
             for _ in range(random.randint(1, 5)):
+                # Generate 1-3 medicines
+                num_medicines = random.randint(1, 3)
+                medicines_list = random.sample(MEDICINES, num_medicines)
+                medicines_str = ", ".join(medicines_list)
+                
                 treatment_records.append({
                     "patient_id": patient["patient_id"],
                     "name": patient["name"],
                     "treatment_name": random.choice(treatments),
                     "treatment_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
                     "result": random.choice(["Completed", "In Progress", "Successful", "Scheduled"]),
-                    "doctor": f"Dr. {fake.last_name()}"
+                    "doctor": f"Dr. {fake.last_name()}",
+                    "medicines": medicines_str
                 })
     if treatment_records:
         await db.treatment_records.insert_many(treatment_records)
@@ -363,6 +399,95 @@ async def search_patient(term: str = Query(..., description="Patient ID or Name 
         "treatment_records": treatment_records,
         "blood_profile_records": blood_profile_records,
         "ct_scan_records": ct_scan_records
+    }
+
+@api_router.get("/analytics/{patient_id}")
+async def get_patient_analytics(patient_id: str):
+    """Get patient analytics and statistics"""
+    
+    query = {"patient_id": patient_id}
+    
+    # Get all records
+    mri_records = await db.mri_records.find(query, {"_id": 0}).to_list(1000)
+    xray_records = await db.xray_records.find(query, {"_id": 0}).to_list(1000)
+    ecg_records = await db.ecg_records.find(query, {"_id": 0}).to_list(1000)
+    treatment_records = await db.treatment_records.find(query, {"_id": 0}).to_list(1000)
+    blood_profile_records = await db.blood_profile_records.find(query, {"_id": 0}).to_list(1000)
+    ct_scan_records = await db.ct_scan_records.find(query, {"_id": 0}).to_list(1000)
+    
+    # Calculate total tests
+    total_tests = len(mri_records) + len(xray_records) + len(ecg_records) + len(blood_profile_records) + len(ct_scan_records)
+    
+    # Department breakdown
+    departments_visited = {
+        "MRI": len(mri_records),
+        "X-Ray": len(xray_records),
+        "ECG": len(ecg_records),
+        "Blood Profile": len(blood_profile_records),
+        "CT Scan": len(ct_scan_records),
+        "Treatment": len(treatment_records)
+    }
+    
+    # Create visit timeline (all tests combined and sorted)
+    all_visits = []
+    for record in mri_records:
+        all_visits.append({"date": record["test_date"], "type": "MRI", "test": record["test_name"]})
+    for record in xray_records:
+        all_visits.append({"date": record["test_date"], "type": "X-Ray", "test": record["test_name"]})
+    for record in ecg_records:
+        all_visits.append({"date": record["test_date"], "type": "ECG", "test": record["test_name"]})
+    for record in blood_profile_records:
+        all_visits.append({"date": record["test_date"], "type": "Blood Profile", "test": record["test_name"]})
+    for record in ct_scan_records:
+        all_visits.append({"date": record["test_date"], "type": "CT Scan", "test": record["test_name"]})
+    for record in treatment_records:
+        all_visits.append({"date": record["treatment_date"], "type": "Treatment", "test": record["treatment_name"]})
+    
+    all_visits = sorted(all_visits, key=lambda x: x["date"])
+    
+    # Treatment summary
+    completed = sum(1 for r in treatment_records if "Completed" in r.get("result", "") or "Successful" in r.get("result", ""))
+    in_progress = sum(1 for r in treatment_records if "Progress" in r.get("result", ""))
+    scheduled = sum(1 for r in treatment_records if "Scheduled" in r.get("result", ""))
+    
+    treatment_summary = {
+        "total": len(treatment_records),
+        "completed": completed,
+        "in_progress": in_progress,
+        "scheduled": scheduled
+    }
+    
+    # Health trend analysis (based on recent test results)
+    normal_count = 0
+    abnormal_count = 0
+    
+    for record in mri_records + xray_records + ecg_records + blood_profile_records + ct_scan_records:
+        result = record.get("result", "").lower()
+        if "normal" in result or "clear" in result or "within range" in result:
+            normal_count += 1
+        else:
+            abnormal_count += 1
+    
+    if normal_count > abnormal_count * 2:
+        health_trend = "Excellent"
+    elif normal_count > abnormal_count:
+        health_trend = "Good"
+    elif normal_count == abnormal_count:
+        health_trend = "Stable"
+    else:
+        health_trend = "Needs Attention"
+    
+    # Recent results (last 5)
+    recent_results = all_visits[-5:] if len(all_visits) >= 5 else all_visits
+    
+    return {
+        "total_visits": len(all_visits),
+        "total_tests": total_tests,
+        "departments_visited": departments_visited,
+        "visit_timeline": all_visits,
+        "treatment_summary": treatment_summary,
+        "health_trend": health_trend,
+        "recent_results": recent_results
     }
 
 @api_router.get("/patients")

@@ -1,16 +1,20 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Header from './components/Header';
 import LoginPage from './pages/LoginPage';
 import WelcomePage from './pages/WelcomePage';
 import SearchPage from './pages/SearchPage';
 import ResultsPage from './pages/ResultsPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import { Toaster } from './components/ui/sonner';
 import './App.css';
 
 function App() {
   return (
     <div className="App">
       <BrowserRouter>
+        <Header />
         <Routes>
           <Route path="/" element={<LoginPage />} />
           <Route path="/welcome" element={
@@ -28,7 +32,13 @@ function App() {
               <ResultsPage />
             </ProtectedRoute>
           } />
+          <Route path="/analytics" element={
+            <ProtectedRoute>
+              <AnalyticsPage />
+            </ProtectedRoute>
+          } />
         </Routes>
+        <Toaster />
       </BrowserRouter>
     </div>
   );
