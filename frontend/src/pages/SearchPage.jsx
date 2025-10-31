@@ -18,37 +18,37 @@ const SearchPage = () => {
   const departments = [
     {
       name: 'MRI Scan',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913133.png',
+      icon: 'https://img.icons8.com/fluency/96/mri.png',
       color: 'from-teal-400 to-teal-600',
       route: 'mri'
     },
     {
       name: 'X-Ray',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913149.png',
+      icon: 'https://img.icons8.com/fluency/96/x-ray.png',
       color: 'from-cyan-400 to-cyan-600',
       route: 'xray'
     },
     {
       name: 'ECG',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913099.png',
+      icon: 'https://img.icons8.com/fluency/96/ecg.png',
       color: 'from-blue-400 to-blue-600',
       route: 'ecg'
     },
     {
       name: 'Blood Test',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913145.png',
+      icon: 'https://img.icons8.com/fluency/96/blood-test.png',
       color: 'from-red-400 to-red-600',
       route: 'blood-test'
     },
     {
       name: 'CT Scan',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913155.png',
+      icon: 'https://img.icons8.com/fluency/96/ct-scan.png',
       color: 'from-purple-400 to-purple-600',
       route: 'ct-scan'
     },
     {
       name: 'Treatment',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913115.png',
+      icon: 'https://img.icons8.com/fluency/96/treatment.png',
       color: 'from-green-400 to-green-600',
       route: 'treatment'
     }
@@ -135,7 +135,7 @@ const SearchPage = () => {
           {/* Departments Section */}
           <div>
             <Card className="p-8 bg-white/90 backdrop-blur-sm shadow-2xl border-0">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Available Departments</h2>
+              <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Available Profiles</h2>
               <div className="grid grid-cols-2 gap-4">
                 {departments.map((dept, index) => (
                   <div 
@@ -145,8 +145,8 @@ const SearchPage = () => {
                     data-testid={`department-${dept.name.toLowerCase().replace(' ', '-')}`}
                   >
                     <div className="flex flex-col items-center text-center space-y-3">
-                      <div className={`w-16 h-16 bg-gradient-to-br ${dept.color} rounded-full flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300`}>
-                        <img src={dept.icon} alt={dept.name} className="w-8 h-8 filter brightness-0 invert" />
+                      <div className={`w-20 h-20 bg-gradient-to-br ${dept.color} rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 p-2`}>
+                        <img src={dept.icon} alt={dept.name} className="w-full h-full object-contain" />
                       </div>
                       <p className="text-sm font-semibold text-gray-700">{dept.name}</p>
                     </div>
@@ -154,7 +154,7 @@ const SearchPage = () => {
                 ))}
               </div>
               <p className="text-xs text-center text-gray-500 mt-6">
-                Search to view records from all departments
+                Click on any profile to view all patient records
               </p>
             </Card>
           </div>

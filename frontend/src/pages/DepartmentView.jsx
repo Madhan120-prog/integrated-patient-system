@@ -21,6 +21,7 @@ const DepartmentView = () => {
   const { departmentName } = useParams();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   useEffect(() => {
     if (departmentName) {
@@ -47,16 +48,109 @@ const DepartmentView = () => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  const getDepartmentIcon = () => {
+  const getDepartmentInfo = () => {
     const icons = {
-      'mri': { icon: '🔬', color: 'from-teal-500 to-teal-600', name: 'MRI Scan' },
-      'xray': { icon: '📷', color: 'from-cyan-500 to-cyan-600', name: 'X-Ray' },
-      'ecg': { icon: '💓', color: 'from-blue-500 to-blue-600', name: 'ECG' },
-      'blood-test': { icon: '🩸', color: 'from-red-500 to-red-600', name: 'Blood Profile' },
-      'ct-scan': { icon: '🖥️', color: 'from-purple-500 to-purple-600', name: 'CT Scan' },
-      'treatment': { icon: '💊', color: 'from-green-500 to-green-600', name: 'Treatment' }
+      'mri': { 
+        icon: 'https://img.icons8.com/fluency/96/mri.png',
+        color: 'from-teal-500 to-teal-600', 
+        name: 'MRI Scan' 
+      },
+      'xray': { 
+        icon: 'https://img.icons8.com/fluency/96/x-ray.png',
+        color: 'from-cyan-500 to-cyan-600', 
+        name: 'X-Ray' 
+      },
+      'ecg': { 
+        icon: 'https://img.icons8.com/fluency/96/ecg.png',
+        color: 'from-blue-500 to-blue-600', 
+        name: 'ECG' 
+      },
+      'blood-test': { 
+        icon: 'https://img.icons8.com/fluency/96/blood-test.png',
+        color: 'from-red-500 to-red-600', 
+        name: 'Blood Profile' 
+      },
+      'ct-scan': { 
+        icon: 'https://img.icons8.com/fluency/96/ct-scan.png',
+        color: 'from-purple-500 to-purple-600', 
+        name: 'CT Scan' 
+      },
+      'treatment': { 
+        icon: 'https://img.icons8.com/fluency/96/treatment.png',
+        color: 'from-green-500 to-green-600', 
+        name: 'Treatment' 
+      }
     };
-    return icons[departmentName] || { icon: '🏥', color: 'from-gray-500 to-gray-600', name: departmentName };
+    return icons[departmentName] || { 
+      icon: 'https://img.icons8.com/fluency/96/hospital.png',
+      color: 'from-gray-500 to-gray-600', 
+      name: departmentName 
+    };
+  };
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedRecords = () => {
+    if (!data || !data.records) return [];
+    
+    const sortedRecords = [...data.records];
+    
+    if (sortConfig.key) {
+      sortedRecords.sort((a, b) => {
+        let aValue, bValue;
+        
+        if (sortConfig.key === 'date') {
+          aValue = new Date(a.treatment_date || a.test_date);
+          bValue = new Date(b.treatment_date || b.test_date);
+        } else if (sortConfig.key === 'patient_id') {
+          aValue = a.patient_id;
+          bValue = b.patient_id;
+        } else if (sortConfig.key === 'name') {
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+        }
+        
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    
+    return sortedRecords;
+  };
+
+  const SortIcon = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) {
+      return (
+        <svg className="w-4 h-4 ml-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+        </svg>
+      );
+    }
+    
+    if (sortConfig.direction === 'asc') {
+      return (
+        <svg className="w-4 h-4 ml-1 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+        </svg>
+      );
+    }
+    
+    return (
+      <svg className="w-4 h-4 ml-1 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    );
   };
 
   if (loading) {
@@ -66,7 +160,7 @@ const DepartmentView = () => {
       }}>
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading department records...</p>
+          <p className="text-gray-600 font-medium">Loading profile records...</p>
         </div>
       </div>
     );
@@ -84,7 +178,7 @@ const DepartmentView = () => {
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-3">No Records Found</h2>
-          <p className="text-gray-600 mb-6">No records available for this department</p>
+          <p className="text-gray-600 mb-6">No records available for this profile</p>
           <Button
             onClick={() => navigate('/search')}
             className="bg-teal-600 hover:bg-teal-700"
@@ -96,8 +190,9 @@ const DepartmentView = () => {
     );
   }
 
-  const deptInfo = getDepartmentIcon();
+  const deptInfo = getDepartmentInfo();
   const isTreatment = departmentName === 'treatment';
+  const sortedRecords = getSortedRecords();
 
   return (
     <div className="min-h-screen p-4 py-8" style={{
@@ -122,12 +217,12 @@ const DepartmentView = () => {
         <Card className="p-8 mb-8 bg-white shadow-xl border-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className={`w-20 h-20 bg-gradient-to-br ${deptInfo.color} rounded-2xl flex items-center justify-center shadow-lg text-4xl`}>
-                {deptInfo.icon}
+              <div className={`w-24 h-24 bg-gradient-to-br ${deptInfo.color} rounded-2xl flex items-center justify-center shadow-lg p-4`}>
+                <img src={deptInfo.icon} alt={deptInfo.name} className="w-full h-full object-contain" />
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-800 mb-2" data-testid="department-heading">
-                  {deptInfo.name} Department
+                  {deptInfo.name} Profile
                 </h1>
                 <p className="text-lg text-teal-600 font-semibold">Total Records: {data.total}</p>
               </div>
@@ -142,9 +237,33 @@ const DepartmentView = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Patient ID</TableHead>
-                  <TableHead>Patient Name</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50 select-none"
+                    onClick={() => handleSort('date')}
+                  >
+                    <div className="flex items-center">
+                      Date
+                      <SortIcon columnKey="date" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50 select-none"
+                    onClick={() => handleSort('patient_id')}
+                  >
+                    <div className="flex items-center">
+                      Patient ID
+                      <SortIcon columnKey="patient_id" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50 select-none"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center">
+                      Patient Name
+                      <SortIcon columnKey="name" />
+                    </div>
+                  </TableHead>
                   {isTreatment ? (
                     <>
                       <TableHead>Treatment</TableHead>
@@ -162,7 +281,7 @@ const DepartmentView = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.records.map((record, index) => (
+                {sortedRecords.map((record, index) => (
                   <TableRow key={index} data-testid={`record-${index}`} className="hover:bg-gray-50">
                     <TableCell className="font-medium">
                       {formatDate(isTreatment ? record.treatment_date : record.test_date)}
