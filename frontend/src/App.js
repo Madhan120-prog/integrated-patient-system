@@ -6,6 +6,7 @@ import WelcomePage from './pages/WelcomePage';
 import SearchPage from './pages/SearchPage';
 import ResultsPage from './pages/ResultsPageDepartments';
 import AnalyticsPage from './pages/AnalyticsPageWithCharts';
+import DepartmentView from './pages/DepartmentView';
 import ProtectedRoute from './components/ProtectedRoute';
 import { Toaster } from './components/ui/sonner';
 import './App.css';
@@ -35,6 +36,11 @@ function App() {
           <Route path="/analytics" element={
             <ProtectedRoute>
               <AnalyticsPage />
+            </ProtectedRoute>
+          } />
+          <Route path="/department/:departmentName" element={
+            <ProtectedRoute>
+              <DepartmentView />
             </ProtectedRoute>
           } />
         </Routes>
