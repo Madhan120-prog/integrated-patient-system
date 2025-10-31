@@ -139,7 +139,8 @@ const SearchPage = () => {
                 {departments.map((dept, index) => (
                   <div 
                     key={index} 
-                    className="group p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-gray-100 hover:border-teal-300 transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+                    onClick={() => handleDepartmentClick(dept.route)}
+                    className="group p-4 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-gray-100 hover:border-teal-300 transition-all duration-300 hover:shadow-lg hover:-translate-y-1 cursor-pointer"
                     data-testid={`department-${dept.name.toLowerCase().replace(' ', '-')}`}
                   >
                     <div className="flex flex-col items-center text-center space-y-3">
