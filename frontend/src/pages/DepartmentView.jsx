@@ -51,38 +51,38 @@ const DepartmentView = () => {
   const getDepartmentInfo = () => {
     const icons = {
       'mri': { 
-        icon: 'https://img.icons8.com/fluency/96/mri.png',
+        icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913133.png',
         color: 'from-teal-500 to-teal-600', 
         name: 'MRI Scan' 
       },
       'xray': { 
-        icon: 'https://img.icons8.com/fluency/96/x-ray.png',
+        icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913149.png',
         color: 'from-cyan-500 to-cyan-600', 
         name: 'X-Ray' 
       },
       'ecg': { 
-        icon: 'https://img.icons8.com/fluency/96/ecg.png',
+        icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913099.png',
         color: 'from-blue-500 to-blue-600', 
         name: 'ECG' 
       },
       'blood-test': { 
-        icon: 'https://img.icons8.com/fluency/96/blood-test.png',
+        icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913145.png',
         color: 'from-red-500 to-red-600', 
         name: 'Blood Profile' 
       },
       'ct-scan': { 
-        icon: 'https://img.icons8.com/fluency/96/ct-scan.png',
+        icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913155.png',
         color: 'from-purple-500 to-purple-600', 
         name: 'CT Scan' 
       },
       'treatment': { 
-        icon: 'https://img.icons8.com/fluency/96/treatment.png',
+        icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913115.png',
         color: 'from-green-500 to-green-600', 
         name: 'Treatment' 
       }
     };
     return icons[departmentName] || { 
-      icon: 'https://img.icons8.com/fluency/96/hospital.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913099.png',
       color: 'from-gray-500 to-gray-600', 
       name: departmentName 
     };
