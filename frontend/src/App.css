@@ -12,6 +12,20 @@ body {
   min-height: 100vh;
 }
 
+/* Aggressively hide Emergent watermark */
+div[style*="position: fixed"][style*="bottom"],
+div[style*="position: fixed"][style*="right"],
+iframe[src*="emergent"],
+[class*="watermark"],
+[id*="watermark"],
+div[style*="z-index: 999"],
+div[style*="z-index: 9999"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
 .App {
   min-height: 100vh;
 }
