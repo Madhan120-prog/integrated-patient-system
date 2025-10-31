@@ -22,10 +22,12 @@ const Header = () => {
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         {/* Logo and Hospital Name */}
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-md">
-            <svg className="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
+          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-md overflow-hidden">
+            <img 
+              src="https://customer-assets.emergentagent.com/job_patient-hub-17/artifacts/u6w0dqw1_Screenshot%202025-10-31%20at%2012.56.03%E2%80%AFPM.png" 
+              alt="Hospital Logo" 
+              className="w-full h-full object-contain p-1"
+            />
           </div>
           <div>
             <h1 className="text-white text-xl font-bold" data-testid="hospital-name">City General Hospital</h1>
