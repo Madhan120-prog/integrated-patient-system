@@ -22,11 +22,11 @@ const Header = () => {
       <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
         {/* Logo and Hospital Name */}
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-white rounded-lg flex items-center justify-center shadow-md overflow-hidden">
+          <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-md overflow-hidden p-1">
             <img 
-              src="https://customer-assets.emergentagent.com/job_patient-hub-17/artifacts/u6w0dqw1_Screenshot%202025-10-31%20at%2012.56.03%E2%80%AFPM.png" 
-              alt="Hospital Logo" 
-              className="w-full h-full object-contain p-1"
+              src="https://customer-assets.emergentagent.com/job_patient-hub-17/artifacts/ad6o0j43_image.png" 
+              alt="City General Hospital Logo" 
+              className="w-full h-full object-contain"
             />
           </div>
           <div>
