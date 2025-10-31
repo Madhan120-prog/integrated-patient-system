@@ -25,13 +25,13 @@ const Header = () => {
           <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-md overflow-hidden p-1">
             <img 
               src="https://customer-assets.emergentagent.com/job_patient-hub-17/artifacts/ad6o0j43_image.png" 
-              alt="City General Hospital Logo" 
+              alt="XYZ Hospital Logo" 
               className="w-full h-full object-contain"
             />
           </div>
           <div>
-            <h1 className="text-white text-xl font-bold" data-testid="hospital-name">City General Hospital</h1>
-            <p className="text-teal-100 text-xs">Patient Record System</p>
+            <h1 className="text-white text-xl font-bold" data-testid="hospital-name">XYZ Hospital</h1>
+            <p className="text-teal-100 text-xs">Integrated Patient Record System</p>
           </div>
         </div>
 

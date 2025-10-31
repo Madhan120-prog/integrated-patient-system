@@ -13,11 +13,8 @@ const WelcomePage = () => {
   const [userName, setUserName] = React.useState('');
 
   useEffect(() => {
-    // Get user info
     const user = JSON.parse(localStorage.getItem('user') || '{}');
     setUserName(user.name || 'User');
-    
-    // Initialize data on page load
     initializeData();
   }, []);
 
@@ -46,12 +43,10 @@ const WelcomePage = () => {
         backgroundPosition: 'center'
       }}
     >
-      {/* Overlay with reduced opacity */}
       <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px]"></div>
       
       <div className="relative z-10 max-w-4xl w-full">
         <div className="text-center mb-12 space-y-6">
-          {/* Medical Icon */}
           <div className="flex justify-center mb-6">
             <div className="w-24 h-24 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center shadow-2xl transform hover:scale-105 transition-transform duration-300">
               <svg 
@@ -70,14 +65,13 @@ const WelcomePage = () => {
             </div>
           </div>
 
-          {/* Heading */}
           <div>
             <p className="text-lg text-teal-600 font-semibold mb-2">Welcome, {userName}</p>
             <h1 
               className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-800 leading-tight"
               data-testid="welcome-heading"
             >
-              United Patient Record
+              Integrated Patient Record
               <br />
               <span className="bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">
                 System
@@ -85,13 +79,11 @@ const WelcomePage = () => {
             </h1>
           </div>
 
-          {/* Subheading */}
           <p className="text-lg text-gray-700 max-w-2xl mx-auto leading-relaxed font-medium">
             Seamlessly access and integrate patient records from multiple hospital departments including MRI, X-Ray, ECG, CT Scan, Blood Profile, and Treatment centers - all in one unified platform.
           </p>
         </div>
 
-        {/* Feature Cards */}
         <div className="grid md:grid-cols-3 gap-6 mb-12">
           <Card className="p-6 bg-white/90 backdrop-blur-sm border-teal-100 hover:shadow-lg transition-all duration-300 hover:-translate-y-1" data-testid="feature-card-multi">
             <div className="w-12 h-12 bg-teal-100 rounded-lg flex items-center justify-center mb-4">
@@ -124,7 +116,6 @@ const WelcomePage = () => {
           </Card>
         </div>
 
-        {/* Continue Button */}
         <div className="text-center">
           <Button
             data-testid="continue-button"

@@ -16,7 +16,6 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Check if already authenticated
     const isAuthenticated = localStorage.getItem('isAuthenticated');
     if (isAuthenticated === 'true') {
       navigate('/welcome');
@@ -56,28 +55,25 @@ const LoginPage = () => {
         backgroundPosition: 'center'
       }}
     >
-      {/* Overlay with reduced opacity to show background more */}
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"></div>
       
       <div className="relative z-10 max-w-md w-full">
         <Card className="p-10 bg-white/95 backdrop-blur-md shadow-2xl border-0">
-          {/* Logo/Icon */}
           <div className="text-center mb-8">
             <div className="w-24 h-24 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg p-3">
               <img 
                 src="https://customer-assets.emergentagent.com/job_patient-hub-17/artifacts/ad6o0j43_image.png" 
-                alt="City General Hospital" 
+                alt="XYZ Hospital" 
                 className="w-full h-full object-contain"
               />
             </div>
             <h1 className="text-3xl font-bold text-gray-800 mb-1" data-testid="login-heading">
-              City General Hospital
+              XYZ Hospital
             </h1>
-            <p className="text-lg text-teal-600 font-semibold mb-1">United Patient Record System</p>
+            <p className="text-lg text-teal-600 font-semibold mb-1">Integrated Patient Record System</p>
             <p className="text-gray-600 text-sm">Healthcare Staff Portal</p>
           </div>
 
-          {/* Login Form */}
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
@@ -115,7 +111,6 @@ const LoginPage = () => {
             </Button>
           </form>
 
-          {/* Demo Credentials */}
           <div className="mt-8 p-4 bg-gray-50 rounded-lg border border-gray-200">
             <p className="text-sm font-semibold text-gray-700 mb-2">Demo Credentials:</p>
             <div className="text-xs text-gray-600 space-y-1">
