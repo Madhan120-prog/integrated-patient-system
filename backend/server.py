@@ -502,6 +502,48 @@ async def get_patient_analytics(patient_id: str):
         "recent_results": recent_results
     }
 
+@api_router.get("/department/{department_name}")
+async def get_department_records(department_name: str):
+    """Get all patient records for a specific department
+    
+    Args:
+        department_name: Name of department (mri, xray, ecg, blood_profile, ct_scan, treatment)
+    
+    Returns:
+        All records from that department with patient info
+    """
+    
+    department_map = {
+        "mri": "mri_records",
+        "xray": "xray_records",
+        "x-ray": "xray_records",
+        "ecg": "ecg_records",
+        "blood_profile": "blood_profile_records",
+        "blood-test": "blood_profile_records",
+        "ct_scan": "ct_scan_records",
+        "ct-scan": "ct_scan_records",
+        "treatment": "treatment_records"
+    }
+    
+    collection_name = department_map.get(department_name.lower())
+    if not collection_name:
+        raise HTTPException(status_code=404, detail="Department not found")
+    
+    collection = db[collection_name]
+    records = await collection.find({}, {"_id": 0}).to_list(1000)
+    
+    # Sort by date
+    if collection_name == "treatment_records":
+        records = sorted(records, key=lambda x: x.get("treatment_date", ""))
+    else:
+        records = sorted(records, key=lambda x: x.get("test_date", ""))
+    
+    return {
+        "department": department_name,
+        "records": records,
+        "total": len(records)
+    }
+
 @api_router.get("/patients")
 async def get_all_patients():
     """Get list of all patient IDs and names for reference"""
