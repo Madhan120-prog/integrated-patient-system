@@ -55,7 +55,8 @@ const SearchPage = () => {
   ];
 
   const handleDepartmentClick = (route) => {
-    navigate(`/department/${route}`);\n  };
+    navigate(`/department/${route}`);
+  };
 
   return (
     <div className="min-h-screen p-4 py-8" style={{
