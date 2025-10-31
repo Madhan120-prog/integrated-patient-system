@@ -15,15 +15,24 @@ body {
 /* Aggressively hide Emergent watermark */
 div[style*="position: fixed"][style*="bottom"],
 div[style*="position: fixed"][style*="right"],
+div[style*="position: absolute"][style*="bottom"],
+div[style*="position: absolute"][style*="right"],
 iframe[src*="emergent"],
 [class*="watermark"],
 [id*="watermark"],
+[class*="badge"],
+[id*="badge"],
 div[style*="z-index: 999"],
-div[style*="z-index: 9999"] {
+div[style*="z-index: 9999"],
+div[style*="z-index: 99999"],
+a[href*="emergent"] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  overflow: hidden !important;
 }
 
 .App {
