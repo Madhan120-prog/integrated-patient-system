@@ -18,37 +18,37 @@ const SearchPage = () => {
   const departments = [
     {
       name: 'MRI Scan',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913133.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774299.png',
       color: 'from-teal-400 to-teal-600',
       route: 'mri'
     },
     {
       name: 'X-Ray',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913149.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774337.png',
       color: 'from-cyan-400 to-cyan-600',
       route: 'xray'
     },
     {
       name: 'ECG',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913099.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774278.png',
       color: 'from-blue-400 to-blue-600',
       route: 'ecg'
     },
     {
       name: 'Blood Test',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913145.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774220.png',
       color: 'from-red-400 to-red-600',
       route: 'blood-test'
     },
     {
       name: 'CT Scan',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913155.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/2966/2966334.png',
       color: 'from-purple-400 to-purple-600',
       route: 'ct-scan'
     },
     {
       name: 'Treatment',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913115.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774286.png',
       color: 'from-green-400 to-green-600',
       route: 'treatment'
     }
