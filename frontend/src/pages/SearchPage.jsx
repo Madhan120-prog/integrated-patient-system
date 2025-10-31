@@ -19,34 +19,43 @@ const SearchPage = () => {
     {
       name: 'MRI Scan',
       icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913133.png',
-      color: 'from-teal-400 to-teal-600'
+      color: 'from-teal-400 to-teal-600',
+      route: 'mri'
     },
     {
       name: 'X-Ray',
       icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913149.png',
-      color: 'from-cyan-400 to-cyan-600'
+      color: 'from-cyan-400 to-cyan-600',
+      route: 'xray'
     },
     {
       name: 'ECG',
       icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913099.png',
-      color: 'from-blue-400 to-blue-600'
+      color: 'from-blue-400 to-blue-600',
+      route: 'ecg'
     },
     {
       name: 'Blood Test',
       icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913145.png',
-      color: 'from-red-400 to-red-600'
+      color: 'from-red-400 to-red-600',
+      route: 'blood-test'
     },
     {
       name: 'CT Scan',
       icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913155.png',
-      color: 'from-purple-400 to-purple-600'
+      color: 'from-purple-400 to-purple-600',
+      route: 'ct-scan'
     },
     {
       name: 'Treatment',
       icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913115.png',
-      color: 'from-green-400 to-green-600'
+      color: 'from-green-400 to-green-600',
+      route: 'treatment'
     }
   ];
+
+  const handleDepartmentClick = (route) => {
+    navigate(`/department/${route}`);\n  };
 
   return (
     <div className="min-h-screen p-4 py-8" style={{
