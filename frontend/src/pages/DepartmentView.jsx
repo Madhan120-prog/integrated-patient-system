@@ -218,7 +218,66 @@ const DepartmentView = () => {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className={`w-24 h-24 bg-gradient-to-br ${deptInfo.color} rounded-2xl flex items-center justify-center shadow-lg p-4`}>
-                <img src={deptInfo.icon} alt={deptInfo.name} className="w-full h-full object-contain" />
+                {deptInfo.name === 'MRI Scan' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="3" opacity="0.3"/>
+                    <circle cx="32" cy="32" r="20" stroke="currentColor" strokeWidth="2.5"/>
+                    <circle cx="32" cy="32" r="12" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M32 20 L32 12 M32 44 L32 52 M20 32 L12 32 M44 32 L52 32" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                    <circle cx="32" cy="32" r="4" fill="currentColor"/>
+                  </svg>
+                )}
+                {deptInfo.name === 'X-Ray' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <rect x="8" y="8" width="48" height="48" stroke="currentColor" strokeWidth="2" rx="4" opacity="0.2"/>
+                    <path d="M20 18 L44 18 L42 24 L22 24 Z" fill="currentColor" opacity="0.6"/>
+                    <path d="M26 26 L26 48" stroke="currentColor" strokeWidth="2.5"/>
+                    <path d="M32 26 L32 48" stroke="currentColor" strokeWidth="2.5"/>
+                    <path d="M38 26 L38 48" stroke="currentColor" strokeWidth="2.5"/>
+                    <path d="M20 32 L24 32 M40 32 L44 32" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M20 40 L24 40 M40 40 L44 40" stroke="currentColor" strokeWidth="2"/>
+                    <circle cx="32" cy="48" r="3" fill="currentColor"/>
+                  </svg>
+                )}
+                {deptInfo.name === 'ECG' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <rect x="8" y="20" width="48" height="24" stroke="currentColor" strokeWidth="2" rx="3" opacity="0.3"/>
+                    <polyline points="8,32 16,32 20,24 24,40 28,28 32,32 36,32 40,24 44,40 48,28 52,32 56,32" 
+                      stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    <circle cx="32" cy="32" r="2" fill="currentColor"/>
+                  </svg>
+                )}
+                {deptInfo.name === 'Blood Profile' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <path d="M32 12 C28 18, 24 24, 24 32 C24 40, 28 44, 32 44 C36 44, 40 40, 40 32 C40 24, 36 18, 32 12 Z" 
+                      fill="currentColor" opacity="0.8"/>
+                    <path d="M28 32 C28 36, 29 38, 32 38 C35 38, 36 36, 36 32 C36 28, 34 24, 32 20 C30 24, 28 28, 28 32 Z" 
+                      fill="currentColor" opacity="0.5"/>
+                    <rect x="26" y="44" width="12" height="8" rx="1" stroke="currentColor" strokeWidth="2" fill="none"/>
+                    <line x1="26" y1="48" x2="38" y2="48" stroke="currentColor" strokeWidth="1"/>
+                  </svg>
+                )}
+                {deptInfo.name === 'CT Scan' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <circle cx="32" cy="32" r="24" stroke="currentColor" strokeWidth="3" opacity="0.3"/>
+                    <circle cx="32" cy="32" r="16" stroke="currentColor" strokeWidth="2.5"/>
+                    <ellipse cx="32" cy="32" rx="8" ry="16" stroke="currentColor" strokeWidth="2" opacity="0.6"/>
+                    <ellipse cx="32" cy="32" rx="16" ry="8" stroke="currentColor" strokeWidth="2" opacity="0.6"/>
+                    <circle cx="32" cy="32" r="4" fill="currentColor"/>
+                    <path d="M32 8 L32 14 M32 50 L32 56 M8 32 L14 32 M50 32 L56 32" 
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                )}
+                {deptInfo.name === 'Treatment' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <rect x="28" y="12" width="8" height="40" rx="2" fill="currentColor"/>
+                    <rect x="12" y="28" width="40" height="8" rx="2" fill="currentColor"/>
+                    <circle cx="32" cy="32" r="8" stroke="currentColor" strokeWidth="2.5" fill="none"/>
+                    <path d="M38 20 L44 20 C46 20, 48 22, 48 24 L48 28" 
+                      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.7"/>
+                    <circle cx="48" cy="32" r="3" fill="currentColor" opacity="0.7"/>
+                  </svg>
+                )}
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-800 mb-2" data-testid="department-heading">
