@@ -63,10 +63,12 @@ const LoginPage = () => {
         <Card className="p-10 bg-white/95 backdrop-blur-md shadow-2xl border-0">
           {/* Logo/Icon */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 bg-gradient-to-br from-teal-500 to-cyan-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg">
-              <svg className="w-11 h-11 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
+            <div className="w-24 h-24 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg p-3">
+              <img 
+                src="https://customer-assets.emergentagent.com/job_patient-hub-17/artifacts/ad6o0j43_image.png" 
+                alt="City General Hospital" 
+                className="w-full h-full object-contain"
+              />
             </div>
             <h1 className="text-3xl font-bold text-gray-800 mb-1" data-testid="login-heading">
               City General Hospital
