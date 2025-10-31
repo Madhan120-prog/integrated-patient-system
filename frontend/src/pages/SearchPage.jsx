@@ -145,35 +145,65 @@ const SearchPage = () => {
                     data-testid={`department-${dept.name.toLowerCase().replace(' ', '-')}`}
                   >
                     <div className="flex flex-col items-center text-center space-y-3">
-                      <div className={`w-20 h-20 bg-gradient-to-br ${dept.color} rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 p-2`}>
+                      <div className={`w-20 h-20 bg-gradient-to-br ${dept.color} rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 p-3`}>
                         {dept.name === 'MRI Scan' && (
-                          <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-5-9h10v2H7z"/>
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="3" opacity="0.3"/>
+                            <circle cx="32" cy="32" r="20" stroke="currentColor" strokeWidth="2.5"/>
+                            <circle cx="32" cy="32" r="12" stroke="currentColor" strokeWidth="2"/>
+                            <path d="M32 20 L32 12 M32 44 L32 52 M20 32 L12 32 M44 32 L52 32" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                            <circle cx="32" cy="32" r="4" fill="currentColor"/>
                           </svg>
                         )}
                         {dept.name === 'X-Ray' && (
-                          <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM8 17.5c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5-1.5.67-1.5 1.5.67 1.5 1.5 1.5zM12 13c.55 0 1-.45 1-1s-.45-1-1-1-1 .45-1 1 .45 1 1 1zm4 4.5c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5-1.5.67-1.5 1.5.67 1.5 1.5 1.5z"/>
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <rect x="8" y="8" width="48" height="48" stroke="currentColor" strokeWidth="2" rx="4" opacity="0.2"/>
+                            <path d="M20 18 L44 18 L42 24 L22 24 Z" fill="currentColor" opacity="0.6"/>
+                            <path d="M26 26 L26 48" stroke="currentColor" strokeWidth="2.5"/>
+                            <path d="M32 26 L32 48" stroke="currentColor" strokeWidth="2.5"/>
+                            <path d="M38 26 L38 48" stroke="currentColor" strokeWidth="2.5"/>
+                            <path d="M20 32 L24 32 M40 32 L44 32" stroke="currentColor" strokeWidth="2"/>
+                            <path d="M20 40 L24 40 M40 40 L44 40" stroke="currentColor" strokeWidth="2"/>
+                            <circle cx="32" cy="48" r="3" fill="currentColor"/>
                           </svg>
                         )}
                         {dept.name === 'ECG' && (
-                          <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M20.57 14.86L22 13.43 20.57 12 17 15.57 8.43 7 12 3.43 10.57 2 9.14 3.43 7.71 2 5.57 4.14 4.14 2.71 2.71 4.14l1.43 1.43L2 7.71l1.43 1.43L2 10.57 3.43 12 7 8.43 15.57 17 12 20.57 13.43 22l1.43-1.43L16.29 22l2.14-2.14 1.43 1.43 1.43-1.43-1.43-1.43L22 16.29z"/>
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <rect x="8" y="20" width="48" height="24" stroke="currentColor" strokeWidth="2" rx="3" opacity="0.3"/>
+                            <polyline points="8,32 16,32 20,24 24,40 28,28 32,32 36,32 40,24 44,40 48,28 52,32 56,32" 
+                              stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                            <circle cx="32" cy="32" r="2" fill="currentColor"/>
                           </svg>
                         )}
                         {dept.name === 'Blood Test' && (
-                          <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2c-1.1 0-2 .9-2 2v7c0 2.21 1.79 4 4 4s4-1.79 4-4V4c0-1.1-.9-2-2-2h-4zm2 11c-1.1 0-2-.9-2-2V4h4v7c0 1.1-.9 2-2 2zm-2 3c0 2.76 2.24 5 5 5s5-2.24 5-5h-2c0 1.65-1.35 3-3 3s-3-1.35-3-3h-2z"/>
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <path d="M32 12 C28 18, 24 24, 24 32 C24 40, 28 44, 32 44 C36 44, 40 40, 40 32 C40 24, 36 18, 32 12 Z" 
+                              fill="currentColor" opacity="0.8"/>
+                            <path d="M28 32 C28 36, 29 38, 32 38 C35 38, 36 36, 36 32 C36 28, 34 24, 32 20 C30 24, 28 28, 28 32 Z" 
+                              fill="currentColor" opacity="0.5"/>
+                            <rect x="26" y="44" width="12" height="8" rx="1" stroke="currentColor" strokeWidth="2" fill="none"/>
+                            <line x1="26" y1="48" x2="38" y2="48" stroke="currentColor" strokeWidth="1"/>
                           </svg>
                         )}
                         {dept.name === 'CT Scan' && (
-                          <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm1-13h-2v6l5.25 3.15.75-1.23-4-2.42z"/>
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="24" stroke="currentColor" strokeWidth="3" opacity="0.3"/>
+                            <circle cx="32" cy="32" r="16" stroke="currentColor" strokeWidth="2.5"/>
+                            <ellipse cx="32" cy="32" rx="8" ry="16" stroke="currentColor" strokeWidth="2" opacity="0.6"/>
+                            <ellipse cx="32" cy="32" rx="16" ry="8" stroke="currentColor" strokeWidth="2" opacity="0.6"/>
+                            <circle cx="32" cy="32" r="4" fill="currentColor"/>
+                            <path d="M32 8 L32 14 M32 50 L32 56 M8 32 L14 32 M50 32 L56 32" 
+                              stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                           </svg>
                         )}
                         {dept.name === 'Treatment' && (
-                          <svg className="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 24 24">
-                            <path d="M19 3H5c-1.1 0-1.99.9-1.99 2L3 19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM11 7h2v2h-2zm0 4h2v6h-2z"/>
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <rect x="28" y="12" width="8" height="40" rx="2" fill="currentColor"/>
+                            <rect x="12" y="28" width="40" height="8" rx="2" fill="currentColor"/>
+                            <circle cx="32" cy="32" r="8" stroke="currentColor" strokeWidth="2.5" fill="none"/>
+                            <path d="M38 20 L44 20 C46 20, 48 22, 48 24 L48 28" 
+                              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.7"/>
+                            <circle cx="48" cy="32" r="3" fill="currentColor" opacity="0.7"/>
                           </svg>
                         )}
                       </div>
