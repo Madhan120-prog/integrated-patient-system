@@ -1,3 +1,6 @@
+
+from dotenv import load_dotenv
+load_dotenv()
 from fastapi import FastAPI, APIRouter, Query, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
