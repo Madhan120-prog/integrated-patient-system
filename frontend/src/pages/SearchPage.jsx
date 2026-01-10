@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
+import DeepSearchModal from '../components/DeepSearchModal';
 
 const SearchPage = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const [deepSearchOpen, setDeepSearchOpen] = useState(false);
 
   const handleSearch = (e) => {
     e.preventDefault();
