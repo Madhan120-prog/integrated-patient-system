@@ -166,7 +166,7 @@ const DeepSearchModal = ({ open, onClose }) => {
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl font-bold text-teal-600">🔍 Deep Search - Clinical Assistant</DialogTitle>
+          <DialogTitle className="text-2xl font-bold text-teal-600">🩺 DocAssist - Voice AI Clinical Assistant</DialogTitle>
         </DialogHeader>
 
         {/* Step 1: Search Patient */}
