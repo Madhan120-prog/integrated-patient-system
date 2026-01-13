@@ -166,6 +166,15 @@ class PatientAnalytics(BaseModel):
     health_trend: str
     recent_results: List[dict]
 
+class DeepQueryRequest(BaseModel):
+    patient_id: str
+    question: str
+
+class DeepQueryResponse(BaseModel):
+    answer: str
+    evidence: List[dict] = []
+    matched_departments: List[str] = []
+
 # Helper function to generate sample data
 async def populate_sample_data():
     """Populate all department collections with sample patient data using Faker"""
