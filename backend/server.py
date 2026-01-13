@@ -33,6 +33,10 @@ api_router = APIRouter(prefix="/api")
 # Initialize Faker
 fake = Faker()
 
+# Create uploads directory for file analysis
+UPLOAD_DIR = ROOT_DIR / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
+
 # Sample medical report image URLs
 MEDICAL_IMAGES = {
     "xray": [
