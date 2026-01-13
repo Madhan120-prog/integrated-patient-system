@@ -561,6 +561,148 @@ async def get_all_patients():
     profiles = await db.profiles.find({}, {"_id": 0, "patient_id": 1, "name": 1}).to_list(1000)
     return {"patients": profiles}
 
+@api_router.post("/deep-query", response_model=DeepQueryResponse)
+async def deep_query(request: DeepQueryRequest):
+    """AI-powered clinical assistant to analyze patient records and answer questions"""
+    
+    patient_id = request.patient_id
+    question = request.question
+    
+    # Fetch all patient data
+    query = {"patient_id": patient_id}
+    
+    profile = await db.profiles.find_one(query, {"_id": 0})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    
+    # Fetch all records
+    mri_records = await db.mri_records.find(query, {"_id": 0}).to_list(1000)
+    xray_records = await db.xray_records.find(query, {"_id": 0}).to_list(1000)
+    ecg_records = await db.ecg_records.find(query, {"_id": 0}).to_list(1000)
+    treatment_records = await db.treatment_records.find(query, {"_id": 0}).to_list(1000)
+    blood_profile_records = await db.blood_profile_records.find(query, {"_id": 0}).to_list(1000)
+    ct_scan_records = await db.ct_scan_records.find(query, {"_id": 0}).to_list(1000)
+    
+    # Build context for LLM
+    patient_context = f"""
+PATIENT PROFILE:
+- Name: {profile.get('name')}
+- Patient ID: {profile.get('patient_id')}
+- Age: {profile.get('age')} years
+- Gender: {profile.get('gender')}
+- Blood Group: {profile.get('blood_group')}
+- Address: {profile.get('address')}
+- Phone: {profile.get('phone')}
+- Registration Date: {profile.get('registration_date')}
+
+MRI RECORDS ({len(mri_records)} records):
+{json.dumps(mri_records, indent=2) if mri_records else 'No MRI records'}
+
+X-RAY RECORDS ({len(xray_records)} records):
+{json.dumps(xray_records, indent=2) if xray_records else 'No X-Ray records'}
+
+ECG RECORDS ({len(ecg_records)} records):
+{json.dumps(ecg_records, indent=2) if ecg_records else 'No ECG records'}
+
+BLOOD PROFILE RECORDS ({len(blood_profile_records)} records):
+{json.dumps(blood_profile_records, indent=2) if blood_profile_records else 'No blood profile records'}
+
+CT SCAN RECORDS ({len(ct_scan_records)} records):
+{json.dumps(ct_scan_records, indent=2) if ct_scan_records else 'No CT scan records'}
+
+TREATMENT RECORDS ({len(treatment_records)} records):
+{json.dumps(treatment_records, indent=2) if treatment_records else 'No treatment records'}
+"""
+
+    system_message = """You are DocAssist, an AI clinical assistant for XYZ Hospital. 
+You have access to a patient's complete medical records including MRI scans, X-Rays, ECG tests, blood profiles, CT scans, and treatment history.
+
+Your role is to:
+1. Answer questions about the patient's medical history accurately
+2. Provide insights based on the available data
+3. Highlight any concerning patterns or results
+4. Be helpful to doctors and medical staff
+
+Guidelines:
+- Be concise but thorough
+- Always reference specific records when answering
+- If asked about something not in the records, clearly state that
+- Use medical terminology appropriately
+- Never make diagnoses - only summarize and analyze existing data
+- Be professional and empathetic"""
+
+    try:
+        # Initialize LLM chat with OpenAI GPT-5.2
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="LLM API key not configured")
+        
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"docassist_{patient_id}_{datetime.now(timezone.utc).timestamp()}",
+            system_message=system_message
+        ).with_model("openai", "gpt-5.2")
+        
+        # Create user message with patient context
+        user_message = UserMessage(
+            text=f"""Based on the following patient records, please answer this question: {question}
+
+{patient_context}"""
+        )
+        
+        # Get LLM response
+        response = await chat.send_message(user_message)
+        
+        # Determine which departments were relevant based on question keywords
+        matched_departments = []
+        question_lower = question.lower()
+        if any(word in question_lower for word in ['mri', 'brain', 'spine', 'magnetic']):
+            matched_departments.append('MRI')
+        if any(word in question_lower for word in ['xray', 'x-ray', 'chest', 'bone', 'fracture']):
+            matched_departments.append('X-Ray')
+        if any(word in question_lower for word in ['ecg', 'heart', 'cardiac', 'rhythm']):
+            matched_departments.append('ECG')
+        if any(word in question_lower for word in ['blood', 'hemoglobin', 'platelet', 'wbc', 'rbc', 'lipid', 'liver', 'kidney', 'thyroid']):
+            matched_departments.append('Blood Profile')
+        if any(word in question_lower for word in ['ct', 'scan', 'computed tomography']):
+            matched_departments.append('CT Scan')
+        if any(word in question_lower for word in ['treatment', 'medicine', 'medication', 'prescription', 'therapy']):
+            matched_departments.append('Treatment')
+        
+        # If no specific department matched, include all with data
+        if not matched_departments:
+            if mri_records: matched_departments.append('MRI')
+            if xray_records: matched_departments.append('X-Ray')
+            if ecg_records: matched_departments.append('ECG')
+            if blood_profile_records: matched_departments.append('Blood Profile')
+            if ct_scan_records: matched_departments.append('CT Scan')
+            if treatment_records: matched_departments.append('Treatment')
+        
+        # Collect relevant evidence records (most recent from each matched department)
+        evidence = []
+        if 'MRI' in matched_departments and mri_records:
+            evidence.extend(sorted(mri_records, key=lambda x: x.get('test_date', ''), reverse=True)[:2])
+        if 'X-Ray' in matched_departments and xray_records:
+            evidence.extend(sorted(xray_records, key=lambda x: x.get('test_date', ''), reverse=True)[:2])
+        if 'ECG' in matched_departments and ecg_records:
+            evidence.extend(sorted(ecg_records, key=lambda x: x.get('test_date', ''), reverse=True)[:2])
+        if 'Blood Profile' in matched_departments and blood_profile_records:
+            evidence.extend(sorted(blood_profile_records, key=lambda x: x.get('test_date', ''), reverse=True)[:2])
+        if 'CT Scan' in matched_departments and ct_scan_records:
+            evidence.extend(sorted(ct_scan_records, key=lambda x: x.get('test_date', ''), reverse=True)[:2])
+        if 'Treatment' in matched_departments and treatment_records:
+            evidence.extend(sorted(treatment_records, key=lambda x: x.get('treatment_date', ''), reverse=True)[:2])
+        
+        return DeepQueryResponse(
+            answer=response,
+            evidence=evidence[:6],  # Limit to 6 evidence cards
+            matched_departments=matched_departments
+        )
+        
+    except Exception as e:
+        logger.error(f"Deep query error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+
 # Include the router in the main app
 app.include_router(api_router)
 
