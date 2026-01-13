@@ -137,15 +137,51 @@ const DeepSearchModal = ({ open, onClose }) => {
     if (!voiceEnabled) return;
     
     if (synthRef.current) {
+      // Cancel any ongoing speech
       synthRef.current.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
-      synthRef.current.speak(utterance);
+      
+      // Wait for voices to load (some browsers need this)
+      const speakNow = () => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        
+        // Try to get a good English voice
+        const voices = synthRef.current.getVoices();
+        const englishVoice = voices.find(v => 
+          v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Microsoft') || v.name.includes('Samantha'))
+        ) || voices.find(v => v.lang.startsWith('en'));
+        
+        if (englishVoice) {
+          utterance.voice = englishVoice;
+        }
+        
+        utterance.onstart = () => {
+          setIsSpeaking(true);
+          console.log('Voice started speaking');
+        };
+        utterance.onend = () => {
+          setIsSpeaking(false);
+          console.log('Voice finished speaking');
+        };
+        utterance.onerror = (e) => {
+          setIsSpeaking(false);
+          console.error('Voice error:', e);
+          toast.error('Voice output failed. Please check your browser settings.');
+        };
+        
+        synthRef.current.speak(utterance);
+      };
+      
+      // If voices aren't loaded yet, wait for them
+      if (synthRef.current.getVoices().length === 0) {
+        synthRef.current.onvoiceschanged = speakNow;
+        // Fallback: try speaking anyway after a short delay
+        setTimeout(speakNow, 100);
+      } else {
+        speakNow();
+      }
     }
   };
 
@@ -157,6 +193,12 @@ const DeepSearchModal = ({ open, onClose }) => {
   };
 
   const toggleVoice = () => {
+    // Test voice when enabling
+    if (!voiceEnabled) {
+      const testUtterance = new SpeechSynthesisUtterance('Voice enabled');
+      testUtterance.volume = 0.5;
+      synthRef.current?.speak(testUtterance);
+    }
     if (isSpeaking) {
       stopSpeaking();
     }
