@@ -18,8 +18,19 @@ const DeepSearchModal = ({ open, onClose }) => {
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true); // Voice output toggle
   const recognitionRef = useRef(null);
   const synthRef = useRef(window.speechSynthesis);
+  const messagesEndRef = useRef(null);
+
+  // Auto-scroll to bottom of messages
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -40,21 +51,37 @@ const DeepSearchModal = ({ open, onClose }) => {
         setIsListening(false);
       };
 
-      recognitionRef.current.onerror = () => {
+      recognitionRef.current.onerror = (event) => {
         setIsListening(false);
-        toast.error('Voice recognition error');
+        if (event.error !== 'no-speech') {
+          toast.error('Voice recognition error: ' + event.error);
+        }
       };
 
       recognitionRef.current.onend = () => {
         setIsListening(false);
       };
     }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+      if (synthRef.current) {
+        synthRef.current.cancel();
+      }
+    };
   }, [step]);
 
   const startListening = () => {
     if (recognitionRef.current) {
-      setIsListening(true);
-      recognitionRef.current.start();
+      try {
+        setIsListening(true);
+        recognitionRef.current.start();
+      } catch (error) {
+        setIsListening(false);
+        toast.error('Could not start voice recognition');
+      }
     } else {
       toast.error('Speech recognition not supported in this browser');
     }
@@ -68,6 +95,8 @@ const DeepSearchModal = ({ open, onClose }) => {
   };
 
   const speak = (text) => {
+    if (!voiceEnabled) return; // Skip if voice is disabled
+    
     if (synthRef.current) {
       synthRef.current.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
@@ -76,6 +105,7 @@ const DeepSearchModal = ({ open, onClose }) => {
       utterance.volume = 1.0;
       utterance.onstart = () => setIsSpeaking(true);
       utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
       synthRef.current.speak(utterance);
     }
   };
@@ -85,6 +115,14 @@ const DeepSearchModal = ({ open, onClose }) => {
       synthRef.current.cancel();
       setIsSpeaking(false);
     }
+  };
+
+  const toggleVoice = () => {
+    if (isSpeaking) {
+      stopSpeaking();
+    }
+    setVoiceEnabled(!voiceEnabled);
+    toast.success(voiceEnabled ? 'Voice output disabled' : 'Voice output enabled');
   };
 
   const handleSearchPatient = async () => {
@@ -111,10 +149,12 @@ const DeepSearchModal = ({ open, onClose }) => {
 
   const handleConfirmPatient = () => {
     setStep('chat');
+    const welcomeMsg = `Hello! I'm DocAssist, your AI clinical assistant. I have access to all medical records for ${patientData.profile.name} (${patientData.profile.patient_id}). You can ask me anything about their reports, tests, treatments, or medical history. How can I help you today?`;
     setMessages([{
       role: 'assistant',
-      content: `Hello! I'm your clinical assistant. I have access to all medical records for ${patientData.profile.name} (${patientData.profile.patient_id}). You can ask me anything about their reports, tests, treatments, or medical history. How can I help you?`
+      content: welcomeMsg
     }]);
+    speak(welcomeMsg);
   };
 
   const handleAskQuestion = async () => {
@@ -122,13 +162,14 @@ const DeepSearchModal = ({ open, onClose }) => {
 
     const userMessage = { role: 'user', content: question };
     setMessages(prev => [...prev, userMessage]);
+    const currentQuestion = question;
     setQuestion('');
     setLoading(true);
 
     try {
       const response = await axios.post(`${API}/deep-query`, {
         patient_id: patientData.profile.patient_id,
-        question: question
+        question: currentQuestion
       });
 
       const assistantMessage = {
@@ -141,10 +182,11 @@ const DeepSearchModal = ({ open, onClose }) => {
       setMessages(prev => [...prev, assistantMessage]);
       speak(response.data.answer);
     } catch (error) {
+      const errorMsg = 'Sorry, I encountered an error processing your question. Please try again.';
       toast.error('Error processing question');
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Sorry, I encountered an error processing your question. Please try again.'
+        content: errorMsg
       }]);
     } finally {
       setLoading(false);
