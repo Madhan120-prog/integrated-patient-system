@@ -292,11 +292,23 @@ const DeepSearchModal = ({ open, onClose }) => {
                 <p className="font-semibold">{patientData.profile.name} ({patientData.profile.patient_id})</p>
                 <p className="text-xs text-gray-600">{patientData.profile.age}y / {patientData.profile.gender} / {patientData.profile.blood_group}</p>
               </div>
-              {isSpeaking && (
-                <Button size="sm" onClick={stopSpeaking} variant="outline" className="bg-red-100">
-                  🔇 Mute
+              <div className="flex gap-2">
+                {/* Voice Toggle Button */}
+                <Button 
+                  size="sm" 
+                  onClick={toggleVoice} 
+                  variant="outline" 
+                  className={voiceEnabled ? 'bg-green-100 hover:bg-green-200' : 'bg-gray-100 hover:bg-gray-200'}
+                  data-testid="voice-toggle-btn"
+                >
+                  {voiceEnabled ? '🔊 Voice On' : '🔇 Voice Off'}
                 </Button>
-              )}
+                {isSpeaking && (
+                  <Button size="sm" onClick={stopSpeaking} variant="outline" className="bg-red-100 hover:bg-red-200" data-testid="stop-speaking-btn">
+                    ⏹️ Stop
+                  </Button>
+                )}
+              </div>
             </Card>
 
             {/* Chat Messages */}
@@ -311,13 +323,21 @@ const DeepSearchModal = ({ open, onClose }) => {
                     <p className="whitespace-pre-wrap">{msg.content}</p>
                     {msg.evidence && msg.evidence.length > 0 && (
                       <div className="mt-3 space-y-2">
-                        <p className="text-xs font-semibold text-gray-500">Evidence:</p>
+                        <p className="text-xs font-semibold text-gray-500">📋 Supporting Evidence:</p>
                         {msg.evidence.map((ev, i) => (
-                          <Card key={i} className="p-3 text-sm">
-                            <p className="font-semibold">{ev.test_name || ev.treatment_name}</p>
-                            <p className="text-xs text-gray-600">Date: {ev.test_date || ev.treatment_date}</p>
-                            <p className="text-xs">Result: {ev.result}</p>
+                          <Card key={i} className="p-3 text-sm bg-gray-50">
+                            <p className="font-semibold text-teal-700">{ev.test_name || ev.treatment_name}</p>
+                            <p className="text-xs text-gray-600">📅 Date: {ev.test_date || ev.treatment_date}</p>
+                            <p className="text-xs">🔬 Result: <span className="font-medium">{ev.result}</span></p>
+                            {ev.medicines && <p className="text-xs">💊 Medicines: {ev.medicines}</p>}
                           </Card>
+                        ))}
+                      </div>
+                    )}
+                    {msg.departments && msg.departments.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {msg.departments.map((dept, i) => (
+                          <span key={i} className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded text-xs">{dept}</span>
                         ))}
                       </div>
                     )}
@@ -327,14 +347,16 @@ const DeepSearchModal = ({ open, onClose }) => {
               {loading && (
                 <div className="flex justify-start">
                   <div className="bg-white border border-gray-200 p-4 rounded-lg">
-                    <div className="flex space-x-2">
+                    <div className="flex items-center space-x-2">
                       <div className="w-2 h-2 bg-teal-600 rounded-full animate-bounce"></div>
                       <div className="w-2 h-2 bg-teal-600 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
                       <div className="w-2 h-2 bg-teal-600 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                      <span className="text-sm text-gray-500 ml-2">DocAssist is thinking...</span>
                     </div>
                   </div>
                 </div>
               )}
+              <div ref={messagesEndRef} />
             </div>
 
             {/* Input Area */}
@@ -345,23 +367,33 @@ const DeepSearchModal = ({ open, onClose }) => {
                 onChange={(e) => setQuestion(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && !loading && handleAskQuestion()}
                 className="flex-1"
+                data-testid="chat-input"
               />
               <Button
                 onClick={isListening ? stopListening : startListening}
                 variant="outline"
-                className={isListening ? 'bg-red-100' : ''}
+                className={isListening ? 'bg-red-100 animate-pulse' : 'hover:bg-teal-50'}
                 disabled={loading}
+                data-testid="mic-button"
               >
-                {isListening ? '⏹️' : '🎤'}
+                {isListening ? '🎤 Listening...' : '🎤'}
               </Button>
               <Button
                 onClick={handleAskQuestion}
                 disabled={loading || !question.trim()}
                 className="bg-teal-600 hover:bg-teal-700"
+                data-testid="send-button"
               >
                 Send
               </Button>
             </div>
+            
+            {/* Voice Status Indicator */}
+            {isListening && (
+              <div className="text-center text-sm text-teal-600 animate-pulse">
+                🎤 Listening... Speak your question now
+              </div>
+            )}
           </div>
         )}
       </DialogContent>
