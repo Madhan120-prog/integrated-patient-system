@@ -709,6 +709,133 @@ Guidelines:
         logger.error(f"Deep query error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
 
+class FileAnalysisResponse(BaseModel):
+    analysis: str
+    file_type: str
+    suggestions: List[str] = []
+
+@api_router.post("/analyze-document", response_model=FileAnalysisResponse)
+async def analyze_document(
+    file: UploadFile = File(...),
+    patient_id: str = Form(...),
+    question: str = Form(default="Analyze this medical document and provide a detailed summary.")
+):
+    """Analyze uploaded medical documents (images, PDFs) using Gemini AI"""
+    
+    # Validate file type
+    allowed_types = {
+        'image/png': 'image/png',
+        'image/jpeg': 'image/jpeg',
+        'image/jpg': 'image/jpeg',
+        'image/webp': 'image/webp',
+        'application/pdf': 'application/pdf'
+    }
+    
+    content_type = file.content_type
+    if content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file type: {content_type}. Allowed: PNG, JPEG, WebP, PDF"
+        )
+    
+    # Get patient context
+    query = {"patient_id": patient_id}
+    profile = await db.profiles.find_one(query, {"_id": 0})
+    
+    patient_context = ""
+    if profile:
+        patient_context = f"""
+Patient Context:
+- Name: {profile.get('name')}
+- Patient ID: {profile.get('patient_id')}
+- Age: {profile.get('age')} years
+- Gender: {profile.get('gender')}
+- Blood Group: {profile.get('blood_group')}
+"""
+    
+    # Save uploaded file temporarily
+    file_id = str(uuid.uuid4())
+    file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'bin'
+    temp_file_path = UPLOAD_DIR / f"{file_id}.{file_extension}"
+    
+    try:
+        with open(temp_file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Initialize Gemini chat for file analysis
+        api_key = os.environ.get('EMERGENT_LLM_KEY')
+        if not api_key:
+            raise HTTPException(status_code=500, detail="LLM API key not configured")
+        
+        system_message = """You are DocAssist, an AI medical document analyzer for XYZ Hospital.
+You are analyzing a medical document (X-ray, MRI, CT scan, lab report PDF, etc.).
+
+Your role is to:
+1. Identify the type of medical document
+2. Describe what you observe in the image/document
+3. Highlight any notable findings or areas of concern
+4. Provide a professional medical summary
+
+Guidelines:
+- Be thorough but concise
+- Use appropriate medical terminology
+- Note any abnormalities or areas requiring attention
+- DO NOT make definitive diagnoses - provide observations and suggest follow-up
+- Always recommend consulting with the appropriate specialist
+- Be professional and objective"""
+
+        chat = LlmChat(
+            api_key=api_key,
+            session_id=f"docassist_file_{file_id}",
+            system_message=system_message
+        ).with_model("gemini", "gemini-2.5-flash")
+        
+        # Create file content for Gemini
+        file_content = FileContentWithMimeType(
+            file_path=str(temp_file_path),
+            mime_type=allowed_types[content_type]
+        )
+        
+        # Create message with file attachment
+        full_question = f"{patient_context}\n\nDoctor's Question: {question}"
+        user_message = UserMessage(
+            text=full_question,
+            file_contents=[file_content]
+        )
+        
+        # Get AI analysis
+        analysis = await chat.send_message(user_message)
+        
+        # Determine file type for response
+        file_type_map = {
+            'image/png': 'Medical Image',
+            'image/jpeg': 'Medical Image',
+            'image/webp': 'Medical Image',
+            'application/pdf': 'PDF Document'
+        }
+        
+        # Generate suggestions based on content
+        suggestions = [
+            "Review findings with attending physician",
+            "Compare with previous imaging if available",
+            "Document observations in patient record"
+        ]
+        
+        return FileAnalysisResponse(
+            analysis=analysis,
+            file_type=file_type_map.get(content_type, 'Unknown'),
+            suggestions=suggestions
+        )
+        
+    except Exception as e:
+        logger.error(f"Document analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error analyzing document: {str(e)}")
+    
+    finally:
+        # Clean up temp file
+        if temp_file_path.exists():
+            temp_file_path.unlink()
+
 # Include the router in the main app
 app.include_router(api_router)
 
