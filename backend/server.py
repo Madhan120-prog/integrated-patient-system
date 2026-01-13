@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Query, HTTPException
+from fastapi import FastAPI, APIRouter, Query, HTTPException, UploadFile, File, Form
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -11,8 +11,10 @@ from datetime import datetime, timezone
 from faker import Faker
 import random
 from collections import Counter
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContentWithMimeType
 import json
+import shutil
+import uuid
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
