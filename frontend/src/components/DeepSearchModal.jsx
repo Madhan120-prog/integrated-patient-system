@@ -256,6 +256,7 @@ const DeepSearchModal = ({ open, onClose }) => {
 
   const handleConfirmPatient = () => {
     setStep('chat');
+    setConversationHistory([]); // Reset conversation history for new patient
     const welcomeMsg = `Hello! I'm DocAssist, your AI clinical assistant. I have access to all medical records for ${patientData.profile.name} (${patientData.profile.patient_id}). You can ask me anything about their reports, tests, treatments, or medical history. You can also upload medical images or PDFs for AI analysis. How can I help you today?`;
     setMessages([{
       role: 'assistant',
@@ -271,12 +272,29 @@ const DeepSearchModal = ({ open, onClose }) => {
     setMessages(prev => [...prev, userMessage]);
     const currentQuestion = question;
     setQuestion('');
+
+    // Check for meaningless input
+    if (isMeaninglessInput(currentQuestion)) {
+      const meaninglessResponse = getMeaninglessResponse();
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: meaninglessResponse
+      }]);
+      speak("Please ask a clinically meaningful question related to the patient's records.");
+      return;
+    }
+
     setLoading(true);
 
     try {
+      // Build context from conversation history for follow-up questions
+      const contextPrompt = conversationHistory.length > 0 
+        ? `Previous conversation context:\n${conversationHistory.slice(-6).map(h => `${h.role}: ${h.content}`).join('\n')}\n\nCurrent question: ${currentQuestion}`
+        : currentQuestion;
+
       const response = await axios.post(`${API}/deep-query`, {
         patient_id: patientData.profile.patient_id,
-        question: currentQuestion
+        question: contextPrompt
       });
 
       const assistantMessage = {
@@ -287,6 +305,14 @@ const DeepSearchModal = ({ open, onClose }) => {
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+      
+      // Update conversation history for context memory
+      setConversationHistory(prev => [
+        ...prev, 
+        { role: 'user', content: currentQuestion },
+        { role: 'assistant', content: response.data.answer }
+      ]);
+      
       speak(response.data.answer);
     } catch (error) {
       const errorMsg = 'Sorry, I encountered an error processing your question. Please try again.';
