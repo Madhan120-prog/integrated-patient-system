@@ -596,7 +596,7 @@ const DeepSearchModal = ({ open, onClose }) => {
               </Card>
 
               {/* Chat Messages */}
-              <div className="h-[350px] overflow-y-auto space-y-4 p-4 bg-gray-50 rounded">
+              <div className={`overflow-y-auto space-y-4 p-4 bg-gray-50 rounded ${isFullscreen ? 'h-[calc(100vh-350px)]' : 'h-[350px]'}`}>
                 {messages.map((msg, idx) => (
                   <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                     <div className={`max-w-[80%] p-4 rounded-lg ${
