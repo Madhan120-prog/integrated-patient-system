@@ -128,14 +128,13 @@ const SearchPage = () => {
                     className="relative w-full h-14 text-lg font-semibold bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300"
                     data-testid="docassist-button"
                   >
-                    {/* Doctor-Robot Icon */}
-                    <svg className="w-7 h-7 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <circle cx="12" cy="8" r="4" />
-                      <path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2" />
-                      <rect x="9" y="6" width="6" height="4" rx="1" fill="currentColor" opacity="0.3" />
-                      <circle cx="10" cy="7.5" r="0.5" fill="currentColor" />
-                      <circle cx="14" cy="7.5" r="0.5" fill="currentColor" />
-                      <path d="M17 8h2M5 8H3M12 3V1" strokeLinecap="round" />
+                    {/* Doctor with Stethoscope Icon */}
+                    <svg className="w-6 h-6 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="6" r="3" stroke="currentColor" strokeWidth="2"/>
+                      <path d="M12 9v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M7 13c0-1 1-2 2-2h6c1 0 2 1 2 2v4c0 2-2 4-5 4s-5-2-5-4v-4z" stroke="currentColor" strokeWidth="2"/>
+                      <circle cx="18" cy="10" r="2" stroke="currentColor" strokeWidth="1.5"/>
+                      <path d="M18 12v3c0 1-1 2-2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                     </svg>
                     DocAssist Clinical Assistant
                   </Button>
