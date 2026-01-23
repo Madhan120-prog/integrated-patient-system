@@ -69,6 +69,7 @@ A full-stack healthcare application for hospital staff to search, view, and anal
   - 10MB file size limit
   - AI-generated medical document summaries
   - Suggestions for follow-up actions
+  - **Type question with file** - Add context/questions before analyzing
 - **Endpoint**: `POST /api/analyze-document`
 
 #### 7. Department Views
