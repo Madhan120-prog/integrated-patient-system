@@ -49,6 +49,9 @@ A full-stack healthcare application for hospital staff to search, view, and anal
   - Department matching tags
   - Voice On/Off toggle
   - Microphone permission help text
+  - **Fullscreen mode** - Expand modal to full viewport
+  - **Context memory** - Remembers conversation for follow-ups
+  - **Input validation** - Guards against meaningless queries
 
 #### 5. View Report Feature (NEW - Jan 2026)
 - **View Report Button**: On each evidence card with report images
