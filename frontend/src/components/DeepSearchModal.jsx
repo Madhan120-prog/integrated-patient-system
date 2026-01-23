@@ -75,12 +75,27 @@ const DeepSearchModal = ({ open, onClose }) => {
     if (trimmed.length > 4 && vowelCount === 0) return true;
     // Check for common meaningless inputs
     const meaninglessPatterns = [
-      /^[a-z]{1,4}$/i, // Very short random letters
-      /^(hi|hey|hello|yo|sup|ok|test|asdf|qwerty|abc|xyz)$/i,
+      /^[a-z]{1,5}$/i, // Very short random letters (5 or fewer)
+      /^(hi|hey|hello|yo|sup|ok|test|asdf|qwerty|abc|xyz|asd|sdf|dfg|fgh|ghj|hjk|jkl|zxc|xcv|cvb|vbn|bnm)$/i,
       /^[^a-z]*$/i, // No letters at all
-      /(.)\1{3,}/i, // Same character repeated 4+ times
-      /^[bcdfghjklmnpqrstvwxz]{4,}$/i, // Only consonants, 4+ chars
+      /(.)\1{2,}/i, // Same character repeated 3+ times
+      /^[bcdfghjklmnpqrstvwxz]{3,}$/i, // Only consonants, 3+ chars
+      /^[aeiou]{3,}$/i, // Only vowels, 3+ chars
+      /^[a-z]{6,}$/i, // Only letters, 6+ chars, no spaces (likely random)
     ];
+    
+    // Additional check: if input has no spaces and is all letters, likely random
+    if (/^[a-z]{4,}$/i.test(trimmed) && !trimmed.includes(' ')) {
+      // Check if it's a recognizable word pattern (has vowel-consonant mix)
+      const vowelConsonantPattern = /([aeiou][bcdfghjklmnpqrstvwxyz]|[bcdfghjklmnpqrstvwxyz][aeiou])/i;
+      const hasGoodPattern = vowelConsonantPattern.test(trimmed);
+      const vowelRatio = (trimmed.match(/[aeiou]/gi) || []).length / trimmed.length;
+      // Random gibberish usually has very low or very high vowel ratios
+      if (!hasGoodPattern || vowelRatio < 0.15 || vowelRatio > 0.7) {
+        return true;
+      }
+    }
+    
     return meaninglessPatterns.some(pattern => pattern.test(trimmed));
   };
 
