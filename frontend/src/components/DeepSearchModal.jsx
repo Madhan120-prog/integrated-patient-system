@@ -436,15 +436,51 @@ const DeepSearchModal = ({ open, onClose }) => {
     setMessages([]);
     setQuestion('');
     setUploadedFile(null);
+    setConversationHistory([]); // Clear conversation history on close
+    setIsFullscreen(false);
     onClose();
+  };
+
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
   };
 
   return (
     <>
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-teal-600">🩺 DocAssist - Voice AI Clinical Assistant</DialogTitle>
+        <DialogContent className={`overflow-y-auto transition-all duration-300 ${
+          isFullscreen 
+            ? 'max-w-[100vw] w-[100vw] max-h-[100vh] h-[100vh] rounded-none m-0' 
+            : 'max-w-4xl max-h-[90vh]'
+        }`}>
+          <DialogHeader className="flex flex-row items-center justify-between">
+            <DialogTitle className="text-2xl font-bold text-teal-600 flex items-center gap-2">
+              <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2" />
+                <rect x="9" y="6" width="6" height="4" rx="1" fill="currentColor" opacity="0.3" />
+                <circle cx="10" cy="7.5" r="0.5" fill="currentColor" />
+                <circle cx="14" cy="7.5" r="0.5" fill="currentColor" />
+              </svg>
+              DocAssist Clinical Assistant
+            </DialogTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleFullscreen}
+              className="mr-8 hover:bg-gray-100"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            >
+              {isFullscreen ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                </svg>
+              )}
+            </Button>
           </DialogHeader>
 
           {/* Step 1: Search Patient */}
