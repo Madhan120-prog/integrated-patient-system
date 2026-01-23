@@ -339,29 +339,35 @@ const DeepSearchModal = ({ open, onClose }) => {
         return;
       }
       setUploadedFile(file);
-      toast.success(`File "${file.name}" selected. Click "Analyze" to process.`);
+      toast.success(`File "${file.name}" selected. Type a question or click "Analyze".`);
     }
   };
 
-  const handleFileAnalysis = async () => {
+  const handleFileAnalysis = async (customQuestion = null) => {
     if (!uploadedFile) {
       toast.error('Please select a file first');
       return;
     }
 
+    // Use custom question if provided, otherwise use default
+    const analysisQuestion = customQuestion || question.trim() || 'Analyze this medical document and provide a detailed summary with any notable findings.';
+    
     setIsAnalyzing(true);
     const userMessage = { 
       role: 'user', 
-      content: `📎 Uploaded file for analysis: ${uploadedFile.name}`,
+      content: customQuestion || question.trim() 
+        ? `📎 ${uploadedFile.name}\n\n${analysisQuestion}`
+        : `📎 Uploaded file for analysis: ${uploadedFile.name}`,
       isFileUpload: true
     };
     setMessages(prev => [...prev, userMessage]);
+    setQuestion(''); // Clear question after use
 
     try {
       const formData = new FormData();
       formData.append('file', uploadedFile);
       formData.append('patient_id', patientData.profile.patient_id);
-      formData.append('question', 'Analyze this medical document and provide a detailed summary with any notable findings.');
+      formData.append('question', analysisQuestion);
 
       const response = await axios.post(`${API}/analyze-document`, formData, {
         headers: {
@@ -378,6 +384,14 @@ const DeepSearchModal = ({ open, onClose }) => {
       };
 
       setMessages(prev => [...prev, analysisMsg]);
+      
+      // Add to conversation history
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: `Analyzing file: ${uploadedFile.name}. ${analysisQuestion}` },
+        { role: 'assistant', content: response.data.analysis }
+      ]);
+      
       speak(response.data.analysis);
       setUploadedFile(null);
       if (fileInputRef.current) {
@@ -392,6 +406,20 @@ const DeepSearchModal = ({ open, onClose }) => {
       }]);
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  // Combined send handler - handles both text questions and file+question
+  const handleSend = () => {
+    if (uploadedFile && question.trim()) {
+      // File + question: analyze file with the question
+      handleFileAnalysis(question.trim());
+    } else if (uploadedFile) {
+      // File only: analyze with default question
+      handleFileAnalysis();
+    } else if (question.trim()) {
+      // Text only: regular question
+      handleAskQuestion();
     }
   };
 
