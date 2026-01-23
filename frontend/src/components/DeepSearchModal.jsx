@@ -57,10 +57,36 @@ const DeepSearchModal = ({ open, onClose }) => {
   const [reportModal, setReportModal] = useState({ open: false, url: '', title: '' });
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState([]); // For context memory
   const recognitionRef = useRef(null);
   const synthRef = useRef(window.speechSynthesis);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
+
+  // Helper: Check if input is meaningless/random
+  const isMeaninglessInput = (text) => {
+    if (!text || text.trim().length < 2) return true;
+    const trimmed = text.trim().toLowerCase();
+    // Check for very short inputs
+    if (trimmed.length < 3) return true;
+    // Check for random characters (no vowels or too many consonants in a row)
+    const vowelCount = (trimmed.match(/[aeiou]/gi) || []).length;
+    if (trimmed.length > 4 && vowelCount === 0) return true;
+    // Check for common meaningless inputs
+    const meaninglessPatterns = [
+      /^[a-z]{1,4}$/i, // Very short random letters
+      /^(hi|hey|hello|yo|sup|ok|test|asdf|qwerty|abc|xyz)$/i,
+      /^[^a-z]*$/i, // No letters at all
+      /(.)\1{3,}/i, // Same character repeated 4+ times
+      /^[bcdfghjklmnpqrstvwxz]{4,}$/i, // Only consonants, 4+ chars
+    ];
+    return meaninglessPatterns.some(pattern => pattern.test(trimmed));
+  };
+
+  const getMeaninglessResponse = () => {
+    return "Please ask a clinically meaningful question related to the patient's records.\n\nExamples:\n• \"Summarize the latest MRI results\"\n• \"Explain the abnormal blood values\"\n• \"List all treatments and medications\"\n• \"What tests were done in the last 6 months?\"";
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
