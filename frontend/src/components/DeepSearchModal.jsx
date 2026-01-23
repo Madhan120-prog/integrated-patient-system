@@ -702,14 +702,6 @@ const DeepSearchModal = ({ open, onClose }) => {
                     </span>
                     <Button
                       size="sm"
-                      onClick={handleFileAnalysis}
-                      disabled={isAnalyzing}
-                      className="bg-purple-600 hover:bg-purple-700"
-                    >
-                      {isAnalyzing ? 'Analyzing...' : '🔍 Analyze'}
-                    </Button>
-                    <Button
-                      size="sm"
                       variant="ghost"
                       onClick={() => {
                         setUploadedFile(null);
@@ -720,16 +712,18 @@ const DeepSearchModal = ({ open, onClose }) => {
                     </Button>
                   </>
                 )}
-                <span className="text-xs text-gray-500 ml-auto">PNG, JPEG, PDF (max 10MB)</span>
+                <span className="text-xs text-gray-500 ml-auto">
+                  {uploadedFile ? 'Type a question or click Send to analyze' : 'PNG, JPEG, PDF (max 10MB)'}
+                </span>
               </div>
 
               {/* Input Area */}
               <div className="flex gap-2">
                 <Input
-                  placeholder="Ask anything about the patient's medical records..."
+                  placeholder={uploadedFile ? "Type a question about the uploaded file (optional)..." : "Ask anything about the patient's medical records..."}
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && !loading && !isAnalyzing && handleAskQuestion()}
+                  onKeyPress={(e) => e.key === 'Enter' && !loading && !isAnalyzing && handleSend()}
                   className="flex-1"
                   data-testid="chat-input"
                 />
@@ -744,12 +738,12 @@ const DeepSearchModal = ({ open, onClose }) => {
                   {isListening ? '🎤 Listening...' : '🎤'}
                 </Button>
                 <Button
-                  onClick={handleAskQuestion}
-                  disabled={loading || isAnalyzing || !question.trim()}
-                  className="bg-teal-600 hover:bg-teal-700"
+                  onClick={handleSend}
+                  disabled={loading || isAnalyzing || (!question.trim() && !uploadedFile)}
+                  className={uploadedFile ? "bg-purple-600 hover:bg-purple-700" : "bg-teal-600 hover:bg-teal-700"}
                   data-testid="send-button"
                 >
-                  Send
+                  {uploadedFile ? 'Analyze' : 'Send'}
                 </Button>
               </div>
               
