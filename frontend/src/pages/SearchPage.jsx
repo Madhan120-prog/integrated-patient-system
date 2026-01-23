@@ -119,23 +119,30 @@ const SearchPage = () => {
                   Search Records
                 </Button>
 
-                {/* Deep Search Button */}
+                {/* DocAssist Button */}
                 <div className="relative">
                   <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg blur opacity-25"></div>
                   <Button
                     type="button"
                     onClick={() => setDeepSearchOpen(true)}
                     className="relative w-full h-14 text-lg font-semibold bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300"
+                    data-testid="docassist-button"
                   >
-                    <svg className="w-6 h-6 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    {/* Doctor-Robot Icon */}
+                    <svg className="w-7 h-7 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <circle cx="12" cy="8" r="4" />
+                      <path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2" />
+                      <rect x="9" y="6" width="6" height="4" rx="1" fill="currentColor" opacity="0.3" />
+                      <circle cx="10" cy="7.5" r="0.5" fill="currentColor" />
+                      <circle cx="14" cy="7.5" r="0.5" fill="currentColor" />
+                      <path d="M17 8h2M5 8H3M12 3V1" strokeLinecap="round" />
                     </svg>
-                    🩺 DocAssist - Voice AI Assistant
+                    DocAssist Clinical Assistant
                   </Button>
                 </div>
               </form>
 
-              {/* Deep Search Modal */}
+              {/* DocAssist Modal */}
               <DeepSearchModal open={deepSearchOpen} onClose={() => setDeepSearchOpen(false)} />
 
               {/* Info Cards */}
