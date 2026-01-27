@@ -1,0 +1,29 @@
+# XYZ Hospital Patient Records - Local Dependencies
+# No Emergent dependencies - uses direct OpenAI SDK
+
+# Core Framework
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+pydantic==2.5.3
+python-dotenv==1.0.0
+python-multipart==0.0.6
+
+# Database
+motor==3.3.2
+pymongo==4.6.1
+
+# OpenAI (Direct SDK - replaces emergentintegrations)
+openai==1.12.0
+httpx==0.26.0
+
+# PDF Processing
+pdfplumber==0.10.3
+
+# Image Processing
+Pillow==10.2.0
+
+# Sample Data Generation
+faker==22.0.0
+
+# Optional: OCR for scanned PDFs (uncomment if needed)
+# pytesseract==0.3.10
