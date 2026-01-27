@@ -302,9 +302,9 @@ const DeepSearchModal = ({ open, onClose }) => {
     setLoading(true);
 
     try {
-      // Build context from conversation history for follow-up questions
+      // Build context from full conversation history for follow-up questions
       const contextPrompt = conversationHistory.length > 0 
-        ? `Previous conversation context:\n${conversationHistory.slice(-6).map(h => `${h.role}: ${h.content}`).join('\n')}\n\nCurrent question: ${currentQuestion}`
+        ? `Previous conversation context:\n${conversationHistory.map(h => `${h.role}: ${h.content}`).join('\n')}\n\nCurrent question: ${currentQuestion}`
         : currentQuestion;
 
       const response = await axios.post(`${API}/deep-query`, {
