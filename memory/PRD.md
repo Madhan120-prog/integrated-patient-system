@@ -144,5 +144,22 @@ A full-stack healthcare application for hospital staff to search, view, and anal
 - Data persists in MongoDB (not regenerated on restart)
 - User will provide real medical datasets later for replacement
 
+## 🖥️ Local Development (Without Emergent)
+
+The project can run entirely on your local machine:
+
+| File | Purpose |
+|------|---------|
+| `server_local.py` | FastAPI backend with direct OpenAI SDK |
+| `requirements_local.txt` | Python dependencies (no emergentintegrations) |
+| `LOCAL_SETUP.md` | Complete setup guide |
+| `.env.example` | Environment variable templates |
+
+**Key differences from Emergent version:**
+- Uses `openai` SDK directly instead of `emergentintegrations`
+- GPT-4o for both text and vision analysis
+- Includes fallback strategies when API unavailable
+- pdfplumber for PDF text extraction
+
 ---
 *Last Updated: January 2026*
