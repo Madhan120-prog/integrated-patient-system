@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
+
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Card } from "./ui/card";
@@ -8,26 +10,37 @@ const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "http://127.0.0.1:8000"
 const API = `${BACKEND_URL}/api`;
 
 /**
- * DeepSearchModal flow:
- * 1) NEED_PATIENT -> ask for patient id/name -> call GET /api/search?term=...
- * 2) VERIFY_PATIENT -> show patient -> confirm/change
- * 3) LOCKED -> doctor asks question -> call POST /api/deep-query { patient_id, query }
+ * DeepSearchModal
+ * Flow:
+ * 1) Ask Patient ID/Name
+ * 2) Fetch patient profile via GET /api/search?term=...
+ * 3) Verify -> Confirm
+ * 4) Locked -> Send question -> POST /api/deep-query
+ * 5) Render:
+ *    - clean assistant answer
+ *    - evidence cards (View Report button if report_image exists)
+ *    - Open Patient Overview shortcut (/results?term=P1001)
  */
 
 export default function DeepSearchModal({ open, onClose }) {
+  const navigate = useNavigate();
+
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // conversation messages
+  // conversation
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
 
-  // patient gate states
+  // patient gating
   const [stage, setStage] = useState("NEED_PATIENT"); // NEED_PATIENT | VERIFY_PATIENT | LOCKED
   const [selectedPatient, setSelectedPatient] = useState(null);
 
-  // loading
-  const [isLoading, setIsLoading] = useState(false);
+  // evidence + answer from deep query
+  const [lastAnswer, setLastAnswer] = useState(null); // string
+  const [lastEvidence, setLastEvidence] = useState([]); // array
+  const [lastMatchedDepartments, setLastMatchedDepartments] = useState([]); // array
 
+  const [isLoading, setIsLoading] = useState(false);
   const listRef = useRef(null);
 
   // reset when modal opens
@@ -45,6 +58,11 @@ export default function DeepSearchModal({ open, onClose }) {
     setInput("");
     setStage("NEED_PATIENT");
     setSelectedPatient(null);
+
+    setLastAnswer(null);
+    setLastEvidence([]);
+    setLastMatchedDepartments([]);
+
     setIsLoading(false);
   }, [open]);
 
@@ -52,7 +70,7 @@ export default function DeepSearchModal({ open, onClose }) {
   useEffect(() => {
     if (!listRef.current) return;
     listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [messages, isLoading, stage]);
+  }, [messages, isLoading, lastAnswer, lastEvidence]);
 
   const containerClass = useMemo(() => {
     if (!open) return "hidden";
@@ -66,34 +84,55 @@ export default function DeepSearchModal({ open, onClose }) {
     return "w-full max-w-3xl bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col";
   }, [isFullscreen]);
 
-  // ---- Validation helpers (blocks "Hi") ----
+  // ---- Validation helpers ----
   const isValidPatientId = (text) => /^P\d{3,}$/i.test(text.trim());
   const isValidPatientName = (text) => {
     const t = text.trim();
     const letters = t.replace(/[^a-zA-Z]/g, "");
-    return letters.length >= 3;
+    if (letters.length < 3) return false;
+    return /[a-zA-Z]/.test(t);
   };
   const isValidPatientQuery = (text) => isValidPatientId(text) || isValidPatientName(text);
 
-  const pushMsg = (role, text) => setMessages((prev) => [...prev, { role, text }]);
-
-  // ---- Backend calls ----
-  const fetchPatientByTerm = async (term) => {
-    const url = `${API}/search`;
-    const res = await axios.get(url, { params: { term } });
-    // your backend returns { profile, ... }
-    return res?.data?.profile || null;
+  const pushMsg = (role, text) => {
+    setMessages((prev) => [...prev, { role, text }]);
   };
 
-  const runDeepQuery = async ({ patient_id, query }) => {
-    const url = `${API}/deep-query`;
-    const res = await axios.post(url, { patient_id, query });
+  // ---- Fetch patient using GET /api/search?term=... ----
+  const fetchPatientByTerm = async (term) => {
+    const url = `${API}/search?term=${encodeURIComponent(term)}`;
+    const res = await axios.get(url);
+    if (!res?.data) return null;
+
+    if (res.data.profile) return res.data.profile;
+
+    // if backend ever returns {patient: {...}} or {results: [...]}
+    if (res.data.patient) return res.data.patient;
+    if (Array.isArray(res.data.results) && res.data.results.length > 0) return res.data.results[0];
+
+    return null;
+  };
+
+  // ---- Deep Query: POST /api/deep-query ----
+  const runDeepQuery = async (patientId, query) => {
+    const payload = {
+      patient_id: patientId,
+      query,
+    };
+
+    const res = await axios.post(`${API}/deep-query`, payload, {
+      headers: { "Content-Type": "application/json" },
+    });
+
     return res?.data || null;
   };
 
   const handleChangePatient = () => {
     setSelectedPatient(null);
     setStage("NEED_PATIENT");
+    setLastAnswer(null);
+    setLastEvidence([]);
+    setLastMatchedDepartments([]);
     pushMsg("assistant", "Okay ✅ Please enter the Patient ID (P1001) or Patient Name (min 3 letters).");
   };
 
@@ -104,51 +143,29 @@ export default function DeepSearchModal({ open, onClose }) {
       "assistant",
       `Great ✅ Patient locked: ${selectedPatient.name || "Unknown"} (${selectedPatient.patient_id || "N/A"}). Now ask your question.`
     );
+    pushMsg("assistant", `Tip: try “fetch blood reports” or “show mri records”.`);
   };
 
-  const renderEvidence = (evidence) => {
-    if (!Array.isArray(evidence) || evidence.length === 0) return null;
+  const handleOpenOverview = () => {
+    if (!selectedPatient?.patient_id) return;
+    onClose?.();
+    navigate(`/results?term=${encodeURIComponent(selectedPatient.patient_id)}`);
+  };
 
-    return (
-      <Card className="p-4 bg-white border shadow-sm">
-        <div className="text-sm font-semibold text-gray-700 mb-2">Evidence (from MongoDB)</div>
-        <div className="space-y-3">
-          {evidence.slice(0, 6).map((ev, idx) => (
-            <div key={idx} className="border rounded-lg p-3 text-sm">
-              <div className="font-semibold text-gray-800">
-                {ev?.department || "department"} • {ev?.date || "date"}
-              </div>
-              <div className="text-gray-700">Test: {ev?.title || ev?.test_name || "N/A"}</div>
-              <div className="text-gray-700">Result: {ev?.result || "N/A"}</div>
-              <div className="text-gray-700">Doctor: {ev?.doctor || "N/A"}</div>
-              {ev?.report_image && (
-                <div className="mt-2">
-                  <a
-                    href={ev.report_image}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-teal-700 underline"
-                  >
-                    Open report image
-                  </a>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      </Card>
-    );
+  const handleViewReport = (evidenceItem) => {
+    const url = evidenceItem?.record?.report_image || evidenceItem?.report_image;
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const handleSend = async () => {
     const text = input.trim();
     if (!text) return;
 
-    // user message
     pushMsg("user", text);
     setInput("");
 
-    // --- STAGE: NEED_PATIENT ---
+    // Stage: NEED_PATIENT
     if (stage === "NEED_PATIENT") {
       if (!isValidPatientQuery(text)) {
         pushMsg(
@@ -193,61 +210,57 @@ export default function DeepSearchModal({ open, onClose }) {
       return;
     }
 
-    // --- STAGE: VERIFY_PATIENT ---
+    // Stage: VERIFY_PATIENT
     if (stage === "VERIFY_PATIENT") {
       pushMsg("assistant", "Please use the buttons below: **Confirm** or **Change Patient**.");
       return;
     }
 
-    // --- STAGE: LOCKED (REAL backend deep-query) ---
+    // Stage: LOCKED
     if (stage === "LOCKED") {
-      // optional: block super-short nonsense (Hi / Hbsh etc.)
-      const letters = text.replace(/[^a-zA-Z]/g, "");
-      if (letters.length < 3) {
-        pushMsg("assistant", "Please type a clearer question (minimum 3 letters). Example: “fetch blood reports”.");
-        return;
-      }
-
-      if (!selectedPatient?.patient_id) {
-        pushMsg("assistant", "Patient is not locked correctly (missing patient_id). Please Change Patient and select again.");
+      const pid = selectedPatient?.patient_id;
+      if (!pid) {
+        pushMsg("assistant", "Patient ID missing. Please Change Patient and select again.");
         return;
       }
 
       setIsLoading(true);
       try {
-        const data = await runDeepQuery({
-          patient_id: selectedPatient.patient_id,
-          query: text,
-        });
+        const data = await runDeepQuery(pid, text);
 
-        if (!data) {
-          pushMsg("assistant", "Backend returned empty response. Check backend logs.");
-          return;
+        // Clean parse
+        const answer = data?.answer || "✅ Done. (No answer text returned.)";
+        const evidence = Array.isArray(data?.evidence) ? data.evidence : [];
+        const matched = Array.isArray(data?.matched_departments) ? data.matched_departments : [];
+
+        // Save for UI panels
+        setLastAnswer(answer);
+        setLastEvidence(evidence);
+        setLastMatchedDepartments(matched);
+
+        // Also put a short assistant message into chat timeline
+        pushMsg("assistant", answer);
+        if (matched.length > 0) {
+          pushMsg("assistant", `Matched: ${matched.join(", ")}`);
         }
-
-        // Show backend answer
-        if (data.answer) pushMsg("assistant", data.answer);
-        else pushMsg("assistant", "Backend responded, but no 'answer' field found.");
-
-        // Show evidence in UI (as extra message + card)
-        if (Array.isArray(data.evidence) && data.evidence.length > 0) {
-          pushMsg("assistant", "I also found supporting records (see below).");
-          // Inject a special message object to render evidence card
-          setMessages((prev) => [...prev, { role: "evidence", evidence: data.evidence }]);
+        if (evidence.length > 0) {
+          pushMsg("assistant", `I found supporting records (see Evidence below).`);
+        } else {
+          pushMsg("assistant", `No supporting records were returned for this query.`);
         }
       } catch (err) {
-        const detail =
-          err?.response?.data ? JSON.stringify(err.response.data) : err?.message || "Unknown error";
-        console.error("deep-query error:", err);
-        pushMsg("assistant", `Backend deep-query failed. Details: ${detail}`);
+        console.error(err);
+        pushMsg("assistant", "Deep query failed. Please check `/api/deep-query` in Swagger and backend logs.");
       } finally {
         setIsLoading(false);
       }
+
+      return;
     }
   };
 
   const handleMicClick = () => {
-    pushMsg("assistant", "🎙️ Mic is UI-only for now. Next step: wire Web Speech API / Whisper + send transcript here.");
+    pushMsg("assistant", "🎙️ Mic is UI-only for now. Next step: enable Web Speech API / Whisper and send transcript here.");
   };
 
   if (!open) return null;
@@ -283,27 +296,19 @@ export default function DeepSearchModal({ open, onClose }) {
 
         {/* Body */}
         <div className="flex-1 p-4 bg-gray-50 overflow-hidden flex flex-col">
-          <div ref={listRef} className="flex-1 overflow-y-auto space-y-3 pr-2" style={{ scrollbarWidth: "thin" }}>
-            {messages.map((m, idx) => {
-              if (m.role === "evidence") {
-                return (
-                  <div key={idx} className="mr-auto max-w-[95%]">
-                    {renderEvidence(m.evidence)}
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key={idx}
-                  className={`max-w-[90%] whitespace-pre-line rounded-xl px-4 py-3 shadow-sm ${
-                    m.role === "user" ? "ml-auto bg-teal-600 text-white" : "mr-auto bg-white text-gray-800 border"
-                  }`}
-                >
-                  {m.text}
-                </div>
-              );
-            })}
+          <div ref={listRef} className="flex-1 overflow-y-auto space-y-3 pr-2">
+            {messages.map((m, idx) => (
+              <div
+                key={idx}
+                className={`max-w-[90%] whitespace-pre-line rounded-xl px-4 py-3 shadow-sm ${
+                  m.role === "user"
+                    ? "ml-auto bg-teal-600 text-white"
+                    : "mr-auto bg-white text-gray-800 border"
+                }`}
+              >
+                {m.text}
+              </div>
+            ))}
 
             {isLoading && (
               <div className="mr-auto bg-white text-gray-700 border rounded-xl px-4 py-3 shadow-sm">
@@ -335,15 +340,89 @@ export default function DeepSearchModal({ open, onClose }) {
                 </div>
 
                 <div className="flex gap-2 mt-4">
-                  <Button onClick={handleConfirmPatient} className="bg-teal-600 hover:bg-teal-700" type="button">
+                  <Button onClick={handleConfirmPatient} className="bg-teal-600 hover:bg-teal-700">
                     Confirm
                   </Button>
-                  <Button variant="secondary" onClick={handleChangePatient} type="button">
+                  <Button variant="secondary" onClick={handleChangePatient}>
                     Change Patient
                   </Button>
                 </div>
 
-                <div className="text-xs text-gray-500 mt-3">Confirm the patient above to start Deep Search queries.</div>
+                <div className="text-xs text-gray-500 mt-3">
+                  Confirm the patient above to start patient-aware Deep Search.
+                </div>
+              </Card>
+            )}
+
+            {/* Evidence Panel (only when LOCKED and we have evidence) */}
+            {stage === "LOCKED" && selectedPatient && (
+              <Card className="p-4 bg-white border shadow-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-semibold text-gray-700">Patient</div>
+                    <div className="text-xs text-gray-500">
+                      {selectedPatient.name} ({selectedPatient.patient_id})
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="button" variant="secondary" onClick={handleOpenOverview}>
+                      Open Patient Overview
+                    </Button>
+                    <Button type="button" variant="secondary" onClick={handleChangePatient}>
+                      Change Patient
+                    </Button>
+                  </div>
+                </div>
+
+                {lastMatchedDepartments?.length > 0 && (
+                  <div className="mt-3 text-xs text-gray-600">
+                    <span className="font-semibold">Matched:</span> {lastMatchedDepartments.join(", ")}
+                  </div>
+                )}
+
+                {lastEvidence?.length > 0 && (
+                  <div className="mt-4">
+                    <div className="text-sm font-semibold text-gray-700 mb-2">Evidence (from MongoDB)</div>
+
+                    <div className="space-y-2">
+                      {lastEvidence.map((ev, i) => {
+                        const rec = ev?.record || ev || {};
+                        const dept = ev?.department || rec?.department || "unknown_department";
+                        const date = ev?.date || rec?.test_date || rec?.date || "N/A";
+                        const title = ev?.title || rec?.test_name || rec?.title || "Record";
+                        const result = ev?.result || rec?.result || "N/A";
+                        const doctor = ev?.doctor || rec?.doctor || "N/A";
+                        const hasReport = Boolean(rec?.report_image || ev?.report_image);
+
+                        return (
+                          <div key={i} className="border rounded-xl p-3 bg-gray-50">
+                            <div className="text-xs text-gray-500">{dept} • {date}</div>
+                            <div className="text-sm font-semibold text-gray-800">{title}</div>
+                            <div className="text-xs text-gray-700 mt-1">Result: {result}</div>
+                            <div className="text-xs text-gray-700">Doctor: {doctor}</div>
+
+                            <div className="mt-2 flex gap-2">
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                disabled={!hasReport}
+                                onClick={() => handleViewReport(ev)}
+                              >
+                                View Report
+                              </Button>
+                            </div>
+
+                            {!hasReport && (
+                              <div className="text-[11px] text-gray-500 mt-1">
+                                No report image/link available for this record yet.
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </Card>
             )}
           </div>
@@ -361,7 +440,7 @@ export default function DeepSearchModal({ open, onClose }) {
                 stage === "NEED_PATIENT"
                   ? 'Enter Patient ID (P1001) or Name (min 3 letters)'
                   : stage === "LOCKED"
-                  ? 'Example: "fetch blood reports"'
+                  ? 'Example: "fetch blood reports" or "show MRI records"'
                   : "Use Confirm / Change Patient"
               }
               onKeyDown={(e) => {
@@ -369,7 +448,7 @@ export default function DeepSearchModal({ open, onClose }) {
               }}
             />
 
-            <Button onClick={handleSend} className="bg-teal-600 hover:bg-teal-700" type="button">
+            <Button onClick={handleSend} className="bg-teal-600 hover:bg-teal-700">
               Send
             </Button>
           </div>

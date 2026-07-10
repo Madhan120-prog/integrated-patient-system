@@ -4,14 +4,11 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Card } from "../components/ui/card";
-
 import DeepSearchModal from "../components/DeepSearchModal";
 
 const SearchPage = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
-
-  // ✅ Deep Search modal open/close only (no more inline modal logic here)
   const [isDeepOpen, setIsDeepOpen] = useState(false);
 
   const handleSearch = (e) => {
@@ -185,7 +182,7 @@ const SearchPage = () => {
         </div>
       </div>
 
-      {/* ✅ Use the modal component here */}
+      {/* Deep Search Modal */}
       <DeepSearchModal open={isDeepOpen} onClose={() => setIsDeepOpen(false)} />
     </div>
   );
