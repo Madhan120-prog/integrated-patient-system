@@ -8,8 +8,7 @@ A full-stack healthcare application for hospital staff to search, view, and anal
 - **Backend**: FastAPI, Pydantic, Motor (async MongoDB)
 - **Database**: MongoDB
 - **AI Integration**: 
-  - OpenAI GPT-5.2 via Emergent LLM Key for text queries
-  - Gemini 2.5 Flash via Emergent LLM Key for file/document analysis
+  - Gemini 2.5 Flash (Google Gemini API, own key) for text queries and file/document analysis
 - **Voice**: Web Speech API (browser-native speech-to-text and text-to-speech)
 
 ## User Personas

@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 from faker import Faker
 import random
 from collections import Counter
-from emergentintegrations.llm.chat import LlmChat, UserMessage, FileContentWithMimeType
+from google import genai
+from google.genai import types as genai_types
 import json
 import shutil
 import uuid
@@ -23,6 +24,11 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+
+# Gemini LLM client (used by /deep-query and /analyze-document)
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+GEMINI_MODEL = "gemini-2.5-flash"
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -638,26 +644,21 @@ Guidelines:
 - Be professional and empathetic"""
 
     try:
-        # Initialize LLM chat with OpenAI GPT-5.2
-        api_key = os.environ.get('EMERGENT_LLM_KEY')
-        if not api_key:
+        if not gemini_client:
             raise HTTPException(status_code=500, detail="LLM API key not configured")
-        
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"docassist_{patient_id}_{datetime.now(timezone.utc).timestamp()}",
-            system_message=system_message
-        ).with_model("openai", "gpt-5.2")
-        
+
         # Create user message with patient context
-        user_message = UserMessage(
-            text=f"""Based on the following patient records, please answer this question: {question}
+        prompt = f"""Based on the following patient records, please answer this question: {question}
 
 {patient_context}"""
-        )
-        
+
         # Get LLM response
-        response = await chat.send_message(user_message)
+        result = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(system_instruction=system_message),
+        )
+        response = result.text
         
         # Determine which departments were relevant based on question keywords
         matched_departments = []
@@ -762,11 +763,9 @@ Patient Context:
         with open(temp_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Initialize Gemini chat for file analysis
-        api_key = os.environ.get('EMERGENT_LLM_KEY')
-        if not api_key:
+        if not gemini_client:
             raise HTTPException(status_code=500, detail="LLM API key not configured")
-        
+
         system_message = """You are DocAssist, an AI medical document analyzer for XYZ Hospital.
 You are analyzing a medical document (X-ray, MRI, CT scan, lab report PDF, etc.).
 
@@ -784,27 +783,22 @@ Guidelines:
 - Always recommend consulting with the appropriate specialist
 - Be professional and objective"""
 
-        chat = LlmChat(
-            api_key=api_key,
-            session_id=f"docassist_file_{file_id}",
-            system_message=system_message
-        ).with_model("gemini", "gemini-2.5-flash")
-        
         # Create file content for Gemini
-        file_content = FileContentWithMimeType(
-            file_path=str(temp_file_path),
+        file_part = genai_types.Part.from_bytes(
+            data=temp_file_path.read_bytes(),
             mime_type=allowed_types[content_type]
         )
-        
+
         # Create message with file attachment
         full_question = f"{patient_context}\n\nDoctor's Question: {question}"
-        user_message = UserMessage(
-            text=full_question,
-            file_contents=[file_content]
-        )
-        
+
         # Get AI analysis
-        analysis = await chat.send_message(user_message)
+        result = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[full_question, file_part],
+            config=genai_types.GenerateContentConfig(system_instruction=system_message),
+        )
+        analysis = result.text
         
         # Determine file type for response
         file_type_map = {
