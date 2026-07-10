@@ -27,7 +27,7 @@ db = client[os.environ['DB_NAME']]
 
 # Gemini LLM client (used by /deep-query and /analyze-document)
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-GEMINI_MODEL = "gemini-2.5-flash"
+GEMINI_MODEL = "gemini-3.5-flash"
 gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 # Create the main app without a prefix
