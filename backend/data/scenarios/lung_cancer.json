@@ -1,0 +1,133 @@
+{
+  "condition": "Lung Cancer",
+  "description": "Non-small cell lung cancer (NSCLC) — diagnosed via chest imaging, staged with CT/PET, treated with chemo + possible surgery",
+  "timeline_weeks": 52,
+  "records": {
+    "xray": [
+      {
+        "test_name": "Chest X-Ray",
+        "result": "Suspicious mass in right upper lobe",
+        "week_offset": 0,
+        "notes": "Initial screening — referred for CT"
+      },
+      {
+        "test_name": "Chest X-Ray",
+        "result": "Mass reduced in size — treatment response",
+        "week_offset": 24,
+        "notes": "Follow-up after 3 chemo cycles"
+      },
+      {
+        "test_name": "Chest X-Ray",
+        "result": "Stable — no new lesions",
+        "week_offset": 40,
+        "notes": "Routine follow-up"
+      }
+    ],
+    "ct_scan": [
+      {
+        "test_name": "Chest CT Scan",
+        "result": "3.2cm mass confirmed in right upper lobe, mediastinal lymphadenopathy",
+        "week_offset": 1,
+        "notes": "Staging scan — Stage IIIA"
+      },
+      {
+        "test_name": "Chest CT Scan",
+        "result": "Mass reduced to 1.8cm — partial response",
+        "week_offset": 20,
+        "notes": "Mid-treatment restaging"
+      },
+      {
+        "test_name": "Abdominal CT Scan",
+        "result": "No hepatic metastases — clear",
+        "week_offset": 2,
+        "notes": "Metastatic workup"
+      }
+    ],
+    "mri": [
+      {
+        "test_name": "Brain MRI",
+        "result": "No intracranial metastases",
+        "week_offset": 2,
+        "notes": "Brain staging — standard for NSCLC"
+      }
+    ],
+    "blood_profile": [
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Normal",
+        "week_offset": 0,
+        "notes": "Baseline before treatment"
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "CEA elevated (12.5 ng/mL)",
+        "week_offset": 1,
+        "notes": "Baseline tumor marker"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Neutropenia — WBC 2.1",
+        "week_offset": 8,
+        "notes": "Post-chemo cycle 2 — dose adjustment needed"
+      },
+      {
+        "test_name": "Liver Function Test",
+        "result": "Within Range",
+        "week_offset": 6,
+        "notes": "Monitoring for drug toxicity"
+      },
+      {
+        "test_name": "Kidney Function Test",
+        "result": "Within Range",
+        "week_offset": 6,
+        "notes": "Monitoring for cisplatin nephrotoxicity"
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "CEA decreased (5.2 ng/mL)",
+        "week_offset": 20,
+        "notes": "Trending down — good treatment response"
+      }
+    ],
+    "ecg": [
+      {
+        "test_name": "Resting ECG",
+        "result": "Normal Sinus Rhythm",
+        "week_offset": 0,
+        "notes": "Pre-chemotherapy cardiac baseline"
+      }
+    ],
+    "treatment": [
+      {
+        "treatment_name": "Chemotherapy — Cisplatin/Pemetrexed Cycle 1",
+        "result": "Completed",
+        "week_offset": 3,
+        "medicines": "Cisplatin 75mg/m², Pemetrexed 500mg/m², Ondansetron 8mg, Dexamethasone 20mg"
+      },
+      {
+        "treatment_name": "Chemotherapy — Cisplatin/Pemetrexed Cycle 2",
+        "result": "Completed — dose reduced due to neutropenia",
+        "week_offset": 6,
+        "medicines": "Cisplatin 60mg/m², Pemetrexed 400mg/m², Filgrastim 5mcg/kg"
+      },
+      {
+        "treatment_name": "Chemotherapy — Cisplatin/Pemetrexed Cycle 3",
+        "result": "Completed",
+        "week_offset": 9,
+        "medicines": "Cisplatin 75mg/m², Pemetrexed 500mg/m², Ondansetron 8mg"
+      },
+      {
+        "treatment_name": "Chemotherapy — Cisplatin/Pemetrexed Cycle 4",
+        "result": "Completed",
+        "week_offset": 12,
+        "medicines": "Cisplatin 75mg/m², Pemetrexed 500mg/m², Ondansetron 8mg"
+      },
+      {
+        "treatment_name": "Immunotherapy — Pembrolizumab maintenance",
+        "result": "In Progress",
+        "week_offset": 16,
+        "medicines": "Pembrolizumab 200mg IV q3w"
+      }
+    ]
+  }
+}

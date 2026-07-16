@@ -1,0 +1,121 @@
+{
+  "condition": "Brain Tumor (Glioblastoma)",
+  "description": "GBM — diagnosed via MRI after neurological symptoms, treated with surgery + radiation + temozolomide",
+  "timeline_weeks": 40,
+  "records": {
+    "mri": [
+      {
+        "test_name": "Brain MRI",
+        "result": "4.2cm ring-enhancing mass in right temporal lobe with surrounding edema",
+        "week_offset": 0,
+        "notes": "Presented with headaches and seizure"
+      },
+      {
+        "test_name": "Brain MRI",
+        "result": "Post-surgical cavity — no residual enhancing tumor",
+        "week_offset": 4,
+        "notes": "Post-craniotomy baseline"
+      },
+      {
+        "test_name": "Brain MRI",
+        "result": "Stable post-surgical cavity — no recurrence",
+        "week_offset": 16,
+        "notes": "Mid-radiation surveillance"
+      },
+      {
+        "test_name": "Brain MRI",
+        "result": "Suspicious enhancement at cavity margin — possible pseudoprogression vs recurrence",
+        "week_offset": 30,
+        "notes": "3-month post-radiation — close follow-up recommended"
+      }
+    ],
+    "ct_scan": [
+      {
+        "test_name": "Head CT Scan",
+        "result": "Hyperdense mass right temporal lobe — mass effect with 5mm midline shift",
+        "week_offset": 0,
+        "notes": "Emergency department presentation"
+      }
+    ],
+    "blood_profile": [
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Normal",
+        "week_offset": 0,
+        "notes": "Baseline"
+      },
+      {
+        "test_name": "Liver Function Test",
+        "result": "Within Range",
+        "week_offset": 1,
+        "notes": "Pre-surgical labs"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Lymphopenia — WBC 3.2, ALC 600",
+        "week_offset": 12,
+        "notes": "Expected with concurrent temozolomide + radiation"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Thrombocytopenia — Platelets 88,000",
+        "week_offset": 22,
+        "notes": "Adjuvant temozolomide cycle 3 — dose reduction needed"
+      }
+    ],
+    "ecg": [
+      {
+        "test_name": "Resting ECG",
+        "result": "Normal Sinus Rhythm",
+        "week_offset": 1,
+        "notes": "Pre-operative clearance"
+      }
+    ],
+    "xray": [
+      {
+        "test_name": "Chest X-Ray",
+        "result": "Clear",
+        "week_offset": 1,
+        "notes": "Pre-operative clearance"
+      }
+    ],
+    "treatment": [
+      {
+        "treatment_name": "Surgery — Craniotomy with maximal safe resection",
+        "result": "Completed — gross total resection achieved",
+        "week_offset": 1,
+        "medicines": "Dexamethasone 4mg q6h (cerebral edema), Levetiracetam 500mg BID (seizure prophylaxis)"
+      },
+      {
+        "treatment_name": "Radiation Therapy — Concurrent chemoradiation (Stupp protocol)",
+        "result": "Completed — 60 Gy in 30 fractions",
+        "week_offset": 6,
+        "medicines": "Temozolomide 75mg/m² daily during radiation"
+      },
+      {
+        "treatment_name": "Chemotherapy — Adjuvant Temozolomide Cycle 1",
+        "result": "Completed",
+        "week_offset": 14,
+        "medicines": "Temozolomide 150mg/m² days 1-5 q28d"
+      },
+      {
+        "treatment_name": "Chemotherapy — Adjuvant Temozolomide Cycle 2",
+        "result": "Completed",
+        "week_offset": 18,
+        "medicines": "Temozolomide 200mg/m² days 1-5 q28d"
+      },
+      {
+        "treatment_name": "Chemotherapy — Adjuvant Temozolomide Cycle 3",
+        "result": "Completed — dose reduced for thrombocytopenia",
+        "week_offset": 22,
+        "medicines": "Temozolomide 150mg/m² days 1-5 q28d"
+      },
+      {
+        "treatment_name": "Medication — Ongoing supportive care",
+        "result": "In Progress",
+        "week_offset": 30,
+        "medicines": "Levetiracetam 500mg BID, Dexamethasone 2mg daily (tapering)"
+      }
+    ]
+  }
+}

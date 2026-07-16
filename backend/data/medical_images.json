@@ -1,0 +1,86 @@
+{
+  "mri": {
+    "Brain MRI": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/MRI_of_Human_Brain.jpg/800px-MRI_of_Human_Brain.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/5/50/Brain_MRI_112010_rgbca.png"
+    ],
+    "Spine MRI": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Cervical_MRI_G8.jpg/220px-Cervical_MRI_G8.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Lumbosacral_MRI.jpg/220px-Lumbosacral_MRI.jpg"
+    ],
+    "Breast MRI": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Breast_MRI_Maximum_Intensity_Projection.png/220px-Breast_MRI_Maximum_Intensity_Projection.png"
+    ],
+    "Abdominal MRI": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Abdominal_MRI.jpg/400px-Abdominal_MRI.jpg"
+    ],
+    "Pelvic MRI": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/MRI_abdomen.jpg/220px-MRI_abdomen.jpg"
+    ]
+  },
+  "xray": {
+    "Chest X-Ray": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Normal_posteroanterior_%28PA%29_chest_radiograph_%28X-ray%29.jpg/400px-Normal_posteroanterior_%28PA%29_chest_radiograph_%28X-ray%29.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Chest_Xray_PA_3-8-2010.png/400px-Chest_Xray_PA_3-8-2010.png"
+    ],
+    "Bone X-Ray": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/X-ray_of_a_hand.jpg/220px-X-ray_of_a_hand.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Knee_X-ray.jpg/220px-Knee_X-ray.jpg"
+    ],
+    "Pelvis X-Ray": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Pelvis_X-ray.jpg/400px-Pelvis_X-ray.jpg"
+    ],
+    "Dental X-Ray": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Dental_X-ray.jpg/220px-Dental_X-ray.jpg"
+    ]
+  },
+  "ecg": {
+    "Resting ECG": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/SinusRhythmLabels.svg/800px-SinusRhythmLabels.svg.png"
+    ],
+    "Stress ECG": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/SinusRhythmLabels.svg/800px-SinusRhythmLabels.svg.png"
+    ],
+    "Holter Monitor": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Afib_ecg.jpg/400px-Afib_ecg.jpg"
+    ],
+    "Event Monitor": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Afib_ecg.jpg/400px-Afib_ecg.jpg"
+    ]
+  },
+  "ct_scan": {
+    "Chest CT Scan": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/CT_scan_of_the_chest.jpg/400px-CT_scan_of_the_chest.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Ct-scan_of_a_normal_abdomen_and_pelvis.jpg/220px-Ct-scan_of_a_normal_abdomen_and_pelvis.jpg"
+    ],
+    "Abdominal CT Scan": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Ct-scan_of_a_normal_abdomen_and_pelvis.jpg/220px-Ct-scan_of_a_normal_abdomen_and_pelvis.jpg"
+    ],
+    "Head CT Scan": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c6/CT_scan_of_the_head.jpg/220px-CT_scan_of_the_head.jpg"
+    ],
+    "Pelvic CT Scan": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Ct-scan_of_a_normal_abdomen_and_pelvis.jpg/220px-Ct-scan_of_a_normal_abdomen_and_pelvis.jpg"
+    ]
+  },
+  "blood_profile": {
+    "Complete Blood Count": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+    ],
+    "Lipid Profile": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+    ],
+    "Liver Function Test": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+    ],
+    "Kidney Function Test": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+    ],
+    "Tumor Marker Panel": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+    ],
+    "Thyroid Panel": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+    ]
+  }
+}

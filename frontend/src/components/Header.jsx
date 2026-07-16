@@ -24,7 +24,7 @@ const Header = () => {
         <div className="flex items-center space-x-3">
           <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-md overflow-hidden p-1">
             <img 
-              src="https://customer-assets.emergentagent.com/job_patient-hub-17/artifacts/ad6o0j43_image.png" 
+              src="/logo.png"
               alt="XYZ Hospital Logo" 
               className="w-full h-full object-contain"
             />

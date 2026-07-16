@@ -1,0 +1,787 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Card } from './ui/card';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+// Report Viewer Modal Component
+const ReportViewerModal = ({ open, onClose, reportUrl, reportTitle }) => {
+  if (!open) return null;
+  
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-4xl max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold text-teal-600">📄 {reportTitle}</DialogTitle>
+        </DialogHeader>
+        <div className="relative w-full h-[70vh] bg-gray-100 rounded-lg overflow-hidden">
+          <img 
+            src={reportUrl} 
+            alt={reportTitle}
+            className="w-full h-full object-contain"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = 'https://via.placeholder.com/800x600?text=Report+Image+Unavailable';
+            }}
+          />
+        </div>
+        <div className="flex justify-between items-center mt-4">
+          <p className="text-sm text-gray-500">Medical report image</p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => window.open(reportUrl, '_blank')}>
+              Open in New Tab
+            </Button>
+            <Button onClick={onClose}>Close</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+const DeepSearchModal = ({ open, onClose }) => {
+  const [step, setStep] = useState('search'); // search, confirm, chat
+  const [patientInput, setPatientInput] = useState('');
+  const [patientData, setPatientData] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [question, setQuestion] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [reportModal, setReportModal] = useState({ open: false, url: '', title: '' });
+  const [uploadedFile, setUploadedFile] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState([]); // For context memory
+  const recognitionRef = useRef(null);
+  const synthRef = useRef(window.speechSynthesis);
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  // Helper: Check if input is meaningless/random
+  const isMeaninglessInput = (text) => {
+    if (!text || text.trim().length < 2) return true;
+    const trimmed = text.trim().toLowerCase();
+    // Check for very short inputs
+    if (trimmed.length < 3) return true;
+    // Check for random characters (no vowels or too many consonants in a row)
+    const vowelCount = (trimmed.match(/[aeiou]/gi) || []).length;
+    if (trimmed.length > 4 && vowelCount === 0) return true;
+    // Check for common meaningless inputs
+    const meaninglessPatterns = [
+      /^[a-z]{1,5}$/i, // Very short random letters (5 or fewer)
+      /^(hi|hey|hello|yo|sup|ok|test|asdf|qwerty|abc|xyz|asd|sdf|dfg|fgh|ghj|hjk|jkl|zxc|xcv|cvb|vbn|bnm)$/i,
+      /^[^a-z]*$/i, // No letters at all
+      /(.)\1{2,}/i, // Same character repeated 3+ times
+      /^[bcdfghjklmnpqrstvwxz]{3,}$/i, // Only consonants, 3+ chars
+      /^[aeiou]{3,}$/i, // Only vowels, 3+ chars
+      /^[a-z]{6,}$/i, // Only letters, 6+ chars, no spaces (likely random)
+    ];
+    
+    // Additional check: if input has no spaces and is all letters, likely random
+    if (/^[a-z]{4,}$/i.test(trimmed) && !trimmed.includes(' ')) {
+      // Check if it's a recognizable word pattern (has vowel-consonant mix)
+      const vowelConsonantPattern = /([aeiou][bcdfghjklmnpqrstvwxyz]|[bcdfghjklmnpqrstvwxyz][aeiou])/i;
+      const hasGoodPattern = vowelConsonantPattern.test(trimmed);
+      const vowelRatio = (trimmed.match(/[aeiou]/gi) || []).length / trimmed.length;
+      // Random gibberish usually has very low or very high vowel ratios
+      if (!hasGoodPattern || vowelRatio < 0.15 || vowelRatio > 0.7) {
+        return true;
+      }
+    }
+    
+    return meaninglessPatterns.some(pattern => pattern.test(trimmed));
+  };
+
+  const getMeaninglessResponse = () => {
+    return "Please ask a clinically meaningful question related to the patient's records.\n\nExamples:\n• \"Summarize the latest MRI results\"\n• \"Explain the abnormal blood values\"\n• \"List all treatments and medications\"\n• \"What tests were done in the last 6 months?\"";
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        if (step === 'search') {
+          setPatientInput(transcript);
+        } else if (step === 'chat') {
+          setQuestion(transcript);
+        }
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = (event) => {
+        setIsListening(false);
+        if (event.error === 'not-allowed') {
+          toast.error('Microphone access denied. Please allow microphone access in your browser settings.');
+        } else if (event.error !== 'no-speech') {
+          toast.error('Voice recognition error: ' + event.error);
+        }
+      };
+
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.abort();
+      }
+      if (synthRef.current) {
+        synthRef.current.cancel();
+      }
+    };
+  }, [step]);
+
+  const startListening = () => {
+    if (recognitionRef.current) {
+      try {
+        setIsListening(true);
+        recognitionRef.current.start();
+      } catch (error) {
+        setIsListening(false);
+        toast.error('Could not start voice recognition. Please check microphone permissions.');
+      }
+    } else {
+      toast.error('Speech recognition not supported in this browser. Please use Chrome or Edge.');
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+    }
+  };
+
+  const speak = (text) => {
+    if (!voiceEnabled) return;
+    
+    if (synthRef.current) {
+      // Cancel any ongoing speech
+      synthRef.current.cancel();
+      
+      // Wait for voices to load (some browsers need this)
+      const speakNow = () => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.rate = 0.95;
+        utterance.pitch = 1.0;
+        utterance.volume = 1.0;
+        
+        // Try to get a good English voice
+        const voices = synthRef.current.getVoices();
+        const englishVoice = voices.find(v => 
+          v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Microsoft') || v.name.includes('Samantha'))
+        ) || voices.find(v => v.lang.startsWith('en'));
+        
+        if (englishVoice) {
+          utterance.voice = englishVoice;
+        }
+        
+        utterance.onstart = () => {
+          setIsSpeaking(true);
+          console.log('Voice started speaking');
+        };
+        utterance.onend = () => {
+          setIsSpeaking(false);
+          console.log('Voice finished speaking');
+        };
+        utterance.onerror = (e) => {
+          setIsSpeaking(false);
+          console.error('Voice error:', e);
+          toast.error('Voice output failed. Please check your browser settings.');
+        };
+        
+        synthRef.current.speak(utterance);
+      };
+      
+      // If voices aren't loaded yet, wait for them
+      if (synthRef.current.getVoices().length === 0) {
+        synthRef.current.onvoiceschanged = speakNow;
+        // Fallback: try speaking anyway after a short delay
+        setTimeout(speakNow, 100);
+      } else {
+        speakNow();
+      }
+    }
+  };
+
+  const stopSpeaking = () => {
+    if (synthRef.current) {
+      synthRef.current.cancel();
+      setIsSpeaking(false);
+    }
+  };
+
+  const toggleVoice = () => {
+    // Test voice when enabling
+    if (!voiceEnabled) {
+      const testUtterance = new SpeechSynthesisUtterance('Voice enabled');
+      testUtterance.volume = 0.5;
+      synthRef.current?.speak(testUtterance);
+    }
+    if (isSpeaking) {
+      stopSpeaking();
+    }
+    setVoiceEnabled(!voiceEnabled);
+    toast.success(voiceEnabled ? 'Voice output disabled' : 'Voice output enabled');
+  };
+
+  const handleSearchPatient = async () => {
+    if (!patientInput.trim()) {
+      toast.error('Please enter Patient ID or Name');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API}/search?term=${encodeURIComponent(patientInput)}`);
+      if (response.data.profile) {
+        setPatientData(response.data);
+        setStep('confirm');
+      } else {
+        toast.error('Patient not found');
+      }
+    } catch (error) {
+      toast.error('Error searching patient');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleConfirmPatient = () => {
+    setStep('chat');
+    setConversationHistory([]); // Reset conversation history for new patient
+    const welcomeMsg = `Hello! I'm DocAssist, your AI clinical assistant. I have access to all medical records for ${patientData.profile.name} (${patientData.profile.patient_id}). You can ask me anything about their reports, tests, treatments, or medical history. You can also upload medical images or PDFs for AI analysis. How can I help you today?`;
+    setMessages([{
+      role: 'assistant',
+      content: welcomeMsg
+    }]);
+    speak(welcomeMsg);
+  };
+
+  const handleAskQuestion = async () => {
+    if (!question.trim()) return;
+
+    const userMessage = { role: 'user', content: question };
+    setMessages(prev => [...prev, userMessage]);
+    const currentQuestion = question;
+    setQuestion('');
+
+    // Check for meaningless input
+    if (isMeaninglessInput(currentQuestion)) {
+      const meaninglessResponse = getMeaninglessResponse();
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: meaninglessResponse
+      }]);
+      speak("Please ask a clinically meaningful question related to the patient's records.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // Build context from conversation history for follow-up questions
+      const contextPrompt = conversationHistory.length > 0 
+        ? `Previous conversation context:\n${conversationHistory.slice(-6).map(h => `${h.role}: ${h.content}`).join('\n')}\n\nCurrent question: ${currentQuestion}`
+        : currentQuestion;
+
+      const response = await axios.post(`${API}/deep-query`, {
+        patient_id: patientData.profile.patient_id,
+        question: contextPrompt
+      });
+
+      const assistantMessage = {
+        role: 'assistant',
+        content: response.data.answer,
+        evidence: response.data.evidence,
+        departments: response.data.matched_departments
+      };
+
+      setMessages(prev => [...prev, assistantMessage]);
+      
+      // Update conversation history for context memory
+      setConversationHistory(prev => [
+        ...prev, 
+        { role: 'user', content: currentQuestion },
+        { role: 'assistant', content: response.data.answer }
+      ]);
+      
+      speak(response.data.answer);
+    } catch (error) {
+      const errorMsg = 'Sorry, I encountered an error processing your question. Please try again.';
+      toast.error('Error processing question');
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: errorMsg
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'application/pdf'];
+      if (!allowedTypes.includes(file.type)) {
+        toast.error('Please upload PNG, JPEG, WebP images or PDF files only');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) { // 10MB limit
+        toast.error('File size must be less than 10MB');
+        return;
+      }
+      setUploadedFile(file);
+      toast.success(`File "${file.name}" selected. Type a question or click "Analyze".`);
+    }
+  };
+
+  const handleFileAnalysis = async (customQuestion = null) => {
+    if (!uploadedFile) {
+      toast.error('Please select a file first');
+      return;
+    }
+
+    // Use custom question if provided, otherwise use default
+    const analysisQuestion = customQuestion || question.trim() || 'Analyze this medical document and provide a detailed summary with any notable findings.';
+    
+    setIsAnalyzing(true);
+    const userMessage = { 
+      role: 'user', 
+      content: customQuestion || question.trim() 
+        ? `📎 ${uploadedFile.name}\n\n${analysisQuestion}`
+        : `📎 Uploaded file for analysis: ${uploadedFile.name}`,
+      isFileUpload: true
+    };
+    setMessages(prev => [...prev, userMessage]);
+    setQuestion(''); // Clear question after use
+
+    try {
+      const formData = new FormData();
+      formData.append('file', uploadedFile);
+      formData.append('patient_id', patientData.profile.patient_id);
+      formData.append('question', analysisQuestion);
+
+      const response = await axios.post(`${API}/analyze-document`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      const analysisMsg = {
+        role: 'assistant',
+        content: response.data.analysis,
+        fileType: response.data.file_type,
+        suggestions: response.data.suggestions,
+        isAnalysis: true
+      };
+
+      setMessages(prev => [...prev, analysisMsg]);
+      
+      // Add to conversation history
+      setConversationHistory(prev => [
+        ...prev,
+        { role: 'user', content: `Analyzing file: ${uploadedFile.name}. ${analysisQuestion}` },
+        { role: 'assistant', content: response.data.analysis }
+      ]);
+      
+      speak(response.data.analysis);
+      setUploadedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      const errorMsg = 'Sorry, I encountered an error analyzing the document. Please try again.';
+      toast.error('Error analyzing document');
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: errorMsg
+      }]);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
+  // Combined send handler - handles both text questions and file+question
+  const handleSend = () => {
+    if (uploadedFile && question.trim()) {
+      // File + question: analyze file with the question
+      handleFileAnalysis(question.trim());
+    } else if (uploadedFile) {
+      // File only: analyze with default question
+      handleFileAnalysis();
+    } else if (question.trim()) {
+      // Text only: regular question
+      handleAskQuestion();
+    }
+  };
+
+  const openReportViewer = (url, title) => {
+    setReportModal({ open: true, url, title });
+  };
+
+  const handleClose = () => {
+    stopSpeaking();
+    stopListening();
+    setStep('search');
+    setPatientInput('');
+    setPatientData(null);
+    setMessages([]);
+    setQuestion('');
+    setUploadedFile(null);
+    setConversationHistory([]); // Clear conversation history on close
+    setIsFullscreen(false);
+    onClose();
+  };
+
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
+  };
+
+  return (
+    <>
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className={`overflow-y-auto transition-all duration-300 ${
+          isFullscreen 
+            ? 'max-w-[100vw] w-[100vw] max-h-[100vh] h-[100vh] rounded-none m-0' 
+            : 'max-w-4xl max-h-[90vh]'
+        }`}>
+          <DialogHeader className="flex flex-row items-center justify-between">
+            <DialogTitle className="text-2xl font-bold text-teal-600 flex items-center gap-2">
+              <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M6 20v-2a4 4 0 014-4h4a4 4 0 014 4v2" />
+                <rect x="9" y="6" width="6" height="4" rx="1" fill="currentColor" opacity="0.3" />
+                <circle cx="10" cy="7.5" r="0.5" fill="currentColor" />
+                <circle cx="14" cy="7.5" r="0.5" fill="currentColor" />
+              </svg>
+              DocAssist Clinical Assistant
+            </DialogTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleFullscreen}
+              className="mr-8 hover:bg-gray-100"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            >
+              {isFullscreen ? (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+                </svg>
+              ) : (
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                </svg>
+              )}
+            </Button>
+          </DialogHeader>
+
+          {/* Step 1: Search Patient */}
+          {step === 'search' && (
+            <div className="space-y-6">
+              <p className="text-gray-600">Enter Patient ID or Name to begin clinical consultation</p>
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Enter Patient ID (e.g., P1001) or Name"
+                  value={patientInput}
+                  onChange={(e) => setPatientInput(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearchPatient()}
+                  className="flex-1"
+                />
+                <Button
+                  onClick={isListening ? stopListening : startListening}
+                  variant="outline"
+                  className={isListening ? 'bg-red-100 animate-pulse' : ''}
+                  title="Click to speak patient ID or name"
+                >
+                  {isListening ? '⏹️ Stop' : '🎤 Speak'}
+                </Button>
+              </div>
+              {isListening && (
+                <div className="text-center text-sm text-teal-600 animate-pulse">
+                  🎤 Listening... Say the patient ID or name
+                </div>
+              )}
+              <Button
+                onClick={handleSearchPatient}
+                disabled={loading}
+                className="w-full bg-teal-600 hover:bg-teal-700"
+              >
+                {loading ? 'Searching...' : 'Search Patient'}
+              </Button>
+              
+              {/* Microphone Permission Help */}
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-xs text-blue-700">
+                  <strong>💡 Voice Input Tip:</strong> If the microphone isn't working, click the 🔒 lock icon in your browser's address bar and allow microphone access.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Step 2: Confirm Patient */}
+          {step === 'confirm' && patientData && (
+            <div className="space-y-6">
+              <Card className="p-6 bg-teal-50">
+                <h3 className="text-xl font-bold mb-4">Patient Details</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-600">Name</p>
+                    <p className="font-semibold">{patientData.profile.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Patient ID</p>
+                    <p className="font-semibold">{patientData.profile.patient_id}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Age / Gender</p>
+                    <p className="font-semibold">{patientData.profile.age} years / {patientData.profile.gender}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-600">Blood Group</p>
+                    <p className="font-semibold">{patientData.profile.blood_group}</p>
+                  </div>
+                </div>
+                <div className="mt-4 p-3 bg-white rounded">
+                  <p className="text-sm text-gray-600">Available Records</p>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {patientData.mri_records?.length > 0 && <span className="px-3 py-1 bg-teal-100 text-teal-700 rounded text-xs">MRI ({patientData.mri_records.length})</span>}
+                    {patientData.xray_records?.length > 0 && <span className="px-3 py-1 bg-cyan-100 text-cyan-700 rounded text-xs">X-Ray ({patientData.xray_records.length})</span>}
+                    {patientData.ecg_records?.length > 0 && <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded text-xs">ECG ({patientData.ecg_records.length})</span>}
+                    {patientData.blood_profile_records?.length > 0 && <span className="px-3 py-1 bg-red-100 text-red-700 rounded text-xs">Blood ({patientData.blood_profile_records.length})</span>}
+                    {patientData.ct_scan_records?.length > 0 && <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded text-xs">CT Scan ({patientData.ct_scan_records.length})</span>}
+                    {patientData.treatment_records?.length > 0 && <span className="px-3 py-1 bg-green-100 text-green-700 rounded text-xs">Treatment ({patientData.treatment_records.length})</span>}
+                  </div>
+                </div>
+              </Card>
+              <div className="flex gap-4">
+                <Button onClick={() => setStep('search')} variant="outline" className="flex-1">Back</Button>
+                <Button onClick={handleConfirmPatient} className="flex-1 bg-teal-600 hover:bg-teal-700">Confirm & Start Consultation</Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Chat Interface */}
+          {step === 'chat' && (
+            <div className="space-y-4">
+              {/* Patient Info Bar */}
+              <Card className="p-3 bg-teal-50 flex items-center justify-between">
+                <div>
+                  <p className="font-semibold">{patientData.profile.name} ({patientData.profile.patient_id})</p>
+                  <p className="text-xs text-gray-600">{patientData.profile.age}y / {patientData.profile.gender} / {patientData.profile.blood_group}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    onClick={toggleVoice} 
+                    variant="outline" 
+                    className={voiceEnabled ? 'bg-green-100 hover:bg-green-200' : 'bg-gray-100 hover:bg-gray-200'}
+                    data-testid="voice-toggle-btn"
+                  >
+                    {voiceEnabled ? '🔊 Voice On' : '🔇 Voice Off'}
+                  </Button>
+                  {isSpeaking && (
+                    <Button size="sm" onClick={stopSpeaking} variant="outline" className="bg-red-100 hover:bg-red-200" data-testid="stop-speaking-btn">
+                      ⏹️ Stop
+                    </Button>
+                  )}
+                </div>
+              </Card>
+
+              {/* Chat Messages */}
+              <div className={`overflow-y-auto space-y-4 p-4 bg-gray-50 rounded ${isFullscreen ? 'h-[calc(100vh-350px)]' : 'h-[350px]'}`}>
+                {messages.map((msg, idx) => (
+                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] p-4 rounded-lg ${
+                      msg.role === 'user' 
+                        ? 'bg-teal-600 text-white' 
+                        : 'bg-white border border-gray-200'
+                    }`}>
+                      {msg.isFileUpload && <p className="text-sm mb-1">📎 File Upload</p>}
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      
+                      {/* Analysis-specific display */}
+                      {msg.isAnalysis && msg.suggestions && (
+                        <div className="mt-3 p-2 bg-blue-50 rounded">
+                          <p className="text-xs font-semibold text-blue-700 mb-1">📝 Suggestions:</p>
+                          <ul className="text-xs text-blue-600 list-disc list-inside">
+                            {msg.suggestions.map((s, i) => <li key={i}>{s}</li>)}
+                          </ul>
+                        </div>
+                      )}
+                      
+                      {/* Evidence Cards with View Report Button */}
+                      {msg.evidence && msg.evidence.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          <p className="text-xs font-semibold text-gray-500">📋 Supporting Evidence:</p>
+                          {msg.evidence.map((ev, i) => (
+                            <Card key={i} className="p-3 text-sm bg-gray-50">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <p className="font-semibold text-teal-700">{ev.test_name || ev.treatment_name}</p>
+                                  <p className="text-xs text-gray-600">📅 Date: {ev.test_date || ev.treatment_date}</p>
+                                  <p className="text-xs">🔬 Result: <span className="font-medium">{ev.result}</span></p>
+                                  {ev.medicines && <p className="text-xs">💊 Medicines: {ev.medicines}</p>}
+                                  {ev.doctor && <p className="text-xs">👨‍⚕️ Doctor: {ev.doctor}</p>}
+                                </div>
+                                {ev.report_image && (
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    className="ml-2 text-xs bg-teal-50 hover:bg-teal-100"
+                                    onClick={() => openReportViewer(ev.report_image, ev.test_name || ev.treatment_name)}
+                                    data-testid={`view-report-btn-${i}`}
+                                  >
+                                    📄 View Report
+                                  </Button>
+                                )}
+                              </div>
+                            </Card>
+                          ))}
+                        </div>
+                      )}
+                      
+                      {/* Department Tags */}
+                      {msg.departments && msg.departments.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {msg.departments.map((dept, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-teal-100 text-teal-700 rounded text-xs">{dept}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {(loading || isAnalyzing) && (
+                  <div className="flex justify-start">
+                    <div className="bg-white border border-gray-200 p-4 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 bg-teal-600 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-teal-600 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                        <div className="w-2 h-2 bg-teal-600 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                        <span className="text-sm text-gray-500 ml-2">
+                          {isAnalyzing ? 'Analyzing document...' : 'DocAssist is thinking...'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* File Upload Section */}
+              <div className="flex items-center gap-2 p-2 bg-gray-100 rounded-lg">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  accept="image/png,image/jpeg,image/webp,application/pdf"
+                  className="hidden"
+                  id="file-upload"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-white"
+                  disabled={isAnalyzing}
+                >
+                  📎 Upload File
+                </Button>
+                {uploadedFile && (
+                  <>
+                    <span className="text-sm text-gray-600 truncate max-w-[200px]">
+                      {uploadedFile.name}
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setUploadedFile(null);
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                      }}
+                    >
+                      ✕
+                    </Button>
+                  </>
+                )}
+                <span className="text-xs text-gray-500 ml-auto">
+                  {uploadedFile ? 'Type a question or click Send to analyze' : 'PNG, JPEG, PDF (max 10MB)'}
+                </span>
+              </div>
+
+              {/* Input Area */}
+              <div className="flex gap-2">
+                <Input
+                  placeholder={uploadedFile ? "Type a question about the uploaded file (optional)..." : "Ask anything about the patient's medical records..."}
+                  value={question}
+                  onChange={(e) => setQuestion(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && !loading && !isAnalyzing && handleSend()}
+                  className="flex-1"
+                  data-testid="chat-input"
+                />
+                <Button
+                  onClick={isListening ? stopListening : startListening}
+                  variant="outline"
+                  className={isListening ? 'bg-red-100 animate-pulse' : 'hover:bg-teal-50'}
+                  disabled={loading || isAnalyzing}
+                  data-testid="mic-button"
+                  title="Click to speak your question"
+                >
+                  {isListening ? '🎤 Listening...' : '🎤'}
+                </Button>
+                <Button
+                  onClick={handleSend}
+                  disabled={loading || isAnalyzing || (!question.trim() && !uploadedFile)}
+                  className={uploadedFile ? "bg-purple-600 hover:bg-purple-700" : "bg-teal-600 hover:bg-teal-700"}
+                  data-testid="send-button"
+                >
+                  {uploadedFile ? 'Analyze' : 'Send'}
+                </Button>
+              </div>
+              
+              {/* Voice Status Indicator */}
+              {isListening && (
+                <div className="text-center text-sm text-teal-600 animate-pulse">
+                  🎤 Listening... Speak your question now
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Report Viewer Modal */}
+      <ReportViewerModal 
+        open={reportModal.open}
+        onClose={() => setReportModal({ open: false, url: '', title: '' })}
+        reportUrl={reportModal.url}
+        reportTitle={reportModal.title}
+      />
+    </>
+  );
+};
+
+export default DeepSearchModal;

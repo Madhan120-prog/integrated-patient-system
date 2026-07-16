@@ -1,7 +1,4 @@
-
-from dotenv import load_dotenv
-load_dotenv()
-from fastapi import FastAPI, APIRouter, Query, HTTPException
+from fastapi import FastAPI, APIRouter, Query, HTTPException, UploadFile, File, Form
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -11,9 +8,13 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime, timezone
-from faker import Faker
 import random
 from collections import Counter
+from google import genai
+from google.genai import types as genai_types
+import json
+import shutil
+import uuid
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -23,50 +24,20 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
+# Gemini LLM client (used by /deep-query and /analyze-document)
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
+GEMINI_MODEL = "gemini-3-flash-preview"
+gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+
 # Create the main app without a prefix
 app = FastAPI()
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
 
-# Initialize Faker
-fake = Faker()
-
-# Sample medical report image URLs
-MEDICAL_IMAGES = {
-    "xray": [
-        "https://images.unsplash.com/photo-1564725075388-cc8338732289",
-        "https://images.unsplash.com/photo-1648025487795-2f7bd6d620bf"
-    ],
-    "ecg": [
-        "https://images.unsplash.com/photo-1682706841281-f723c5bfcd83",
-        "https://images.unsplash.com/photo-1682706841289-9d7ddf5eb999"
-    ],
-    "mri": [
-        "https://images.pexels.com/photos/7089020/pexels-photo-7089020.jpeg"
-    ],
-    "ct": [
-        "https://images.unsplash.com/photo-1631563019676-dade0dbdb8fc"
-    ],
-    "blood": [
-        "https://images.unsplash.com/photo-1639772823849-6efbd173043c",
-        "https://images.unsplash.com/photo-1606206591513-adbfbdd7a177"
-    ]
-}
-
-# Medicine lists
-MEDICINES = [
-    "Amoxicillin 500mg",
-    "Ibuprofen 400mg",
-    "Metformin 850mg",
-    "Lisinopril 10mg",
-    "Atorvastatin 20mg",
-    "Omeprazole 20mg",
-    "Aspirin 75mg",
-    "Paracetamol 500mg",
-    "Ciprofloxacin 500mg",
-    "Levothyroxine 50mcg"
-]
+# Create uploads directory for file analysis
+UPLOAD_DIR = ROOT_DIR / "uploads"
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 # Define Models
 class LoginRequest(BaseModel):
@@ -167,16 +138,24 @@ class PatientAnalytics(BaseModel):
     health_trend: str
     recent_results: List[dict]
 
-# Helper function to generate sample data
+class DeepQueryRequest(BaseModel):
+    patient_id: str
+    question: str
+
+class DeepQueryResponse(BaseModel):
+    answer: str
+    evidence: List[dict] = []
+    matched_departments: List[str] = []
+
+from data.seed import build_seed_data
+
 async def populate_sample_data():
-    """Populate all department collections with sample patient data using Faker"""
-    
-    # Check if data already exists
+    """Populate all department collections with curated oncology patient data"""
+
     existing_count = await db.profiles.count_documents({})
     if existing_count > 0:
         return {"message": "Data already exists", "patients_created": existing_count}
-    
-    # Clear existing data
+
     await db.profiles.delete_many({})
     await db.mri_records.delete_many({})
     await db.xray_records.delete_many({})
@@ -184,140 +163,16 @@ async def populate_sample_data():
     await db.treatment_records.delete_many({})
     await db.blood_profile_records.delete_many({})
     await db.ct_scan_records.delete_many({})
-    
-    # Generate 15 patients
-    patients = []
-    for i in range(1, 16):
-        patient_id = f"P{1000 + i}"
-        name = fake.name()
-        patients.append({
-            "patient_id": patient_id,
-            "name": name,
-            "age": random.randint(18, 85),
-            "gender": random.choice(["Male", "Female"]),
-            "blood_group": random.choice(["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"]),
-            "address": fake.address().replace('\n', ', '),
-            "phone": fake.phone_number(),
-            "registration_date": fake.date_between(start_date="-2y", end_date="today").isoformat()
-        })
-    
-    # Insert profiles
-    await db.profiles.insert_many(patients)
-    
-    # Generate MRI records
-    mri_tests = ["Brain MRI", "Spine MRI", "Knee MRI", "Shoulder MRI", "Abdominal MRI"]
-    mri_records = []
-    for patient in patients:
-        if random.random() > 0.3:  # 70% chance of having MRI
-            for _ in range(random.randint(1, 3)):
-                mri_records.append({
-                    "patient_id": patient["patient_id"],
-                    "name": patient["name"],
-                    "test_name": random.choice(mri_tests),
-                    "test_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
-                    "result": random.choice(["Normal", "Abnormal - Minor", "Requires Follow-up", "Critical"]),
-                    "doctor": f"Dr. {fake.last_name()}",
-                    "report_image": random.choice(MEDICAL_IMAGES["mri"])
-                })
-    if mri_records:
-        await db.mri_records.insert_many(mri_records)
-    
-    # Generate X-Ray records
-    xray_tests = ["Chest X-Ray", "Dental X-Ray", "Hand X-Ray", "Foot X-Ray", "Pelvis X-Ray"]
-    xray_records = []
-    for patient in patients:
-        if random.random() > 0.2:  # 80% chance of having X-Ray
-            for _ in range(random.randint(1, 4)):
-                xray_records.append({
-                    "patient_id": patient["patient_id"],
-                    "name": patient["name"],
-                    "test_name": random.choice(xray_tests),
-                    "test_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
-                    "result": random.choice(["Clear", "Fracture Detected", "Inflammation", "Normal"]),
-                    "doctor": f"Dr. {fake.last_name()}",
-                    "report_image": random.choice(MEDICAL_IMAGES["xray"])
-                })
-    if xray_records:
-        await db.xray_records.insert_many(xray_records)
-    
-    # Generate ECG records
-    ecg_tests = ["Resting ECG", "Stress ECG", "Holter Monitor", "Event Monitor"]
-    ecg_records = []
-    for patient in patients:
-        if random.random() > 0.4:  # 60% chance of having ECG
-            for _ in range(random.randint(1, 2)):
-                ecg_records.append({
-                    "patient_id": patient["patient_id"],
-                    "name": patient["name"],
-                    "test_name": random.choice(ecg_tests),
-                    "test_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
-                    "result": random.choice(["Normal Sinus Rhythm", "Arrhythmia Detected", "Tachycardia", "Normal"]),
-                    "doctor": f"Dr. {fake.last_name()}",
-                    "report_image": random.choice(MEDICAL_IMAGES["ecg"])
-                })
-    if ecg_records:
-        await db.ecg_records.insert_many(ecg_records)
-    
-    # Generate Treatment records with medicines
-    treatments = ["Physical Therapy", "Medication - Antibiotics", "Surgery - Minor", "Chemotherapy", "Dialysis", "Vaccination"]
-    treatment_records = []
-    for patient in patients:
-        if random.random() > 0.1:  # 90% chance of having treatment
-            for _ in range(random.randint(1, 5)):
-                # Generate 1-3 medicines
-                num_medicines = random.randint(1, 3)
-                medicines_list = random.sample(MEDICINES, num_medicines)
-                medicines_str = ", ".join(medicines_list)
-                
-                treatment_records.append({
-                    "patient_id": patient["patient_id"],
-                    "name": patient["name"],
-                    "treatment_name": random.choice(treatments),
-                    "treatment_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
-                    "result": random.choice(["Completed", "In Progress", "Successful", "Scheduled"]),
-                    "doctor": f"Dr. {fake.last_name()}",
-                    "medicines": medicines_str
-                })
-    if treatment_records:
-        await db.treatment_records.insert_many(treatment_records)
-    
-    # Generate Blood Profile records
-    blood_tests = ["Complete Blood Count", "Lipid Profile", "Liver Function Test", "Kidney Function Test", "Thyroid Panel"]
-    blood_records = []
-    for patient in patients:
-        if random.random() > 0.2:  # 80% chance of having blood tests
-            for _ in range(random.randint(1, 3)):
-                blood_records.append({
-                    "patient_id": patient["patient_id"],
-                    "name": patient["name"],
-                    "test_name": random.choice(blood_tests),
-                    "test_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
-                    "result": random.choice(["Normal", "Abnormal - High", "Abnormal - Low", "Within Range"]),
-                    "doctor": f"Dr. {fake.last_name()}",
-                    "report_image": random.choice(MEDICAL_IMAGES["blood"])
-                })
-    if blood_records:
-        await db.blood_profile_records.insert_many(blood_records)
-    
-    # Generate CT Scan records
-    ct_tests = ["Head CT Scan", "Chest CT Scan", "Abdominal CT Scan", "Pelvic CT Scan", "Spine CT Scan"]
-    ct_records = []
-    for patient in patients:
-        if random.random() > 0.5:  # 50% chance of having CT scan
-            for _ in range(random.randint(1, 2)):
-                ct_records.append({
-                    "patient_id": patient["patient_id"],
-                    "name": patient["name"],
-                    "test_name": random.choice(ct_tests),
-                    "test_date": fake.date_between(start_date="-1y", end_date="today").isoformat(),
-                    "result": random.choice(["Normal", "Abnormality Detected", "Requires Further Investigation", "Clear"]),
-                    "doctor": f"Dr. {fake.last_name()}",
-                    "report_image": random.choice(MEDICAL_IMAGES["ct"])
-                })
-    if ct_records:
-        await db.ct_scan_records.insert_many(ct_records)
-    
-    return {"message": "Sample data populated successfully", "patients_created": len(patients)}
+
+    seed_data = build_seed_data(extra_count=0)
+
+    await db.profiles.insert_many(seed_data["profiles"])
+    for coll_name in ["mri_records", "xray_records", "ecg_records",
+                       "blood_profile_records", "ct_scan_records", "treatment_records"]:
+        if seed_data[coll_name]:
+            await db[coll_name].insert_many(seed_data[coll_name])
+
+    return {"message": "Sample data populated successfully", "patients_created": len(seed_data["profiles"])}
 
 # Routes
 @api_router.get("/")
@@ -552,6 +407,263 @@ async def get_all_patients():
     """Get list of all patient IDs and names for reference"""
     profiles = await db.profiles.find({}, {"_id": 0, "patient_id": 1, "name": 1}).to_list(1000)
     return {"patients": profiles}
+
+@api_router.post("/deep-query", response_model=DeepQueryResponse)
+async def deep_query(request: DeepQueryRequest):
+    """AI-powered clinical assistant to analyze patient records and answer questions"""
+    
+    patient_id = request.patient_id
+    question = request.question
+    
+    # Fetch all patient data
+    query = {"patient_id": patient_id}
+    
+    profile = await db.profiles.find_one(query, {"_id": 0})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    
+    # Fetch all records
+    mri_records = await db.mri_records.find(query, {"_id": 0}).to_list(1000)
+    xray_records = await db.xray_records.find(query, {"_id": 0}).to_list(1000)
+    ecg_records = await db.ecg_records.find(query, {"_id": 0}).to_list(1000)
+    treatment_records = await db.treatment_records.find(query, {"_id": 0}).to_list(1000)
+    blood_profile_records = await db.blood_profile_records.find(query, {"_id": 0}).to_list(1000)
+    ct_scan_records = await db.ct_scan_records.find(query, {"_id": 0}).to_list(1000)
+    
+    # Build context for LLM
+    patient_context = f"""
+PATIENT PROFILE:
+- Name: {profile.get('name')}
+- Patient ID: {profile.get('patient_id')}
+- Age: {profile.get('age')} years
+- Gender: {profile.get('gender')}
+- Blood Group: {profile.get('blood_group')}
+- Address: {profile.get('address')}
+- Phone: {profile.get('phone')}
+- Registration Date: {profile.get('registration_date')}
+
+MRI RECORDS ({len(mri_records)} records):
+{json.dumps(mri_records, indent=2) if mri_records else 'No MRI records'}
+
+X-RAY RECORDS ({len(xray_records)} records):
+{json.dumps(xray_records, indent=2) if xray_records else 'No X-Ray records'}
+
+ECG RECORDS ({len(ecg_records)} records):
+{json.dumps(ecg_records, indent=2) if ecg_records else 'No ECG records'}
+
+BLOOD PROFILE RECORDS ({len(blood_profile_records)} records):
+{json.dumps(blood_profile_records, indent=2) if blood_profile_records else 'No blood profile records'}
+
+CT SCAN RECORDS ({len(ct_scan_records)} records):
+{json.dumps(ct_scan_records, indent=2) if ct_scan_records else 'No CT scan records'}
+
+TREATMENT RECORDS ({len(treatment_records)} records):
+{json.dumps(treatment_records, indent=2) if treatment_records else 'No treatment records'}
+"""
+
+    system_message = """You are DocAssist, an AI clinical assistant for XYZ Hospital. 
+You have access to a patient's complete medical records including MRI scans, X-Rays, ECG tests, blood profiles, CT scans, and treatment history.
+
+Your role is to:
+1. Answer questions about the patient's medical history accurately
+2. Provide insights based on the available data
+3. Highlight any concerning patterns or results
+4. Be helpful to doctors and medical staff
+
+Guidelines:
+- Be concise but thorough
+- Always reference specific records when answering
+- If asked about something not in the records, clearly state that
+- Use medical terminology appropriately
+- Never make diagnoses - only summarize and analyze existing data
+- Be professional and empathetic"""
+
+    try:
+        if not gemini_client:
+            raise HTTPException(status_code=500, detail="LLM API key not configured")
+
+        # Create user message with patient context
+        prompt = f"""Based on the following patient records, please answer this question: {question}
+
+{patient_context}"""
+
+        # Get LLM response
+        result = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=prompt,
+            config=genai_types.GenerateContentConfig(system_instruction=system_message),
+        )
+        response = result.text
+        
+        # Determine which departments were relevant based on question keywords
+        matched_departments = []
+        question_lower = question.lower()
+        if any(word in question_lower for word in ['mri', 'brain', 'spine', 'magnetic']):
+            matched_departments.append('MRI')
+        if any(word in question_lower for word in ['xray', 'x-ray', 'chest', 'bone', 'fracture']):
+            matched_departments.append('X-Ray')
+        if any(word in question_lower for word in ['ecg', 'heart', 'cardiac', 'rhythm']):
+            matched_departments.append('ECG')
+        if any(word in question_lower for word in ['blood', 'hemoglobin', 'platelet', 'wbc', 'rbc', 'lipid', 'liver', 'kidney', 'thyroid']):
+            matched_departments.append('Blood Profile')
+        if any(word in question_lower for word in ['ct', 'scan', 'computed tomography']):
+            matched_departments.append('CT Scan')
+        if any(word in question_lower for word in ['treatment', 'medicine', 'medication', 'prescription', 'therapy']):
+            matched_departments.append('Treatment')
+        
+        # If no specific department matched, include all with data
+        if not matched_departments:
+            if mri_records: matched_departments.append('MRI')
+            if xray_records: matched_departments.append('X-Ray')
+            if ecg_records: matched_departments.append('ECG')
+            if blood_profile_records: matched_departments.append('Blood Profile')
+            if ct_scan_records: matched_departments.append('CT Scan')
+            if treatment_records: matched_departments.append('Treatment')
+        
+        # Collect relevant evidence records (most recent from each matched department)
+        evidence = []
+        if 'MRI' in matched_departments and mri_records:
+            evidence.extend(sorted(mri_records, key=lambda x: x.get('test_date', ''), reverse=True)[:2])
+        if 'X-Ray' in matched_departments and xray_records:
+            evidence.extend(sorted(xray_records, key=lambda x: x.get('test_date', ''), reverse=True)[:2])
+        if 'ECG' in matched_departments and ecg_records:
+            evidence.extend(sorted(ecg_records, key=lambda x: x.get('test_date', ''), reverse=True)[:2])
+        if 'Blood Profile' in matched_departments and blood_profile_records:
+            evidence.extend(sorted(blood_profile_records, key=lambda x: x.get('test_date', ''), reverse=True)[:2])
+        if 'CT Scan' in matched_departments and ct_scan_records:
+            evidence.extend(sorted(ct_scan_records, key=lambda x: x.get('test_date', ''), reverse=True)[:2])
+        if 'Treatment' in matched_departments and treatment_records:
+            evidence.extend(sorted(treatment_records, key=lambda x: x.get('treatment_date', ''), reverse=True)[:2])
+        
+        return DeepQueryResponse(
+            answer=response,
+            evidence=evidence[:6],  # Limit to 6 evidence cards
+            matched_departments=matched_departments
+        )
+        
+    except Exception as e:
+        logger.error(f"Deep query error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
+
+class FileAnalysisResponse(BaseModel):
+    analysis: str
+    file_type: str
+    suggestions: List[str] = []
+
+@api_router.post("/analyze-document", response_model=FileAnalysisResponse)
+async def analyze_document(
+    file: UploadFile = File(...),
+    patient_id: str = Form(...),
+    question: str = Form(default="Analyze this medical document and provide a detailed summary.")
+):
+    """Analyze uploaded medical documents (images, PDFs) using Gemini AI"""
+    
+    # Validate file type
+    allowed_types = {
+        'image/png': 'image/png',
+        'image/jpeg': 'image/jpeg',
+        'image/jpg': 'image/jpeg',
+        'image/webp': 'image/webp',
+        'application/pdf': 'application/pdf'
+    }
+    
+    content_type = file.content_type
+    if content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file type: {content_type}. Allowed: PNG, JPEG, WebP, PDF"
+        )
+    
+    # Get patient context
+    query = {"patient_id": patient_id}
+    profile = await db.profiles.find_one(query, {"_id": 0})
+    
+    patient_context = ""
+    if profile:
+        patient_context = f"""
+Patient Context:
+- Name: {profile.get('name')}
+- Patient ID: {profile.get('patient_id')}
+- Age: {profile.get('age')} years
+- Gender: {profile.get('gender')}
+- Blood Group: {profile.get('blood_group')}
+"""
+    
+    # Save uploaded file temporarily
+    file_id = str(uuid.uuid4())
+    file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'bin'
+    temp_file_path = UPLOAD_DIR / f"{file_id}.{file_extension}"
+    
+    try:
+        with open(temp_file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        if not gemini_client:
+            raise HTTPException(status_code=500, detail="LLM API key not configured")
+
+        system_message = """You are DocAssist, an AI medical document analyzer for XYZ Hospital.
+You are analyzing a medical document (X-ray, MRI, CT scan, lab report PDF, etc.).
+
+Your role is to:
+1. Identify the type of medical document
+2. Describe what you observe in the image/document
+3. Highlight any notable findings or areas of concern
+4. Provide a professional medical summary
+
+Guidelines:
+- Be thorough but concise
+- Use appropriate medical terminology
+- Note any abnormalities or areas requiring attention
+- DO NOT make definitive diagnoses - provide observations and suggest follow-up
+- Always recommend consulting with the appropriate specialist
+- Be professional and objective"""
+
+        # Create file content for Gemini
+        file_part = genai_types.Part.from_bytes(
+            data=temp_file_path.read_bytes(),
+            mime_type=allowed_types[content_type]
+        )
+
+        # Create message with file attachment
+        full_question = f"{patient_context}\n\nDoctor's Question: {question}"
+
+        # Get AI analysis
+        result = await gemini_client.aio.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[full_question, file_part],
+            config=genai_types.GenerateContentConfig(system_instruction=system_message),
+        )
+        analysis = result.text
+        
+        # Determine file type for response
+        file_type_map = {
+            'image/png': 'Medical Image',
+            'image/jpeg': 'Medical Image',
+            'image/webp': 'Medical Image',
+            'application/pdf': 'PDF Document'
+        }
+        
+        # Generate suggestions based on content
+        suggestions = [
+            "Review findings with attending physician",
+            "Compare with previous imaging if available",
+            "Document observations in patient record"
+        ]
+        
+        return FileAnalysisResponse(
+            analysis=analysis,
+            file_type=file_type_map.get(content_type, 'Unknown'),
+            suggestions=suggestions
+        )
+        
+    except Exception as e:
+        logger.error(f"Document analysis error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error analyzing document: {str(e)}")
+    
+    finally:
+        # Clean up temp file
+        if temp_file_path.exists():
+            temp_file_path.unlink()
 
 # Include the router in the main app
 app.include_router(api_router)

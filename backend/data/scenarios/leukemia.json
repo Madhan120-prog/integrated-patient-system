@@ -1,0 +1,119 @@
+{
+  "condition": "Acute Lymphoblastic Leukemia (ALL)",
+  "description": "ALL — diagnosed via blood work + bone marrow biopsy, treated with intensive multi-agent chemotherapy",
+  "timeline_weeks": 52,
+  "records": {
+    "blood_profile": [
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Abnormal — WBC 45,000, blasts 60%, Hgb 7.8, Platelets 32,000",
+        "week_offset": 0,
+        "notes": "Initial presentation — severe pancytopenia with blast crisis"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Improving — WBC 8,200, blasts 5%, Hgb 9.1, Platelets 85,000",
+        "week_offset": 4,
+        "notes": "Day 28 of induction — approaching remission"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Remission — WBC 6,100, no blasts, Hgb 11.5, Platelets 180,000",
+        "week_offset": 8,
+        "notes": "Complete remission confirmed"
+      },
+      {
+        "test_name": "Liver Function Test",
+        "result": "ALT mildly elevated (52 U/L)",
+        "week_offset": 3,
+        "notes": "Methotrexate hepatotoxicity monitoring"
+      },
+      {
+        "test_name": "Kidney Function Test",
+        "result": "Within Range",
+        "week_offset": 3,
+        "notes": "Tumor lysis syndrome monitoring"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Stable remission — WBC 5,800, Hgb 13.2, Platelets 210,000",
+        "week_offset": 24,
+        "notes": "Consolidation phase — counts recovering well"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Continued remission — normal differential",
+        "week_offset": 40,
+        "notes": "Maintenance phase monitoring"
+      }
+    ],
+    "ct_scan": [
+      {
+        "test_name": "Chest CT Scan",
+        "result": "Mediastinal lymphadenopathy — consistent with leukemic involvement",
+        "week_offset": 0,
+        "notes": "Initial staging"
+      },
+      {
+        "test_name": "Chest CT Scan",
+        "result": "Resolved — no lymphadenopathy",
+        "week_offset": 12,
+        "notes": "Post-induction restaging"
+      }
+    ],
+    "mri": [
+      {
+        "test_name": "Brain MRI",
+        "result": "Normal — no CNS involvement",
+        "week_offset": 1,
+        "notes": "CNS staging — important for ALL"
+      }
+    ],
+    "ecg": [
+      {
+        "test_name": "Resting ECG",
+        "result": "Sinus tachycardia — HR 105",
+        "week_offset": 0,
+        "notes": "Likely secondary to anemia"
+      },
+      {
+        "test_name": "Resting ECG",
+        "result": "Normal Sinus Rhythm",
+        "week_offset": 8,
+        "notes": "Post-induction — resolved with anemia correction"
+      }
+    ],
+    "treatment": [
+      {
+        "treatment_name": "Chemotherapy — Induction (Hyper-CVAD Part A)",
+        "result": "Completed",
+        "week_offset": 1,
+        "medicines": "Cyclophosphamide 300mg/m² q12h x6, Vincristine 2mg IV, Doxorubicin 50mg/m², Dexamethasone 40mg daily x4"
+      },
+      {
+        "treatment_name": "Chemotherapy — Induction (Hyper-CVAD Part B)",
+        "result": "Completed",
+        "week_offset": 4,
+        "medicines": "Methotrexate 1g/m² IV, Cytarabine 3g/m² q12h x4, Leucovorin rescue"
+      },
+      {
+        "treatment_name": "Intrathecal Chemotherapy",
+        "result": "Completed — CSF negative for blasts",
+        "week_offset": 2,
+        "medicines": "Methotrexate 12mg IT, Cytarabine 100mg IT"
+      },
+      {
+        "treatment_name": "Consolidation Chemotherapy Cycle 1",
+        "result": "Completed",
+        "week_offset": 10,
+        "medicines": "Cyclophosphamide 300mg/m², Vincristine 2mg, Dexamethasone 40mg"
+      },
+      {
+        "treatment_name": "Maintenance Therapy",
+        "result": "In Progress — 2-year course",
+        "week_offset": 20,
+        "medicines": "6-Mercaptopurine 75mg/m² daily, Methotrexate 20mg/m² weekly"
+      }
+    ]
+  }
+}

@@ -19,19 +19,15 @@ node_modules/
 # Testing
 /coverage
 
-# Next.js
-/.next/
-/out/
-next-env.d.ts
-*.tsbuildinfo
-
 # Production builds
 /build
 dist/
 dist
 
-# Environment files (comprehensive coverage)
-
+# Environment files
+*.env
+*.env.*
+!*.env.example
 *token.json*
 *credentials.json*
 
@@ -48,21 +44,9 @@ dump.rdb
 
 # Python
 __pycache__/
-*pyc*
+*.pyc
 venv/
 .venv/
-
-# Development tools
-chainlit.md
-.chainlit
-.ipynb_checkpoints/
-.ac
-
-# Deployment
-.vercel
-
-# Data and databases
-agenthub/agents/youtube/db
 
 # Archive files and large assets
 **/*.zip
@@ -75,13 +59,5 @@ agenthub/agents/youtube/db
 
 # Build caches
 .cache/
-
-# Mobile development
-android-sdk/ frontend/node_modules/.cache/default-development/3.pack
-frontend/node_modules/.cache/default-development/3.pack
-frontend/node_modules/.cache/default-development/0.pack
-frontend/node_modules/.cache/default-development/2.pack
--e 
-# Environment files
-*.env
-*.env.*
+.claude/
+*.Rhistory

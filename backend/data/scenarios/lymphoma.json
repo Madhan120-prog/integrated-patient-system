@@ -1,0 +1,119 @@
+{
+  "condition": "Hodgkin Lymphoma",
+  "description": "Classical Hodgkin lymphoma — diagnosed via lymph node biopsy, staged with PET/CT, treated with ABVD chemo",
+  "timeline_weeks": 40,
+  "records": {
+    "ct_scan": [
+      {
+        "test_name": "Chest CT Scan",
+        "result": "Bulky mediastinal mass (8cm) with bilateral hilar lymphadenopathy",
+        "week_offset": 0,
+        "notes": "Staging CT — Stage IIB"
+      },
+      {
+        "test_name": "Abdominal CT Scan",
+        "result": "Splenomegaly, para-aortic lymphadenopathy",
+        "week_offset": 0,
+        "notes": "Staging CT"
+      },
+      {
+        "test_name": "Chest CT Scan",
+        "result": "Mass reduced to 3cm — good partial response",
+        "week_offset": 12,
+        "notes": "Interim restaging after 2 ABVD cycles"
+      },
+      {
+        "test_name": "Chest CT Scan",
+        "result": "Complete metabolic response — residual fibrosis only",
+        "week_offset": 28,
+        "notes": "End-of-treatment restaging"
+      }
+    ],
+    "blood_profile": [
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Lymphocytopenia, ESR elevated (65 mm/hr)",
+        "week_offset": 0,
+        "notes": "Initial labs — B symptoms present"
+      },
+      {
+        "test_name": "Liver Function Test",
+        "result": "Within Range",
+        "week_offset": 0,
+        "notes": "Baseline"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Neutropenia — WBC 1.5, ANC 800",
+        "week_offset": 6,
+        "notes": "Post-ABVD cycle 2 — G-CSF support added"
+      },
+      {
+        "test_name": "Thyroid Panel",
+        "result": "Normal — TSH 2.1",
+        "week_offset": 30,
+        "notes": "Baseline before potential radiation — thyroid monitoring"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Recovering — WBC 4.2, Hgb 12.1",
+        "week_offset": 32,
+        "notes": "Post-treatment recovery"
+      }
+    ],
+    "xray": [
+      {
+        "test_name": "Chest X-Ray",
+        "result": "Widened mediastinum — mass visible",
+        "week_offset": 0,
+        "notes": "Initial presentation"
+      },
+      {
+        "test_name": "Chest X-Ray",
+        "result": "Mediastinum normalized",
+        "week_offset": 28,
+        "notes": "End-of-treatment"
+      }
+    ],
+    "ecg": [
+      {
+        "test_name": "Resting ECG",
+        "result": "Normal Sinus Rhythm",
+        "week_offset": 1,
+        "notes": "Pre-doxorubicin baseline (ABVD contains doxorubicin)"
+      },
+      {
+        "test_name": "Resting ECG",
+        "result": "Normal — LVEF 58%",
+        "week_offset": 24,
+        "notes": "Mid-treatment cardiac monitoring"
+      }
+    ],
+    "treatment": [
+      {
+        "treatment_name": "Chemotherapy — ABVD Cycle 1",
+        "result": "Completed",
+        "week_offset": 2,
+        "medicines": "Doxorubicin 25mg/m², Bleomycin 10U/m², Vinblastine 6mg/m², Dacarbazine 375mg/m²"
+      },
+      {
+        "treatment_name": "Chemotherapy — ABVD Cycle 2",
+        "result": "Completed",
+        "week_offset": 6,
+        "medicines": "Doxorubicin 25mg/m², Bleomycin 10U/m², Vinblastine 6mg/m², Dacarbazine 375mg/m², Filgrastim 5mcg/kg"
+      },
+      {
+        "treatment_name": "Chemotherapy — ABVD Cycles 3-4",
+        "result": "Completed",
+        "week_offset": 14,
+        "medicines": "Doxorubicin 25mg/m², Bleomycin 10U/m², Vinblastine 6mg/m², Dacarbazine 375mg/m²"
+      },
+      {
+        "treatment_name": "Chemotherapy — ABVD Cycles 5-6",
+        "result": "Completed",
+        "week_offset": 24,
+        "medicines": "Doxorubicin 25mg/m², Bleomycin 10U/m², Vinblastine 6mg/m², Dacarbazine 375mg/m²"
+      }
+    ]
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "condition": "Prostate Cancer",
+  "description": "Localized prostate cancer — diagnosed via PSA + biopsy, treated with active surveillance or radiation",
+  "timeline_weeks": 52,
+  "records": {
+    "blood_profile": [
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "PSA elevated (7.8 ng/mL)",
+        "week_offset": 0,
+        "notes": "Routine screening — referred for urology"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Normal",
+        "week_offset": 1,
+        "notes": "Baseline labs"
+      },
+      {
+        "test_name": "Kidney Function Test",
+        "result": "Within Range",
+        "week_offset": 1,
+        "notes": "Baseline renal function"
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "PSA decreased (1.2 ng/mL)",
+        "week_offset": 30,
+        "notes": "Post-radiation — excellent response"
+      }
+    ],
+    "mri": [
+      {
+        "test_name": "Pelvic MRI",
+        "result": "1.8cm lesion in peripheral zone — PI-RADS 4",
+        "week_offset": 2,
+        "notes": "MRI-guided biopsy recommended"
+      },
+      {
+        "test_name": "Pelvic MRI",
+        "result": "No residual enhancing lesion — treatment response",
+        "week_offset": 36,
+        "notes": "Post-radiation follow-up"
+      }
+    ],
+    "ct_scan": [
+      {
+        "test_name": "Abdominal CT Scan",
+        "result": "No lymphadenopathy — no distant metastasis",
+        "week_offset": 3,
+        "notes": "Staging scan"
+      }
+    ],
+    "ecg": [
+      {
+        "test_name": "Resting ECG",
+        "result": "Normal Sinus Rhythm",
+        "week_offset": 4,
+        "notes": "Pre-treatment cardiac clearance"
+      }
+    ],
+    "treatment": [
+      {
+        "treatment_name": "Radiation Therapy — IMRT to prostate",
+        "result": "Completed — 44 fractions",
+        "week_offset": 8,
+        "medicines": "N/A"
+      },
+      {
+        "treatment_name": "Hormone Therapy — Leuprolide (ADT)",
+        "result": "In Progress — 6-month course",
+        "week_offset": 6,
+        "medicines": "Leuprolide 22.5mg IM depot q3m, Bicalutamide 50mg daily (flare protection)"
+      }
+    ]
+  }
+}

@@ -62,7 +62,7 @@ const LoginPage = () => {
           <div className="text-center mb-8">
             <div className="w-24 h-24 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg p-3">
               <img 
-                src="https://customer-assets.emergentagent.com/job_patient-hub-17/artifacts/ad6o0j43_image.png" 
+                src="/logo.png"
                 alt="XYZ Hospital" 
                 className="w-full h-full object-contain"
               />

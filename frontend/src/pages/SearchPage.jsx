@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
+import DeepSearchModal from '../components/DeepSearchModal';
 
 const SearchPage = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
+  const [deepSearchOpen, setDeepSearchOpen] = useState(false);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -18,37 +20,37 @@ const SearchPage = () => {
   const departments = [
     {
       name: 'MRI Scan',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913133.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774299.png',
       color: 'from-teal-400 to-teal-600',
       route: 'mri'
     },
     {
       name: 'X-Ray',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913149.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774337.png',
       color: 'from-cyan-400 to-cyan-600',
       route: 'xray'
     },
     {
       name: 'ECG',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913099.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774278.png',
       color: 'from-blue-400 to-blue-600',
       route: 'ecg'
     },
     {
       name: 'Blood Test',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913145.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774220.png',
       color: 'from-red-400 to-red-600',
       route: 'blood-test'
     },
     {
       name: 'CT Scan',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913155.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/2966/2966334.png',
       color: 'from-purple-400 to-purple-600',
       route: 'ct-scan'
     },
     {
       name: 'Treatment',
-      icon: 'https://cdn-icons-png.flaticon.com/512/2913/2913115.png',
+      icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774286.png',
       color: 'from-green-400 to-green-600',
       route: 'treatment'
     }
@@ -116,7 +118,31 @@ const SearchPage = () => {
                 >
                   Search Records
                 </Button>
+
+                {/* DocAssist Button */}
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg blur opacity-25"></div>
+                  <Button
+                    type="button"
+                    onClick={() => setDeepSearchOpen(true)}
+                    className="relative w-full h-14 text-lg font-semibold bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white rounded-lg shadow-md hover:shadow-xl transition-all duration-300"
+                    data-testid="docassist-button"
+                  >
+                    {/* Doctor with Stethoscope Icon */}
+                    <svg className="w-6 h-6 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="12" cy="6" r="3" stroke="currentColor" strokeWidth="2"/>
+                      <path d="M12 9v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M7 13c0-1 1-2 2-2h6c1 0 2 1 2 2v4c0 2-2 4-5 4s-5-2-5-4v-4z" stroke="currentColor" strokeWidth="2"/>
+                      <circle cx="18" cy="10" r="2" stroke="currentColor" strokeWidth="1.5"/>
+                      <path d="M18 12v3c0 1-1 2-2 2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                    DocAssist Clinical Assistant
+                  </Button>
+                </div>
               </form>
+
+              {/* DocAssist Modal */}
+              <DeepSearchModal open={deepSearchOpen} onClose={() => setDeepSearchOpen(false)} />
 
               {/* Info Cards */}
               <div className="mt-10 grid grid-cols-2 gap-4">
@@ -135,7 +161,7 @@ const SearchPage = () => {
           {/* Departments Section */}
           <div>
             <Card className="p-8 bg-white/90 backdrop-blur-sm shadow-2xl border-0">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Available Departments</h2>
+              <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">Available Profiles</h2>
               <div className="grid grid-cols-2 gap-4">
                 {departments.map((dept, index) => (
                   <div 
@@ -145,8 +171,67 @@ const SearchPage = () => {
                     data-testid={`department-${dept.name.toLowerCase().replace(' ', '-')}`}
                   >
                     <div className="flex flex-col items-center text-center space-y-3">
-                      <div className={`w-16 h-16 bg-gradient-to-br ${dept.color} rounded-full flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300`}>
-                        <img src={dept.icon} alt={dept.name} className="w-8 h-8 filter brightness-0 invert" />
+                      <div className={`w-20 h-20 bg-gradient-to-br ${dept.color} rounded-2xl flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300 p-3`}>
+                        {dept.name === 'MRI Scan' && (
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="3" opacity="0.3"/>
+                            <circle cx="32" cy="32" r="20" stroke="currentColor" strokeWidth="2.5"/>
+                            <circle cx="32" cy="32" r="12" stroke="currentColor" strokeWidth="2"/>
+                            <path d="M32 20 L32 12 M32 44 L32 52 M20 32 L12 32 M44 32 L52 32" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                            <circle cx="32" cy="32" r="4" fill="currentColor"/>
+                          </svg>
+                        )}
+                        {dept.name === 'X-Ray' && (
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <rect x="8" y="8" width="48" height="48" stroke="currentColor" strokeWidth="2" rx="4" opacity="0.2"/>
+                            <path d="M20 18 L44 18 L42 24 L22 24 Z" fill="currentColor" opacity="0.6"/>
+                            <path d="M26 26 L26 48" stroke="currentColor" strokeWidth="2.5"/>
+                            <path d="M32 26 L32 48" stroke="currentColor" strokeWidth="2.5"/>
+                            <path d="M38 26 L38 48" stroke="currentColor" strokeWidth="2.5"/>
+                            <path d="M20 32 L24 32 M40 32 L44 32" stroke="currentColor" strokeWidth="2"/>
+                            <path d="M20 40 L24 40 M40 40 L44 40" stroke="currentColor" strokeWidth="2"/>
+                            <circle cx="32" cy="48" r="3" fill="currentColor"/>
+                          </svg>
+                        )}
+                        {dept.name === 'ECG' && (
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <rect x="8" y="20" width="48" height="24" stroke="currentColor" strokeWidth="2" rx="3" opacity="0.3"/>
+                            <polyline points="8,32 16,32 20,24 24,40 28,28 32,32 36,32 40,24 44,40 48,28 52,32 56,32" 
+                              stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                            <circle cx="32" cy="32" r="2" fill="currentColor"/>
+                          </svg>
+                        )}
+                        {dept.name === 'Blood Test' && (
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <path d="M32 12 C28 18, 24 24, 24 32 C24 40, 28 44, 32 44 C36 44, 40 40, 40 32 C40 24, 36 18, 32 12 Z" 
+                              fill="currentColor" opacity="0.8"/>
+                            <path d="M28 32 C28 36, 29 38, 32 38 C35 38, 36 36, 36 32 C36 28, 34 24, 32 20 C30 24, 28 28, 28 32 Z" 
+                              fill="currentColor" opacity="0.5"/>
+                            <rect x="26" y="44" width="12" height="8" rx="1" stroke="currentColor" strokeWidth="2" fill="none"/>
+                            <line x1="26" y1="48" x2="38" y2="48" stroke="currentColor" strokeWidth="1"/>
+                          </svg>
+                        )}
+                        {dept.name === 'CT Scan' && (
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="24" stroke="currentColor" strokeWidth="3" opacity="0.3"/>
+                            <circle cx="32" cy="32" r="16" stroke="currentColor" strokeWidth="2.5"/>
+                            <ellipse cx="32" cy="32" rx="8" ry="16" stroke="currentColor" strokeWidth="2" opacity="0.6"/>
+                            <ellipse cx="32" cy="32" rx="16" ry="8" stroke="currentColor" strokeWidth="2" opacity="0.6"/>
+                            <circle cx="32" cy="32" r="4" fill="currentColor"/>
+                            <path d="M32 8 L32 14 M32 50 L32 56 M8 32 L14 32 M50 32 L56 32" 
+                              stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                          </svg>
+                        )}
+                        {dept.name === 'Treatment' && (
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <rect x="28" y="12" width="8" height="40" rx="2" fill="currentColor"/>
+                            <rect x="12" y="28" width="40" height="8" rx="2" fill="currentColor"/>
+                            <circle cx="32" cy="32" r="8" stroke="currentColor" strokeWidth="2.5" fill="none"/>
+                            <path d="M38 20 L44 20 C46 20, 48 22, 48 24 L48 28" 
+                              stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.7"/>
+                            <circle cx="48" cy="32" r="3" fill="currentColor" opacity="0.7"/>
+                          </svg>
+                        )}
                       </div>
                       <p className="text-sm font-semibold text-gray-700">{dept.name}</p>
                     </div>
@@ -154,7 +239,7 @@ const SearchPage = () => {
                 ))}
               </div>
               <p className="text-xs text-center text-gray-500 mt-6">
-                Search to view records from all departments
+                Click on any profile to view all patient records
               </p>
             </Card>
           </div>

@@ -21,6 +21,7 @@ const DepartmentView = () => {
   const { departmentName } = useParams();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
 
   useEffect(() => {
     if (departmentName) {
@@ -47,16 +48,109 @@ const DepartmentView = () => {
     return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
-  const getDepartmentIcon = () => {
+  const getDepartmentInfo = () => {
     const icons = {
-      'mri': { icon: '🔬', color: 'from-teal-500 to-teal-600', name: 'MRI Scan' },
-      'xray': { icon: '📷', color: 'from-cyan-500 to-cyan-600', name: 'X-Ray' },
-      'ecg': { icon: '💓', color: 'from-blue-500 to-blue-600', name: 'ECG' },
-      'blood-test': { icon: '🩸', color: 'from-red-500 to-red-600', name: 'Blood Profile' },
-      'ct-scan': { icon: '🖥️', color: 'from-purple-500 to-purple-600', name: 'CT Scan' },
-      'treatment': { icon: '💊', color: 'from-green-500 to-green-600', name: 'Treatment' }
+      'mri': { 
+        icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774299.png',
+        color: 'from-teal-500 to-teal-600', 
+        name: 'MRI Scan' 
+      },
+      'xray': { 
+        icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774337.png',
+        color: 'from-cyan-500 to-cyan-600', 
+        name: 'X-Ray' 
+      },
+      'ecg': { 
+        icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774278.png',
+        color: 'from-blue-500 to-blue-600', 
+        name: 'ECG' 
+      },
+      'blood-test': { 
+        icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774220.png',
+        color: 'from-red-500 to-red-600', 
+        name: 'Blood Profile' 
+      },
+      'ct-scan': { 
+        icon: 'https://cdn-icons-png.flaticon.com/512/2966/2966334.png',
+        color: 'from-purple-500 to-purple-600', 
+        name: 'CT Scan' 
+      },
+      'treatment': { 
+        icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774286.png',
+        color: 'from-green-500 to-green-600', 
+        name: 'Treatment' 
+      }
     };
-    return icons[departmentName] || { icon: '🏥', color: 'from-gray-500 to-gray-600', name: departmentName };
+    return icons[departmentName] || { 
+      icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774220.png',
+      color: 'from-gray-500 to-gray-600', 
+      name: departmentName 
+    };
+  };
+
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedRecords = () => {
+    if (!data || !data.records) return [];
+    
+    const sortedRecords = [...data.records];
+    
+    if (sortConfig.key) {
+      sortedRecords.sort((a, b) => {
+        let aValue, bValue;
+        
+        if (sortConfig.key === 'date') {
+          aValue = new Date(a.treatment_date || a.test_date);
+          bValue = new Date(b.treatment_date || b.test_date);
+        } else if (sortConfig.key === 'patient_id') {
+          aValue = a.patient_id;
+          bValue = b.patient_id;
+        } else if (sortConfig.key === 'name') {
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+        }
+        
+        if (aValue < bValue) {
+          return sortConfig.direction === 'asc' ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortConfig.direction === 'asc' ? 1 : -1;
+        }
+        return 0;
+      });
+    }
+    
+    return sortedRecords;
+  };
+
+  const SortIcon = ({ columnKey }) => {
+    if (sortConfig.key !== columnKey) {
+      return (
+        <svg className="w-4 h-4 ml-1 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+        </svg>
+      );
+    }
+    
+    if (sortConfig.direction === 'asc') {
+      return (
+        <svg className="w-4 h-4 ml-1 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+        </svg>
+      );
+    }
+    
+    return (
+      <svg className="w-4 h-4 ml-1 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    );
   };
 
   if (loading) {
@@ -66,7 +160,7 @@ const DepartmentView = () => {
       }}>
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-teal-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading department records...</p>
+          <p className="text-gray-600 font-medium">Loading profile records...</p>
         </div>
       </div>
     );
@@ -84,7 +178,7 @@ const DepartmentView = () => {
             </svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-3">No Records Found</h2>
-          <p className="text-gray-600 mb-6">No records available for this department</p>
+          <p className="text-gray-600 mb-6">No records available for this profile</p>
           <Button
             onClick={() => navigate('/search')}
             className="bg-teal-600 hover:bg-teal-700"
@@ -96,8 +190,9 @@ const DepartmentView = () => {
     );
   }
 
-  const deptInfo = getDepartmentIcon();
+  const deptInfo = getDepartmentInfo();
   const isTreatment = departmentName === 'treatment';
+  const sortedRecords = getSortedRecords();
 
   return (
     <div className="min-h-screen p-4 py-8" style={{
@@ -122,12 +217,71 @@ const DepartmentView = () => {
         <Card className="p-8 mb-8 bg-white shadow-xl border-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <div className={`w-20 h-20 bg-gradient-to-br ${deptInfo.color} rounded-2xl flex items-center justify-center shadow-lg text-4xl`}>
-                {deptInfo.icon}
+              <div className={`w-24 h-24 bg-gradient-to-br ${deptInfo.color} rounded-2xl flex items-center justify-center shadow-lg p-4`}>
+                {deptInfo.name === 'MRI Scan' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="3" opacity="0.3"/>
+                    <circle cx="32" cy="32" r="20" stroke="currentColor" strokeWidth="2.5"/>
+                    <circle cx="32" cy="32" r="12" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M32 20 L32 12 M32 44 L32 52 M20 32 L12 32 M44 32 L52 32" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"/>
+                    <circle cx="32" cy="32" r="4" fill="currentColor"/>
+                  </svg>
+                )}
+                {deptInfo.name === 'X-Ray' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <rect x="8" y="8" width="48" height="48" stroke="currentColor" strokeWidth="2" rx="4" opacity="0.2"/>
+                    <path d="M20 18 L44 18 L42 24 L22 24 Z" fill="currentColor" opacity="0.6"/>
+                    <path d="M26 26 L26 48" stroke="currentColor" strokeWidth="2.5"/>
+                    <path d="M32 26 L32 48" stroke="currentColor" strokeWidth="2.5"/>
+                    <path d="M38 26 L38 48" stroke="currentColor" strokeWidth="2.5"/>
+                    <path d="M20 32 L24 32 M40 32 L44 32" stroke="currentColor" strokeWidth="2"/>
+                    <path d="M20 40 L24 40 M40 40 L44 40" stroke="currentColor" strokeWidth="2"/>
+                    <circle cx="32" cy="48" r="3" fill="currentColor"/>
+                  </svg>
+                )}
+                {deptInfo.name === 'ECG' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <rect x="8" y="20" width="48" height="24" stroke="currentColor" strokeWidth="2" rx="3" opacity="0.3"/>
+                    <polyline points="8,32 16,32 20,24 24,40 28,28 32,32 36,32 40,24 44,40 48,28 52,32 56,32" 
+                      stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    <circle cx="32" cy="32" r="2" fill="currentColor"/>
+                  </svg>
+                )}
+                {deptInfo.name === 'Blood Profile' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <path d="M32 12 C28 18, 24 24, 24 32 C24 40, 28 44, 32 44 C36 44, 40 40, 40 32 C40 24, 36 18, 32 12 Z" 
+                      fill="currentColor" opacity="0.8"/>
+                    <path d="M28 32 C28 36, 29 38, 32 38 C35 38, 36 36, 36 32 C36 28, 34 24, 32 20 C30 24, 28 28, 28 32 Z" 
+                      fill="currentColor" opacity="0.5"/>
+                    <rect x="26" y="44" width="12" height="8" rx="1" stroke="currentColor" strokeWidth="2" fill="none"/>
+                    <line x1="26" y1="48" x2="38" y2="48" stroke="currentColor" strokeWidth="1"/>
+                  </svg>
+                )}
+                {deptInfo.name === 'CT Scan' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <circle cx="32" cy="32" r="24" stroke="currentColor" strokeWidth="3" opacity="0.3"/>
+                    <circle cx="32" cy="32" r="16" stroke="currentColor" strokeWidth="2.5"/>
+                    <ellipse cx="32" cy="32" rx="8" ry="16" stroke="currentColor" strokeWidth="2" opacity="0.6"/>
+                    <ellipse cx="32" cy="32" rx="16" ry="8" stroke="currentColor" strokeWidth="2" opacity="0.6"/>
+                    <circle cx="32" cy="32" r="4" fill="currentColor"/>
+                    <path d="M32 8 L32 14 M32 50 L32 56 M8 32 L14 32 M50 32 L56 32" 
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+                  </svg>
+                )}
+                {deptInfo.name === 'Treatment' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <rect x="28" y="12" width="8" height="40" rx="2" fill="currentColor"/>
+                    <rect x="12" y="28" width="40" height="8" rx="2" fill="currentColor"/>
+                    <circle cx="32" cy="32" r="8" stroke="currentColor" strokeWidth="2.5" fill="none"/>
+                    <path d="M38 20 L44 20 C46 20, 48 22, 48 24 L48 28" 
+                      stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.7"/>
+                    <circle cx="48" cy="32" r="3" fill="currentColor" opacity="0.7"/>
+                  </svg>
+                )}
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-800 mb-2" data-testid="department-heading">
-                  {deptInfo.name} Department
+                  {deptInfo.name} Profile
                 </h1>
                 <p className="text-lg text-teal-600 font-semibold">Total Records: {data.total}</p>
               </div>
@@ -142,9 +296,33 @@ const DepartmentView = () => {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Patient ID</TableHead>
-                  <TableHead>Patient Name</TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50 select-none"
+                    onClick={() => handleSort('date')}
+                  >
+                    <div className="flex items-center">
+                      Date
+                      <SortIcon columnKey="date" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50 select-none"
+                    onClick={() => handleSort('patient_id')}
+                  >
+                    <div className="flex items-center">
+                      Patient ID
+                      <SortIcon columnKey="patient_id" />
+                    </div>
+                  </TableHead>
+                  <TableHead 
+                    className="cursor-pointer hover:bg-gray-50 select-none"
+                    onClick={() => handleSort('name')}
+                  >
+                    <div className="flex items-center">
+                      Patient Name
+                      <SortIcon columnKey="name" />
+                    </div>
+                  </TableHead>
                   {isTreatment ? (
                     <>
                       <TableHead>Treatment</TableHead>
@@ -162,7 +340,7 @@ const DepartmentView = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.records.map((record, index) => (
+                {sortedRecords.map((record, index) => (
                   <TableRow key={index} data-testid={`record-${index}`} className="hover:bg-gray-50">
                     <TableCell className="font-medium">
                       {formatDate(isTreatment ? record.treatment_date : record.test_date)}
