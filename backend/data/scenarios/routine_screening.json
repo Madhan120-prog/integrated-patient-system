@@ -1,0 +1,35 @@
+{
+  "condition": "Routine Cancer Screening",
+  "description": "Healthy patient undergoing routine cancer screening — all tests normal. Not every patient is sick.",
+  "timeline_weeks": 52,
+  "records": {
+    "blood_profile": [
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Normal",
+        "week_offset": 0,
+        "notes": "Annual physical"
+      },
+      {
+        "test_name": "Lipid Profile",
+        "result": "Within Range — LDL 110, HDL 55",
+        "week_offset": 0,
+        "notes": "Annual screening"
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "PSA normal (1.2 ng/mL)",
+        "week_offset": 0,
+        "notes": "Routine PSA screening (male patients)"
+      }
+    ],
+    "xray": [
+      {
+        "test_name": "Chest X-Ray",
+        "result": "Clear — no abnormalities",
+        "week_offset": 0,
+        "notes": "Annual screening chest film"
+      }
+    ]
+  }
+}

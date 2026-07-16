@@ -1,0 +1,113 @@
+{
+  "condition": "Colorectal Cancer",
+  "description": "Stage II colon adenocarcinoma — diagnosed via colonoscopy + CT staging, treated with surgery + adjuvant chemo",
+  "timeline_weeks": 52,
+  "records": {
+    "ct_scan": [
+      {
+        "test_name": "Abdominal CT Scan",
+        "result": "4.5cm mass in ascending colon — no hepatic metastases",
+        "week_offset": 0,
+        "notes": "Staging CT after colonoscopy biopsy"
+      },
+      {
+        "test_name": "Chest CT Scan",
+        "result": "Clear — no pulmonary metastases",
+        "week_offset": 0,
+        "notes": "Metastatic workup"
+      },
+      {
+        "test_name": "Abdominal CT Scan",
+        "result": "Post-surgical — no recurrence, anastomosis intact",
+        "week_offset": 24,
+        "notes": "6-month surveillance"
+      }
+    ],
+    "blood_profile": [
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Mild iron-deficiency anemia — Hgb 10.8",
+        "week_offset": 0,
+        "notes": "Common presentation with colon cancer"
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "CEA elevated (8.2 ng/mL)",
+        "week_offset": 0,
+        "notes": "Baseline CEA"
+      },
+      {
+        "test_name": "Liver Function Test",
+        "result": "Within Range",
+        "week_offset": 1,
+        "notes": "Pre-surgical clearance"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Recovering — Hgb 11.8",
+        "week_offset": 10,
+        "notes": "Post-surgical recovery + iron supplementation"
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "CEA normalized (2.1 ng/mL)",
+        "week_offset": 12,
+        "notes": "Post-surgical — good sign"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Neutropenia — WBC 1.8",
+        "week_offset": 18,
+        "notes": "Post-FOLFOX cycle 3 — held next cycle"
+      }
+    ],
+    "xray": [
+      {
+        "test_name": "Chest X-Ray",
+        "result": "Clear",
+        "week_offset": 1,
+        "notes": "Pre-operative clearance"
+      }
+    ],
+    "ecg": [
+      {
+        "test_name": "Resting ECG",
+        "result": "Normal Sinus Rhythm",
+        "week_offset": 1,
+        "notes": "Pre-operative cardiac clearance"
+      }
+    ],
+    "treatment": [
+      {
+        "treatment_name": "Surgery — Right hemicolectomy",
+        "result": "Completed — R0 resection, 18 nodes removed (0 positive)",
+        "week_offset": 3,
+        "medicines": "General anesthesia, Cefoxitin 2g IV, Metronidazole 500mg IV"
+      },
+      {
+        "treatment_name": "Chemotherapy — FOLFOX Cycle 1",
+        "result": "Completed",
+        "week_offset": 8,
+        "medicines": "Oxaliplatin 85mg/m², Leucovorin 400mg/m², 5-FU 400mg/m² bolus + 2400mg/m² 46h infusion"
+      },
+      {
+        "treatment_name": "Chemotherapy — FOLFOX Cycle 2",
+        "result": "Completed",
+        "week_offset": 10,
+        "medicines": "Oxaliplatin 85mg/m², Leucovorin 400mg/m², 5-FU 2400mg/m²"
+      },
+      {
+        "treatment_name": "Chemotherapy — FOLFOX Cycle 3",
+        "result": "Completed — dose delayed 1 week for neutropenia",
+        "week_offset": 14,
+        "medicines": "Oxaliplatin 65mg/m² (reduced), 5-FU 2000mg/m², Filgrastim 5mcg/kg"
+      },
+      {
+        "treatment_name": "Chemotherapy — FOLFOX Cycles 4-6",
+        "result": "Completed",
+        "week_offset": 22,
+        "medicines": "Oxaliplatin 85mg/m², 5-FU 2400mg/m²"
+      }
+    ]
+  }
+}

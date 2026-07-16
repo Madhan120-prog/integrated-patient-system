@@ -1,0 +1,83 @@
+{
+  "condition": "Post-Treatment Surveillance (Cancer Survivor)",
+  "description": "Patient previously treated for cancer, now in remission — routine surveillance visits with imaging and labs",
+  "timeline_weeks": 52,
+  "records": {
+    "ct_scan": [
+      {
+        "test_name": "Chest CT Scan",
+        "result": "No evidence of recurrence",
+        "week_offset": 0,
+        "notes": "6-month surveillance scan"
+      },
+      {
+        "test_name": "Chest CT Scan",
+        "result": "Stable — continued remission",
+        "week_offset": 26,
+        "notes": "12-month surveillance scan"
+      }
+    ],
+    "blood_profile": [
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Normal",
+        "week_offset": 0,
+        "notes": "Routine surveillance labs"
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "CEA normal (1.8 ng/mL)",
+        "week_offset": 0,
+        "notes": "Surveillance tumor marker"
+      },
+      {
+        "test_name": "Thyroid Panel",
+        "result": "Hypothyroid — TSH 8.5 (radiation-induced)",
+        "week_offset": 0,
+        "notes": "Late effect of neck radiation"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Normal",
+        "week_offset": 26,
+        "notes": "12-month follow-up"
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "CEA normal (1.5 ng/mL)",
+        "week_offset": 26,
+        "notes": "Stable — good sign"
+      }
+    ],
+    "ecg": [
+      {
+        "test_name": "Resting ECG",
+        "result": "Normal Sinus Rhythm — LVEF 52%",
+        "week_offset": 0,
+        "notes": "Annual cardiac surveillance (prior doxorubicin exposure)"
+      }
+    ],
+    "xray": [
+      {
+        "test_name": "Chest X-Ray",
+        "result": "Clear",
+        "week_offset": 13,
+        "notes": "Interim check — patient reported cough (resolved)"
+      }
+    ],
+    "treatment": [
+      {
+        "treatment_name": "Medication — Levothyroxine (radiation-induced hypothyroidism)",
+        "result": "In Progress — ongoing",
+        "week_offset": 0,
+        "medicines": "Levothyroxine 75mcg daily"
+      },
+      {
+        "treatment_name": "Vaccination — Influenza",
+        "result": "Completed",
+        "week_offset": 13,
+        "medicines": "Fluzone Quadrivalent 0.5mL IM"
+      }
+    ]
+  }
+}

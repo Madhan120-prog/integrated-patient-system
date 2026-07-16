@@ -1,0 +1,121 @@
+{
+  "condition": "Breast Cancer",
+  "description": "Invasive ductal carcinoma — diagnosed via imaging + biopsy, treated with surgery + chemo + hormone therapy",
+  "timeline_weeks": 52,
+  "records": {
+    "mri": [
+      {
+        "test_name": "Breast MRI",
+        "result": "2.4cm mass in left breast — irregular margins, enhancing",
+        "week_offset": 1,
+        "notes": "Diagnostic MRI after abnormal mammogram"
+      },
+      {
+        "test_name": "Breast MRI",
+        "result": "Post-surgical — clean margins, no residual tumor",
+        "week_offset": 12,
+        "notes": "Post-lumpectomy follow-up"
+      }
+    ],
+    "xray": [
+      {
+        "test_name": "Chest X-Ray",
+        "result": "Clear — no pulmonary metastases",
+        "week_offset": 2,
+        "notes": "Metastatic workup"
+      }
+    ],
+    "ct_scan": [
+      {
+        "test_name": "Chest CT Scan",
+        "result": "No evidence of distant metastasis",
+        "week_offset": 2,
+        "notes": "Staging scan"
+      }
+    ],
+    "blood_profile": [
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Normal",
+        "week_offset": 0,
+        "notes": "Baseline labs"
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "CA 15-3 mildly elevated (38 U/mL)",
+        "week_offset": 1,
+        "notes": "Baseline tumor marker"
+      },
+      {
+        "test_name": "Liver Function Test",
+        "result": "Within Range",
+        "week_offset": 3,
+        "notes": "Pre-chemo clearance"
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Mild anemia — Hgb 10.2",
+        "week_offset": 18,
+        "notes": "Post-chemo cycle 3 — iron supplementation started"
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "CA 15-3 normalized (22 U/mL)",
+        "week_offset": 30,
+        "notes": "Post-treatment follow-up — good response"
+      }
+    ],
+    "ecg": [
+      {
+        "test_name": "Resting ECG",
+        "result": "Normal Sinus Rhythm",
+        "week_offset": 3,
+        "notes": "Pre-doxorubicin cardiac assessment"
+      },
+      {
+        "test_name": "Resting ECG",
+        "result": "Normal Sinus Rhythm — LVEF preserved",
+        "week_offset": 24,
+        "notes": "Post-doxorubicin cardiac monitoring"
+      }
+    ],
+    "treatment": [
+      {
+        "treatment_name": "Surgery — Lumpectomy with sentinel node biopsy",
+        "result": "Completed — margins clear, 1/3 nodes positive",
+        "week_offset": 6,
+        "medicines": "General anesthesia, Cefazolin 2g IV prophylaxis"
+      },
+      {
+        "treatment_name": "Chemotherapy — AC-T (Doxorubicin/Cyclophosphamide) Cycle 1",
+        "result": "Completed",
+        "week_offset": 10,
+        "medicines": "Doxorubicin 60mg/m², Cyclophosphamide 600mg/m², Ondansetron 8mg"
+      },
+      {
+        "treatment_name": "Chemotherapy — AC-T (Doxorubicin/Cyclophosphamide) Cycle 2",
+        "result": "Completed",
+        "week_offset": 13,
+        "medicines": "Doxorubicin 60mg/m², Cyclophosphamide 600mg/m², Ondansetron 8mg"
+      },
+      {
+        "treatment_name": "Chemotherapy — Paclitaxel Cycle 1",
+        "result": "Completed",
+        "week_offset": 18,
+        "medicines": "Paclitaxel 80mg/m² weekly, Diphenhydramine 50mg"
+      },
+      {
+        "treatment_name": "Radiation Therapy — Whole breast",
+        "result": "Completed — 30 fractions",
+        "week_offset": 28,
+        "medicines": "N/A"
+      },
+      {
+        "treatment_name": "Hormone Therapy — Tamoxifen",
+        "result": "In Progress — 5-year course",
+        "week_offset": 34,
+        "medicines": "Tamoxifen 20mg daily"
+      }
+    ]
+  }
+}
