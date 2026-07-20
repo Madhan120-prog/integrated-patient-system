@@ -9,6 +9,84 @@ import { toast } from 'sonner';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
+// Renders **bold**, "- "/"* " bullets, and "### " headers from AI responses —
+// avoids pulling in a full markdown library for the handful of patterns we use.
+const renderInline = (text) => {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) =>
+    part.startsWith('**') && part.endsWith('**')
+      ? <strong key={i}>{part.slice(2, -2)}</strong>
+      : part
+  );
+};
+
+const MessageContent = ({ text }) => {
+  const lines = text.split('\n');
+  const blocks = [];
+  let currentList = null;
+
+  lines.forEach((line, i) => {
+    const trimmed = line.trim();
+    const bulletMatch = trimmed.match(/^[*-]\s+(.*)/);
+    const headerMatch = trimmed.match(/^#{1,6}\s+(.*)/);
+
+    if (bulletMatch) {
+      if (!currentList) { currentList = []; blocks.push(currentList); }
+      currentList.push(<li key={i}>{renderInline(bulletMatch[1])}</li>);
+    } else {
+      currentList = null;
+      if (headerMatch) {
+        blocks.push(<div key={i} className="font-semibold mt-2">{renderInline(headerMatch[1])}</div>);
+      } else if (trimmed) {
+        blocks.push(<p key={i}>{renderInline(trimmed)}</p>);
+      }
+    }
+  });
+
+  return (
+    <div className="space-y-1.5">
+      {blocks.map((b, i) =>
+        Array.isArray(b) ? <ul key={i} className="list-disc pl-5 space-y-1">{b}</ul> : b
+      )}
+    </div>
+  );
+};
+
+// Siri-style voice control orb — no text label, state conveyed visually.
+// On+idle: solid green, still. Talking: green, revolving + sonar rings. Off: grey.
+// Click toggles mute; click while speaking stops playback.
+const VoiceOrb = ({ enabled, speaking, onClick }) => {
+  const status = speaking ? 'Talking' : enabled ? 'On' : 'Off';
+  return (
+    <button
+      onClick={onClick}
+      title={status}
+      aria-label={`Voice: ${status}`}
+      className="relative w-10 h-10 shrink-0 flex items-center justify-center"
+    >
+      {speaking && (
+        <>
+          <span className="absolute inset-0 rounded-full bg-green-400 opacity-40 animate-ping" />
+          <span
+            className="absolute -inset-1.5 rounded-full bg-green-400 opacity-20 animate-ping"
+            style={{ animationDelay: '0.4s' }}
+          />
+        </>
+      )}
+      <span
+        className={`relative w-8 h-8 rounded-full transition-all duration-300 ${
+          !enabled
+            ? 'bg-gray-300'
+            : speaking
+            ? 'bg-gradient-to-br from-green-400 to-emerald-500 shadow-lg shadow-green-300/60 animate-spin'
+            : 'bg-gradient-to-br from-green-400 to-emerald-500 shadow-md shadow-green-200/50'
+        }`}
+        style={speaking ? { animationDuration: '2s' } : undefined}
+      />
+    </button>
+  );
+};
+
 // Report Viewer Modal Component
 const ReportViewerModal = ({ open, onClose, reportUrl, reportTitle }) => {
   if (!open) return null;
@@ -60,48 +138,10 @@ const DeepSearchModal = ({ open, onClose }) => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [conversationHistory, setConversationHistory] = useState([]); // For context memory
   const recognitionRef = useRef(null);
-  const synthRef = useRef(window.speechSynthesis);
+  const audioRef = useRef(null);
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  // Helper: Check if input is meaningless/random
-  const isMeaninglessInput = (text) => {
-    if (!text || text.trim().length < 2) return true;
-    const trimmed = text.trim().toLowerCase();
-    // Check for very short inputs
-    if (trimmed.length < 3) return true;
-    // Check for random characters (no vowels or too many consonants in a row)
-    const vowelCount = (trimmed.match(/[aeiou]/gi) || []).length;
-    if (trimmed.length > 4 && vowelCount === 0) return true;
-    // Check for common meaningless inputs
-    const meaninglessPatterns = [
-      /^[a-z]{1,5}$/i, // Very short random letters (5 or fewer)
-      /^(hi|hey|hello|yo|sup|ok|test|asdf|qwerty|abc|xyz|asd|sdf|dfg|fgh|ghj|hjk|jkl|zxc|xcv|cvb|vbn|bnm)$/i,
-      /^[^a-z]*$/i, // No letters at all
-      /(.)\1{2,}/i, // Same character repeated 3+ times
-      /^[bcdfghjklmnpqrstvwxz]{3,}$/i, // Only consonants, 3+ chars
-      /^[aeiou]{3,}$/i, // Only vowels, 3+ chars
-      /^[a-z]{6,}$/i, // Only letters, 6+ chars, no spaces (likely random)
-    ];
-    
-    // Additional check: if input has no spaces and is all letters, likely random
-    if (/^[a-z]{4,}$/i.test(trimmed) && !trimmed.includes(' ')) {
-      // Check if it's a recognizable word pattern (has vowel-consonant mix)
-      const vowelConsonantPattern = /([aeiou][bcdfghjklmnpqrstvwxyz]|[bcdfghjklmnpqrstvwxyz][aeiou])/i;
-      const hasGoodPattern = vowelConsonantPattern.test(trimmed);
-      const vowelRatio = (trimmed.match(/[aeiou]/gi) || []).length / trimmed.length;
-      // Random gibberish usually has very low or very high vowel ratios
-      if (!hasGoodPattern || vowelRatio < 0.15 || vowelRatio > 0.7) {
-        return true;
-      }
-    }
-    
-    return meaninglessPatterns.some(pattern => pattern.test(trimmed));
-  };
-
-  const getMeaninglessResponse = () => {
-    return "Please ask a clinically meaningful question related to the patient's records.\n\nExamples:\n• \"Summarize the latest MRI results\"\n• \"Explain the abnormal blood values\"\n• \"List all treatments and medications\"\n• \"What tests were done in the last 6 months?\"";
-  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -147,8 +187,8 @@ const DeepSearchModal = ({ open, onClose }) => {
       if (recognitionRef.current) {
         recognitionRef.current.abort();
       }
-      if (synthRef.current) {
-        synthRef.current.cancel();
+      if (audioRef.current) {
+        audioRef.current.pause();
       }
     };
   }, [step]);
@@ -174,71 +214,49 @@ const DeepSearchModal = ({ open, onClose }) => {
     }
   };
 
-  const speak = (text) => {
-    if (!voiceEnabled) return;
-    
-    if (synthRef.current) {
-      // Cancel any ongoing speech
-      synthRef.current.cancel();
-      
-      // Wait for voices to load (some browsers need this)
-      const speakNow = () => {
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 0.95;
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
-        
-        // Try to get a good English voice
-        const voices = synthRef.current.getVoices();
-        const englishVoice = voices.find(v => 
-          v.lang.startsWith('en') && (v.name.includes('Google') || v.name.includes('Microsoft') || v.name.includes('Samantha'))
-        ) || voices.find(v => v.lang.startsWith('en'));
-        
-        if (englishVoice) {
-          utterance.voice = englishVoice;
-        }
-        
-        utterance.onstart = () => {
-          setIsSpeaking(true);
-          console.log('Voice started speaking');
-        };
-        utterance.onend = () => {
-          setIsSpeaking(false);
-          console.log('Voice finished speaking');
-        };
-        utterance.onerror = (e) => {
-          setIsSpeaking(false);
-          console.error('Voice error:', e);
-          toast.error('Voice output failed. Please check your browser settings.');
-        };
-        
-        synthRef.current.speak(utterance);
+  // Strip markdown so symbols like ** and # aren't read aloud
+  const speak = async (text, force = false) => {
+    if ((!voiceEnabled && !force) || !text.trim()) return;
+
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    try {
+      setIsSpeaking(true);
+      const response = await axios.post(`${API}/tts`, { text }, { responseType: 'blob' });
+      const url = URL.createObjectURL(response.data);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+
+      audio.onended = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(url);
       };
-      
-      // If voices aren't loaded yet, wait for them
-      if (synthRef.current.getVoices().length === 0) {
-        synthRef.current.onvoiceschanged = speakNow;
-        // Fallback: try speaking anyway after a short delay
-        setTimeout(speakNow, 100);
-      } else {
-        speakNow();
-      }
+      audio.onerror = () => {
+        setIsSpeaking(false);
+        URL.revokeObjectURL(url);
+      };
+
+      await audio.play();
+    } catch (error) {
+      setIsSpeaking(false);
+      console.error('TTS error:', error);
     }
   };
 
   const stopSpeaking = () => {
-    if (synthRef.current) {
-      synthRef.current.cancel();
-      setIsSpeaking(false);
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
     }
+    setIsSpeaking(false);
   };
 
   const toggleVoice = () => {
-    // Test voice when enabling
     if (!voiceEnabled) {
-      const testUtterance = new SpeechSynthesisUtterance('Voice enabled');
-      testUtterance.volume = 0.5;
-      synthRef.current?.speak(testUtterance);
+      speak('Voice enabled', true);
     }
     if (isSpeaking) {
       stopSpeaking();
@@ -280,24 +298,14 @@ const DeepSearchModal = ({ open, onClose }) => {
     speak(welcomeMsg);
   };
 
-  const handleAskQuestion = async () => {
-    if (!question.trim()) return;
+  const handleAskQuestion = async (overrideText) => {
+    const text = overrideText ?? question;
+    if (!text.trim()) return;
 
-    const userMessage = { role: 'user', content: question };
+    const userMessage = { role: 'user', content: text };
     setMessages(prev => [...prev, userMessage]);
-    const currentQuestion = question;
+    const currentQuestion = text;
     setQuestion('');
-
-    // Check for meaningless input
-    if (isMeaninglessInput(currentQuestion)) {
-      const meaninglessResponse = getMeaninglessResponse();
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: meaninglessResponse
-      }]);
-      speak("Please ask a clinically meaningful question related to the patient's records.");
-      return;
-    }
 
     setLoading(true);
 
@@ -330,12 +338,11 @@ const DeepSearchModal = ({ open, onClose }) => {
       
       speak(response.data.answer);
     } catch (error) {
-      const errorMsg = 'Sorry, I encountered an error processing your question. Please try again.';
-      toast.error('Error processing question');
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: errorMsg
-      }]);
+      const errorMsg = error.response?.status === 503
+        ? "The AI is temporarily overloaded — please try again in a moment."
+        : "Sorry, I encountered an error processing your question. Please try again.";
+      toast.error(errorMsg);
+      setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }]);
     } finally {
       setLoading(false);
     }
@@ -592,22 +599,11 @@ const DeepSearchModal = ({ open, onClose }) => {
                   <p className="font-semibold">{patientData.profile.name} ({patientData.profile.patient_id})</p>
                   <p className="text-xs text-gray-600">{patientData.profile.age}y / {patientData.profile.gender} / {patientData.profile.blood_group}</p>
                 </div>
-                <div className="flex gap-2">
-                  <Button 
-                    size="sm" 
-                    onClick={toggleVoice} 
-                    variant="outline" 
-                    className={voiceEnabled ? 'bg-green-100 hover:bg-green-200' : 'bg-gray-100 hover:bg-gray-200'}
-                    data-testid="voice-toggle-btn"
-                  >
-                    {voiceEnabled ? '🔊 Voice On' : '🔇 Voice Off'}
-                  </Button>
-                  {isSpeaking && (
-                    <Button size="sm" onClick={stopSpeaking} variant="outline" className="bg-red-100 hover:bg-red-200" data-testid="stop-speaking-btn">
-                      ⏹️ Stop
-                    </Button>
-                  )}
-                </div>
+                <VoiceOrb
+                  enabled={voiceEnabled}
+                  speaking={isSpeaking}
+                  onClick={isSpeaking ? stopSpeaking : toggleVoice}
+                />
               </Card>
 
               {/* Chat Messages */}
@@ -620,7 +616,11 @@ const DeepSearchModal = ({ open, onClose }) => {
                         : 'bg-white border border-gray-200'
                     }`}>
                       {msg.isFileUpload && <p className="text-sm mb-1">📎 File Upload</p>}
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      {msg.role === 'user' ? (
+                        <p className="whitespace-pre-wrap">{msg.content}</p>
+                      ) : (
+                        <MessageContent text={msg.content} />
+                      )}
                       
                       {/* Analysis-specific display */}
                       {msg.isAnalysis && msg.suggestions && (
@@ -731,6 +731,29 @@ const DeepSearchModal = ({ open, onClose }) => {
                   {uploadedFile ? 'Type a question or click Send to analyze' : 'PNG, JPEG, PDF (max 10MB)'}
                 </span>
               </div>
+
+              {/* Quick Actions */}
+              {!uploadedFile && (
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    ['Summarize', "Summarize this patient's overall status in a few bullet points."],
+                    ['Flag concerns', "What are the most concerning findings or abnormal results for this patient?"],
+                    ['Latest labs', "What were the most recent lab and blood test results?"],
+                    ['Treatment plan', "What is the current treatment plan and status?"],
+                  ].map(([label, prompt]) => (
+                    <Button
+                      key={label}
+                      variant="outline"
+                      size="sm"
+                      className="bg-white text-xs"
+                      disabled={loading || isAnalyzing}
+                      onClick={() => handleAskQuestion(prompt)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              )}
 
               {/* Input Area */}
               <div className="flex gap-2">

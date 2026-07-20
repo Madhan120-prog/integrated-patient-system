@@ -1,86 +1,99 @@
 {
   "mri": {
     "Brain MRI": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/MRI_of_Human_Brain.jpg/800px-MRI_of_Human_Brain.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/5/50/Brain_MRI_112010_rgbca.png"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1d/MRI_Brain_axial_FLAIR_sequence_showing_lentiform_fork_sign.png/500px-MRI_Brain_axial_FLAIR_sequence_showing_lentiform_fork_sign.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/CT_scan_and_MRI_brain_image_of_basal_ganglia_at_CKD_and_AKI_patient.png/500px-CT_scan_and_MRI_brain_image_of_basal_ganglia_at_CKD_and_AKI_patient.png"
     ],
     "Spine MRI": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/Cervical_MRI_G8.jpg/220px-Cervical_MRI_G8.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/Lumbosacral_MRI.jpg/220px-Lumbosacral_MRI.jpg"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/SAGITTAL-FSE_T1_MRI-ANNOTATED.jpg/500px-SAGITTAL-FSE_T1_MRI-ANNOTATED.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f6/SAGITTAL-FRFSE-T2_MRI-ANNOTATED.jpg/500px-SAGITTAL-FRFSE-T2_MRI-ANNOTATED.jpg"
     ],
     "Breast MRI": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/Breast_MRI_Maximum_Intensity_Projection.png/220px-Breast_MRI_Maximum_Intensity_Projection.png"
-    ],
-    "Abdominal MRI": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Abdominal_MRI.jpg/400px-Abdominal_MRI.jpg"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/Mri_of_breast_cancer.jpg/500px-Mri_of_breast_cancer.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/c/cc/Breast_dce-mri.jpg"
     ],
     "Pelvic MRI": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6d/MRI_abdomen.jpg/220px-MRI_abdomen.jpg"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/MRI_of_primary_B-cell_lymphoma_left_ilium.jpg/500px-MRI_of_primary_B-cell_lymphoma_left_ilium.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/f/f1/MRI_desmoid_T1_fl2d_FS.jpg"
+    ],
+    "Abdominal MRI": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/Adenom_der_rechten_Nebenniere_-_in_phase_out_of_phase_55W_-_MR_T1_ip_op_axial_-_001.jpg/500px-Adenom_der_rechten_Nebenniere_-_in_phase_out_of_phase_55W_-_MR_T1_ip_op_axial_-_001.jpg"
     ]
   },
   "xray": {
     "Chest X-Ray": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Normal_posteroanterior_%28PA%29_chest_radiograph_%28X-ray%29.jpg/400px-Normal_posteroanterior_%28PA%29_chest_radiograph_%28X-ray%29.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/Chest_Xray_PA_3-8-2010.png/400px-Chest_Xray_PA_3-8-2010.png"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a1/Normal_posteroanterior_%28PA%29_chest_radiograph_%28X-ray%29.jpg/500px-Normal_posteroanterior_%28PA%29_chest_radiograph_%28X-ray%29.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/Normal_lateral_chest_radiograph_%28X-ray%29.jpg/500px-Normal_lateral_chest_radiograph_%28X-ray%29.jpg"
     ],
     "Bone X-Ray": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/82/X-ray_of_a_hand.jpg/220px-X-ray_of_a_hand.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/Knee_X-ray.jpg/220px-Knee_X-ray.jpg"
-    ],
-    "Pelvis X-Ray": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/Pelvis_X-ray.jpg/400px-Pelvis_X-ray.jpg"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/First_medical_X-ray_by_Wilhelm_R%C3%B6ntgen_of_his_wife_Anna_Bertha_Ludwig%27s_hand_-_18951222.jpg/500px-First_medical_X-ray_by_Wilhelm_R%C3%B6ntgen_of_his_wife_Anna_Bertha_Ludwig%27s_hand_-_18951222.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/f/fb/X-ray_by_Wilhelm_R%C3%B6ntgen_of_Albert_von_K%C3%B6lliker%27s_hand_-_18960123-02.jpg"
     ],
     "Dental X-Ray": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7e/Dental_X-ray.jpg/220px-Dental_X-ray.jpg"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Dental_X-ray_2012_PD_07.JPG/500px-Dental_X-ray_2012_PD_07.JPG",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b3/Panoramic_radiograph_of_historic_dental_implants.jpg/500px-Panoramic_radiograph_of_historic_dental_implants.jpg"
+    ],
+    "Pelvis X-Ray": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/30/Boy_pelvic_x-ray_pic.jpg/500px-Boy_pelvic_x-ray_pic.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/A_woman%27s_pelvis_after_a_succesful_pubiotomy_-_a_surgical_in_Wellcome_V0014958.jpg/500px-A_woman%27s_pelvis_after_a_succesful_pubiotomy_-_a_surgical_in_Wellcome_V0014958.jpg"
     ]
   },
   "ecg": {
     "Resting ECG": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/SinusRhythmLabels.svg/800px-SinusRhythmLabels.svg.png"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/E333_%28CardioNetworks_ECGpedia%29.jpg/500px-E333_%28CardioNetworks_ECGpedia%29.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/E000754_%28CardioNetworks_ECGpedia%29.jpg/500px-E000754_%28CardioNetworks_ECGpedia%29.jpg"
     ],
     "Stress ECG": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/SinusRhythmLabels.svg/800px-SinusRhythmLabels.svg.png"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/SinusRhythmLabels.svg/500px-SinusRhythmLabels.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Equipment_-_Bicycle_ergometer_stress_test_%282130%29_--_Smart-Servier.png/500px-Equipment_-_Bicycle_ergometer_stress_test_%282130%29_--_Smart-Servier.png"
     ],
     "Holter Monitor": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Afib_ecg.jpg/400px-Afib_ecg.jpg"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/E333_%28CardioNetworks_ECGpedia%29.jpg/500px-E333_%28CardioNetworks_ECGpedia%29.jpg"
     ],
     "Event Monitor": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Afib_ecg.jpg/400px-Afib_ecg.jpg"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/E333_%28CardioNetworks_ECGpedia%29.jpg/500px-E333_%28CardioNetworks_ECGpedia%29.jpg"
     ]
   },
   "ct_scan": {
     "Chest CT Scan": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/CT_scan_of_the_chest.jpg/400px-CT_scan_of_the_chest.jpg",
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Ct-scan_of_a_normal_abdomen_and_pelvis.jpg/220px-Ct-scan_of_a_normal_abdomen_and_pelvis.jpg"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/CT-Thorax-5.0-B70f-Lungs.jpg/500px-CT-Thorax-5.0-B70f-Lungs.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c9/CT_of_lymphocytic_interstitial_pneumonia.jpg/500px-CT_of_lymphocytic_interstitial_pneumonia.jpg"
     ],
     "Abdominal CT Scan": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Ct-scan_of_a_normal_abdomen_and_pelvis.jpg/220px-Ct-scan_of_a_normal_abdomen_and_pelvis.jpg"
-    ],
-    "Head CT Scan": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c6/CT_scan_of_the_head.jpg/220px-CT_scan_of_the_head.jpg"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/be/CT_of_rectus_sheath_hematomas.png/500px-CT_of_rectus_sheath_hematomas.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/Nussknacker-Syndrom_durch_Lymphknoten_zwischen_Aorta_und_linken_Nierenvene_33M_-_CT_-_001_-_Annotation.jpg/500px-Nussknacker-Syndrom_durch_Lymphknoten_zwischen_Aorta_und_linken_Nierenvene_33M_-_CT_-_001_-_Annotation.jpg"
     ],
     "Pelvic CT Scan": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/Ct-scan_of_a_normal_abdomen_and_pelvis.jpg/220px-Ct-scan_of_a_normal_abdomen_and_pelvis.jpg"
+      "https://upload.wikimedia.org/wikipedia/commons/d/d7/Low-dose_CT_scan_of_intertuberous_diameter%2C_axial_plane.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/Low-dose_CT_scan_of_interspinous_distance%2C_axial_plane.jpg/500px-Low-dose_CT_scan_of_interspinous_distance%2C_axial_plane.jpg"
+    ],
+    "Head CT Scan": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/Eastern_equine_encephalitis_head_scans.jpg/500px-Eastern_equine_encephalitis_head_scans.jpg"
     ]
   },
   "blood_profile": {
     "Complete Blood Count": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Hematology_Analyzer.png/500px-Hematology_Analyzer.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/HemoScreen_CBC_analyzer_-_zfat_01.jpg/500px-HemoScreen_CBC_analyzer_-_zfat_01.jpg"
     ],
     "Lipid Profile": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/US_Navy_030923-N-1577S-003_Hospital_Corpsman_2nd_Class_Donna_Sanderson_from_Lancaster%2C_Calif.%2C_prepares_serum_cups.jpg/500px-US_Navy_030923-N-1577S-003_Hospital_Corpsman_2nd_Class_Donna_Sanderson_from_Lancaster%2C_Calif.%2C_prepares_serum_cups.jpg"
     ],
     "Liver Function Test": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Hematology_Analyzer.png/500px-Hematology_Analyzer.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Microhematocrit_centrifuge_model_SH120-1.jpg/500px-Microhematocrit_centrifuge_model_SH120-1.jpg"
     ],
     "Kidney Function Test": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/HemoScreen_CBC_analyzer_-_zfat_01.jpg/500px-HemoScreen_CBC_analyzer_-_zfat_01.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/US_Navy_030923-N-1577S-003_Hospital_Corpsman_2nd_Class_Donna_Sanderson_from_Lancaster%2C_Calif.%2C_prepares_serum_cups.jpg/500px-US_Navy_030923-N-1577S-003_Hospital_Corpsman_2nd_Class_Donna_Sanderson_from_Lancaster%2C_Calif.%2C_prepares_serum_cups.jpg"
     ],
     "Tumor Marker Panel": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/NABL_Accredited_Clinical_Pathology_Laboratory_in_Kharghar_Navi_Mumbai_Diagnostic_Services.jpg/500px-NABL_Accredited_Clinical_Pathology_Laboratory_in_Kharghar_Navi_Mumbai_Diagnostic_Services.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Microhematocrit_centrifuge_model_SH120-1.jpg/500px-Microhematocrit_centrifuge_model_SH120-1.jpg"
     ],
     "Thyroid Panel": [
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/Blood_values_sorted_by_mass_and_molar_concentration.png/400px-Blood_values_sorted_by_mass_and_molar_concentration.png"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/NABL_Accredited_Clinical_Pathology_Laboratory_in_Kharghar_Navi_Mumbai_Diagnostic_Services.jpg/500px-NABL_Accredited_Clinical_Pathology_Laboratory_in_Kharghar_Navi_Mumbai_Diagnostic_Services.jpg",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Hematology_Analyzer.png/500px-Hematology_Analyzer.png"
     ]
   }
 }
