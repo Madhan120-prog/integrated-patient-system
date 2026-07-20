@@ -1,9 +1,12 @@
 from fastapi import FastAPI, APIRouter, Query, HTTPException, UploadFile, File, Form
+from fastapi.responses import Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import re
+import io
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
@@ -12,6 +15,9 @@ import random
 from collections import Counter
 from google import genai
 from google.genai import types as genai_types
+from google.genai import errors as genai_errors
+from gtts import gTTS
+import asyncio
 import json
 import shutil
 import uuid
@@ -28,6 +34,21 @@ db = client[os.environ['DB_NAME']]
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 GEMINI_MODEL = "gemini-3-flash-preview"
 gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+
+async def generate_content_with_retry(**kwargs):
+    """Gemini's free tier occasionally returns 503 'high demand' — one retry
+    resolves it almost every time (observed repeatedly in testing)."""
+    try:
+        return await gemini_client.aio.models.generate_content(**kwargs)
+    except genai_errors.ServerError:
+        await asyncio.sleep(1)
+        try:
+            return await gemini_client.aio.models.generate_content(**kwargs)
+        except genai_errors.ServerError:
+            raise HTTPException(
+                status_code=503,
+                detail="The AI is temporarily overloaded. Please try again in a moment."
+            )
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -146,6 +167,21 @@ class DeepQueryResponse(BaseModel):
     answer: str
     evidence: List[dict] = []
     matched_departments: List[str] = []
+
+class TTSRequest(BaseModel):
+    text: str
+
+@api_router.post("/tts")
+async def text_to_speech(request: TTSRequest):
+    """Server-side text-to-speech — sidesteps flaky browser SpeechSynthesis engines"""
+    clean_text = re.sub(r'\*\*(.*?)\*\*', r'\1', request.text)
+    clean_text = re.sub(r'[*#_`]', '', clean_text).strip()
+    if not clean_text:
+        raise HTTPException(status_code=400, detail="No text to speak")
+
+    buffer = io.BytesIO()
+    gTTS(text=clean_text, lang='en').write_to_fp(buffer)
+    return Response(content=buffer.getvalue(), media_type="audio/mpeg")
 
 from data.seed import build_seed_data
 
@@ -415,22 +451,42 @@ async def deep_query(request: DeepQueryRequest):
     patient_id = request.patient_id
     question = request.question
     
-    # Fetch all patient data
     query = {"patient_id": patient_id}
-    
+
     profile = await db.profiles.find_one(query, {"_id": 0})
     if not profile:
         raise HTTPException(status_code=404, detail="Patient not found")
-    
-    # Fetch all records
-    mri_records = await db.mri_records.find(query, {"_id": 0}).to_list(1000)
-    xray_records = await db.xray_records.find(query, {"_id": 0}).to_list(1000)
-    ecg_records = await db.ecg_records.find(query, {"_id": 0}).to_list(1000)
-    treatment_records = await db.treatment_records.find(query, {"_id": 0}).to_list(1000)
-    blood_profile_records = await db.blood_profile_records.find(query, {"_id": 0}).to_list(1000)
-    ct_scan_records = await db.ct_scan_records.find(query, {"_id": 0}).to_list(1000)
-    
-    # Build context for LLM
+
+    # Smart context: only fetch/send departments the question actually needs —
+    # cuts tokens and DB queries for narrow questions, and keeps greetings/general
+    # questions from pulling in patient data at all.
+    question_lower = question.lower()
+    dept_keywords = {
+        'MRI': ['mri', 'brain', 'spine', 'magnetic'],
+        'X-Ray': ['xray', 'x-ray', 'chest', 'bone', 'fracture'],
+        'ECG': ['ecg', 'heart', 'cardiac', 'rhythm'],
+        'Blood Profile': ['blood', 'hemoglobin', 'platelet', 'wbc', 'rbc', 'lipid', 'liver', 'kidney', 'thyroid'],
+        'CT Scan': ['ct', 'scan', 'computed tomography'],
+        'Treatment': ['treatment', 'medicine', 'medication', 'prescription', 'therapy'],
+    }
+    overview_keywords = ['summarize', 'summary', 'overview', 'status', 'records',
+                          'details', 'history', 'everything', 'concerns', 'concerning']
+    keyword_matched = [d for d, kws in dept_keywords.items() if any(k in question_lower for k in kws)]
+    is_overview = not keyword_matched and any(w in question_lower for w in overview_keywords)
+    needs_dept = lambda d: d in keyword_matched or is_overview
+
+    async def fetch(coll, name):
+        if not needs_dept(name):
+            return []
+        return await db[coll].find(query, {"_id": 0}).to_list(1000)
+
+    mri_records = await fetch("mri_records", "MRI")
+    xray_records = await fetch("xray_records", "X-Ray")
+    ecg_records = await fetch("ecg_records", "ECG")
+    blood_profile_records = await fetch("blood_profile_records", "Blood Profile")
+    ct_scan_records = await fetch("ct_scan_records", "CT Scan")
+    treatment_records = await fetch("treatment_records", "Treatment")
+
     patient_context = f"""
 PATIENT PROFILE:
 - Name: {profile.get('name')}
@@ -441,42 +497,49 @@ PATIENT PROFILE:
 - Address: {profile.get('address')}
 - Phone: {profile.get('phone')}
 - Registration Date: {profile.get('registration_date')}
-
-MRI RECORDS ({len(mri_records)} records):
-{json.dumps(mri_records, indent=2) if mri_records else 'No MRI records'}
-
-X-RAY RECORDS ({len(xray_records)} records):
-{json.dumps(xray_records, indent=2) if xray_records else 'No X-Ray records'}
-
-ECG RECORDS ({len(ecg_records)} records):
-{json.dumps(ecg_records, indent=2) if ecg_records else 'No ECG records'}
-
-BLOOD PROFILE RECORDS ({len(blood_profile_records)} records):
-{json.dumps(blood_profile_records, indent=2) if blood_profile_records else 'No blood profile records'}
-
-CT SCAN RECORDS ({len(ct_scan_records)} records):
-{json.dumps(ct_scan_records, indent=2) if ct_scan_records else 'No CT scan records'}
-
-TREATMENT RECORDS ({len(treatment_records)} records):
-{json.dumps(treatment_records, indent=2) if treatment_records else 'No treatment records'}
 """
+    if needs_dept('MRI'):
+        patient_context += f"\nMRI RECORDS ({len(mri_records)} records):\n{json.dumps(mri_records, indent=2) if mri_records else 'No MRI records'}\n"
+    if needs_dept('X-Ray'):
+        patient_context += f"\nX-RAY RECORDS ({len(xray_records)} records):\n{json.dumps(xray_records, indent=2) if xray_records else 'No X-Ray records'}\n"
+    if needs_dept('ECG'):
+        patient_context += f"\nECG RECORDS ({len(ecg_records)} records):\n{json.dumps(ecg_records, indent=2) if ecg_records else 'No ECG records'}\n"
+    if needs_dept('Blood Profile'):
+        patient_context += f"\nBLOOD PROFILE RECORDS ({len(blood_profile_records)} records):\n{json.dumps(blood_profile_records, indent=2) if blood_profile_records else 'No blood profile records'}\n"
+    if needs_dept('CT Scan'):
+        patient_context += f"\nCT SCAN RECORDS ({len(ct_scan_records)} records):\n{json.dumps(ct_scan_records, indent=2) if ct_scan_records else 'No CT scan records'}\n"
+    if needs_dept('Treatment'):
+        patient_context += f"\nTREATMENT RECORDS ({len(treatment_records)} records):\n{json.dumps(treatment_records, indent=2) if treatment_records else 'No treatment records'}\n"
 
-    system_message = """You are DocAssist, an AI clinical assistant for XYZ Hospital. 
-You have access to a patient's complete medical records including MRI scans, X-Rays, ECG tests, blood profiles, CT scans, and treatment history.
+    system_message = """You are DocAssist, an AI clinical assistant for XYZ Hospital, a cancer
+treatment center. You have access to a patient's complete medical records including MRI scans,
+X-Rays, ECG tests, blood profiles, CT scans, and treatment history.
 
-Your role is to:
-1. Answer questions about the patient's medical history accurately
-2. Provide insights based on the available data
-3. Highlight any concerning patterns or results
-4. Be helpful to doctors and medical staff
+You are talking to a doctor or nurse mid-shift — write like a chart note, not an essay.
+
+Formatting:
+- Lead with the answer. No "Based on the medical records..." preamble.
+- If any finding is abnormal or concerning, put it first, flagged clearly (e.g. "⚠").
+- Use standard clinical shorthand doctors already know: WBC, Hgb, LFT, CBC, Hx, Tx, f/u, q3w — don't spell these out.
+- Short bullets over paragraphs. Bold only abnormal values, not every term.
+- End with one relevant next step or follow-up question, only if it adds value — skip it for simple factual lookups.
 
 Guidelines:
-- Be concise but thorough
-- Always reference specific records when answering
-- If asked about something not in the records, clearly state that
-- Use medical terminology appropriately
+- Always reference specific records (dates, values) when answering
+- If asked about something not in the records, say so directly — don't pad
 - Never make diagnoses - only summarize and analyze existing data
-- Be professional and empathetic"""
+
+Scope — read this carefully, it controls when patient data appears in your answer:
+- Greetings ("hi", "hello", "how are you") → reply naturally in one short sentence.
+  Do NOT mention the patient, do NOT list any records, do NOT summarize anything.
+- General/medical knowledge questions unrelated to this specific patient (e.g. "what
+  is neutropenia?", "what does CEA measure?") → answer generally, like any knowledgeable
+  clinical assistant would. Do NOT pull in this patient's specific values unless asked.
+- Anything about the patient — their records, status, results, treatment, or an
+  explicit request like "summarize" / "what do you have on this patient" → this is
+  when the full chart-note style above applies.
+Patient data is available in every turn, but only use it when the question actually
+calls for it. Including it in a reply to "hi" is a failure mode — do not do that."""
 
     try:
         if not gemini_client:
@@ -488,38 +551,23 @@ Guidelines:
 {patient_context}"""
 
         # Get LLM response
-        result = await gemini_client.aio.models.generate_content(
+        result = await generate_content_with_retry(
             model=GEMINI_MODEL,
             contents=prompt,
             config=genai_types.GenerateContentConfig(system_instruction=system_message),
         )
         response = result.text
-        
-        # Determine which departments were relevant based on question keywords
-        matched_departments = []
-        question_lower = question.lower()
-        if any(word in question_lower for word in ['mri', 'brain', 'spine', 'magnetic']):
-            matched_departments.append('MRI')
-        if any(word in question_lower for word in ['xray', 'x-ray', 'chest', 'bone', 'fracture']):
-            matched_departments.append('X-Ray')
-        if any(word in question_lower for word in ['ecg', 'heart', 'cardiac', 'rhythm']):
-            matched_departments.append('ECG')
-        if any(word in question_lower for word in ['blood', 'hemoglobin', 'platelet', 'wbc', 'rbc', 'lipid', 'liver', 'kidney', 'thyroid']):
-            matched_departments.append('Blood Profile')
-        if any(word in question_lower for word in ['ct', 'scan', 'computed tomography']):
-            matched_departments.append('CT Scan')
-        if any(word in question_lower for word in ['treatment', 'medicine', 'medication', 'prescription', 'therapy']):
-            matched_departments.append('Treatment')
-        
-        # If no specific department matched, include all with data
-        if not matched_departments:
-            if mri_records: matched_departments.append('MRI')
-            if xray_records: matched_departments.append('X-Ray')
-            if ecg_records: matched_departments.append('ECG')
-            if blood_profile_records: matched_departments.append('Blood Profile')
-            if ct_scan_records: matched_departments.append('CT Scan')
-            if treatment_records: matched_departments.append('Treatment')
-        
+
+        # Evidence departments: keyword matches, or (for overview questions) every
+        # department that actually has data — computed earlier alongside fetching
+        matched_departments = list(keyword_matched)
+        if is_overview:
+            for dept, records in [('MRI', mri_records), ('X-Ray', xray_records), ('ECG', ecg_records),
+                                   ('Blood Profile', blood_profile_records), ('CT Scan', ct_scan_records),
+                                   ('Treatment', treatment_records)]:
+                if records:
+                    matched_departments.append(dept)
+
         # Collect relevant evidence records (most recent from each matched department)
         evidence = []
         if 'MRI' in matched_departments and mri_records:
@@ -541,6 +589,8 @@ Guidelines:
             matched_departments=matched_departments
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Deep query error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
@@ -628,7 +678,7 @@ Guidelines:
         full_question = f"{patient_context}\n\nDoctor's Question: {question}"
 
         # Get AI analysis
-        result = await gemini_client.aio.models.generate_content(
+        result = await generate_content_with_retry(
             model=GEMINI_MODEL,
             contents=[full_question, file_part],
             config=genai_types.GenerateContentConfig(system_instruction=system_message),
@@ -656,6 +706,8 @@ Guidelines:
             suggestions=suggestions
         )
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Document analysis error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error analyzing document: {str(e)}")
