@@ -30,3 +30,4 @@ Conventions for this repo. Check before adding code, deps, or data.
 - Backend: `cd backend && source venv/bin/activate && uvicorn server:app --reload --port 8000`
 - Frontend: `cd frontend && npm start` (needs `frontend/.env` with `REACT_APP_BACKEND_URL=http://localhost:8000` — CRA won't pick up new env vars without a restart).
 - Ponytail plugin is active — lean/minimal code by default, no unrequested scaffolding.
+- **Never start/run backend or frontend servers from Claude's end.** Make the code change, then hand the user the exact command(s) to run and ask them to confirm the result. Exception: if the user says they can't tell what's wrong or can't resolve it themselves, Claude may run it directly to diagnose.

@@ -200,7 +200,7 @@ async def populate_sample_data():
     await db.blood_profile_records.delete_many({})
     await db.ct_scan_records.delete_many({})
 
-    seed_data = build_seed_data(extra_count=0)
+    seed_data = build_seed_data(extra_count=488)
 
     await db.profiles.insert_many(seed_data["profiles"])
     for coll_name in ["mri_records", "xray_records", "ecg_records",
@@ -424,7 +424,7 @@ async def get_department_records(department_name: str):
         raise HTTPException(status_code=404, detail="Department not found")
     
     collection = db[collection_name]
-    records = await collection.find({}, {"_id": 0}).to_list(1000)
+    records = await collection.find({}, {"_id": 0}).to_list(None)
     
     # Sort by date
     if collection_name == "treatment_records":
@@ -441,7 +441,7 @@ async def get_department_records(department_name: str):
 @api_router.get("/patients")
 async def get_all_patients():
     """Get list of all patient IDs and names for reference"""
-    profiles = await db.profiles.find({}, {"_id": 0, "patient_id": 1, "name": 1}).to_list(1000)
+    profiles = await db.profiles.find({}, {"_id": 0, "patient_id": 1, "name": 1}).to_list(None)
     return {"patients": profiles}
 
 @api_router.post("/deep-query", response_model=DeepQueryResponse)
