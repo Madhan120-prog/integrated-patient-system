@@ -208,7 +208,7 @@ def build_seed_data(extra_count=0):
         "blood_profile_records": [],
         "ct_scan_records": [],
         "treatment_records": [],
-        "mpi": []  # canonical patient_id -> lab vendor's own local ID
+        "mpi": []  # canonical patient_id -> each vendor system's own local ID
     }
 
     for i, patient in enumerate(patients):
@@ -216,7 +216,8 @@ def build_seed_data(extra_count=0):
         all_records["profiles"].append(profile)
         all_records["mpi"].append({
             "patient_id": patient["patient_id"],
-            "sunquest_lab_id": f"SQ-{90000 + i}"
+            "sunquest_lab_id": f"SQ-{90000 + i}",
+            "ris_mri_id": f"RIS-{100000 + i}"
         })
 
         patient_records = build_records_for_patient(patient)

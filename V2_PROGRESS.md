@@ -94,11 +94,45 @@ doctor-facing experience is unchanged.
 
 ---
 
-## Open questions for later (not blocking this pilot)
+## Step 5 — Decision: extend to all 6 departments, each fully isolated (2026-07-23)
 
-- Do we extend this pattern to the other 5 departments, or was labs enough to prove
-  the concept for a demo project?
-- If we extend it: do all 5 get separate SQLite files (5 "vendors"), or does it make
-  sense to vary the storage type per department (e.g. PACS as flat files/blob
-  storage, since real PACS systems store images + DICOM metadata, not relational
-  rows)?
+Decided to go beyond a single pilot: **all 6 departments become fully isolated
+systems**, each reached only through MPI + a gateway — no direct Mongo queries to
+department data anywhere in the app. Explicitly considered and rejected the more
+"realistic" consolidated model (one PACS for MRI/X-Ray/CT, Treatment folded into
+the central EMR) — user wants maximum isolation per department regardless of how
+real hospitals structure it.
+
+**Storage varies by department** (different Python-stdlib persistence mechanism
+each, no new dependencies) — deliberately not repeating the same pattern 6 times,
+since real vendors aren't built the same way either:
+- Labs → SQLite (relational) — done
+- MRI → JSON files, one per patient (file-based, mimics PACS/RIS storing studies
+  as discrete files) — done
+- X-Ray, CT Scan, ECG, Treatment → still to build, each getting a different
+  stdlib storage mechanism (candidates: dbm key-value store, csv flat file,
+  shelve object store)
+
+**Build order**: one department at a time — build, verify in the real browser/API,
+commit — before starting the next. Central EMR (Mongo) keeps profiles + the MPI
+collection regardless of how many departments get split out.
+
+## Step 6 — MRI pilot (2026-07-23) — DONE
+
+New: `backend/data/mri_system.py` (JSON-file vendor store, `mri_store/` directory,
+one file per `ris_mri_id`), `backend/mri_gateway.py` (same MPI-lookup + normalize
+shape as `lab_gateway.py`). MPI now carries both `sunquest_lab_id` and
+`ris_mri_id` per patient. Same 4 call sites in `server.py` updated
+(`/search`, `/analytics`, `/department`, `/deep-query`), plus seeding/clearing.
+
+Verified end-to-end with 500 patients / 547 MRI records:
+- [x] `/search?term=P1001` → correct MRI record (Brain MRI, 2025-01-29)
+- [x] `/department/mri` → all 547 records, 0 orphaned (every vendor-local ID
+      correctly reverse-mapped to a canonical patient_id)
+- [x] `/deep-query` ("what did the brain MRI show?") → correct answer + evidence,
+      sourced entirely from the JSON file store via the gateway
+
+## Open questions for later
+
+- X-Ray, CT Scan, ECG, Treatment still on shared Mongo — next 4 departments to
+  isolate, one at a time, per Step 5's decision.
