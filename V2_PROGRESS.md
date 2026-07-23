@@ -97,6 +97,45 @@ layer, via the MPI, knows how to translate between them.
 Notice none of the 6 vendor rows mention `P1001` anywhere — only their own
 local ID. The mapping only exists in the central `mpi` collection.
 
+### Are these all "real" databases?
+
+Worth being precise here — not all 6 are the same kind of thing.
+
+**Genuinely real database engines (3 of them):**
+- **SQLite (Labs)** — a full embedded relational database: SQL, indexes,
+  transactions. Same engine that powers local storage in most mobile apps.
+  Most "database-like" of the six.
+- **dbm (X-Ray)** — a real key-value database engine, simpler than SQL (no
+  query language, just "give me a key, get a value back"), but genuinely
+  persistent and indexed — not a flat file re-read top to bottom. Same
+  category as Redis or LevelDB. Real Unix systems have used dbm-family
+  databases for decades (old mail servers used them for address lookups).
+- **shelve (CT)** — built directly on top of dbm, but stores actual Python
+  objects instead of raw bytes/strings. Same category as an "object
+  database" (real-world example: ZODB) — the object is stored as-is, no
+  translation into rows and columns.
+
+**Honestly closer to "just files" than databases (3 of them):**
+- **JSON files (MRI)** — one file per patient, no query engine, no
+  indexing — reading it means opening that exact file. Mirrors how a real
+  PACS stores the *image* files themselves, though a real system's study
+  index/metadata usually sits in an actual database, not loose files —
+  simplified for this pilot.
+- **CSV (ECG)** — a flat, human-readable export. No query capability at
+  all, every read scans the whole file. Least "database" of the six.
+- **pickle (Treatment)** — a single binary blob. Same deal: load the whole
+  file into memory, then look inside it.
+
+**Why the file-based ones still count as legitimate simulations:** some
+real hospital integrations genuinely work this way — a vendor drops a
+nightly batch export (CSV, a fixed-width text dump, an HL7 batch file)
+instead of exposing a live query API. So JSON/CSV/pickle aren't "fake
+databases" — they're honestly simulating the **file-drop style of
+integration**, a real (if older) pattern, while SQLite/dbm/shelve simulate
+the **live-query style**. Both patterns genuinely exist in real hospitals;
+this mixes them on purpose instead of pretending every vendor exposes a
+live API.
+
 ### Flow 1 — Doctor searches a patient ID or name
 
 ```mermaid
