@@ -217,7 +217,11 @@ def build_seed_data(extra_count=0):
         all_records["mpi"].append({
             "patient_id": patient["patient_id"],
             "sunquest_lab_id": f"SQ-{90000 + i}",
-            "ris_mri_id": f"RIS-{100000 + i}"
+            "ris_mri_id": f"RIS-{100000 + i}",
+            "xray_local_id": f"XR-{200000 + i}",
+            "ct_local_id": f"CT-{300000 + i}",
+            "ecg_local_id": f"ECG-{400000 + i}",
+            "treatment_local_id": f"TX-{500000 + i}"
         })
 
         patient_records = build_records_for_patient(patient)

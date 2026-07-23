@@ -51,6 +51,10 @@ venv/
 # Generated data (mirrors: we don't commit the local Mongo instance either)
 backend/data/sunquest.db
 backend/data/mri_store/
+backend/data/xray_store*
+backend/data/ct_store*
+backend/data/ecg_store.csv
+backend/data/treatment_store.pkl
 
 # Archive files and large assets
 **/*.zip

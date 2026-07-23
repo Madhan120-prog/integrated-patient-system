@@ -23,6 +23,136 @@ department as a pilot before touching the rest.
 
 ---
 
+## Architecture overview
+
+**Status: all 6 departments isolated.** Every department is its own simulated
+vendor system, on its own storage technology, reachable only through a
+Master Patient Index (MPI) + a gateway module — never a direct query.
+
+```mermaid
+graph TB
+    subgraph "Central EMR (MongoDB — the one shared, canonical system)"
+        PROF["profiles collection<br/>{patient_id, name, age, gender, ...}"]
+        MPI["mpi collection<br/>{patient_id → every vendor's local ID}"]
+    end
+
+    DOC["Doctor / Nurse<br/>(React frontend)"]
+    API["FastAPI backend (server.py)<br/>/search · /analytics · /department · /deep-query"]
+
+    subgraph "Gateway layer — MPI lookup + normalize (backend/*_gateway.py)"
+        GW_LAB["lab_gateway"]
+        GW_MRI["mri_gateway"]
+        GW_XRAY["xray_gateway"]
+        GW_CT["ct_gateway"]
+        GW_ECG["ecg_gateway"]
+        GW_TX["treatment_gateway"]
+    end
+
+    subgraph "6 isolated vendor systems — each a different storage technology"
+        V_LAB[("Sunquest (Labs)<br/>SQLite — relational rows<br/>sunquest.db")]
+        V_MRI[("RIS (MRI)<br/>JSON files, one per patient<br/>mri_store/*.json")]
+        V_XRAY[("X-Ray system<br/>dbm — key-value store<br/>xray_store")]
+        V_CT[("CT system<br/>shelve — persisted objects<br/>ct_store")]
+        V_ECG[("MUSE (ECG)<br/>flat CSV export<br/>ecg_store.csv")]
+        V_TX[("Treatment/EMR module<br/>pickle — binary blob dump<br/>treatment_store.pkl")]
+    end
+
+    DOC <--> API
+    API <--> PROF
+    API <--> MPI
+    API --> GW_LAB & GW_MRI & GW_XRAY & GW_CT & GW_ECG & GW_TX
+    GW_LAB -.MPI lookup.-> MPI
+    GW_MRI -.MPI lookup.-> MPI
+    GW_XRAY -.MPI lookup.-> MPI
+    GW_CT -.MPI lookup.-> MPI
+    GW_ECG -.MPI lookup.-> MPI
+    GW_TX -.MPI lookup.-> MPI
+    GW_LAB --> V_LAB
+    GW_MRI --> V_MRI
+    GW_XRAY --> V_XRAY
+    GW_CT --> V_CT
+    GW_ECG --> V_ECG
+    GW_TX --> V_TX
+```
+
+**No vendor system talks to another, and none of them know the hospital's
+canonical `patient_id`** — that's the whole point. Each only knows its own
+local ID (`SQ-90000`, `RIS-100000`, `XR-200000`, `CT-300000`, `ECG-400000`,
+`TX-500000` for the same patient, James Mitchell / P1001). Only the gateway
+layer, via the MPI, knows how to translate between them.
+
+### What each database actually looks like (sample: patient P1001, James Mitchell)
+
+| System | Tech | Local ID | Sample row/record |
+|---|---|---|---|
+| Central EMR — `profiles` | Mongo | `P1001` | `{name: "James Mitchell", age: 62, gender: "Male", blood_group: "A+", ...}` |
+| Central EMR — `mpi` | Mongo | `P1001` | `{patient_id: "P1001", sunquest_lab_id: "SQ-90000", ris_mri_id: "RIS-100000", xray_local_id: "XR-200000", ct_local_id: "CT-300000", ecg_local_id: "ECG-400000", treatment_local_id: "TX-500000"}` |
+| Sunquest (Labs) | SQLite table | `SQ-90000` | `{sunquest_id: "SQ-90000", patient_name: "James Mitchell", test_name: "Complete Blood Count", result: "Neutropenia — WBC 2.1", ...}` |
+| RIS (MRI) | JSON file `RIS-100000.json` | `RIS-100000` | `[{name: "James Mitchell", test_name: "Brain MRI", result: "No intracranial metastases", ...}]` |
+| X-Ray system | dbm key → value | `XR-200000` | key `"XR-200000"` → JSON string of `[{test_name: "Chest X-Ray", result: "Suspicious mass...", ...}]` |
+| CT system | shelve key → value | `CT-300000` | key `"CT-300000"` → Python list object `[{test_name: "Chest CT Scan", ...}, ...]` |
+| MUSE (ECG) | CSV row | `ECG-400000` | `ECG-400000, James Mitchell, Resting ECG, 2025-01-15, Normal Sinus Rhythm, Dr. ...` |
+| Treatment/EMR | pickle dict entry | `TX-500000` | `{"TX-500000": [{treatment_name: "Chemotherapy — Cisplatin/Pemetrexed Cycle 1", medicines: "...", ...}, ...]}` |
+
+Notice none of the 6 vendor rows mention `P1001` anywhere — only their own
+local ID. The mapping only exists in the central `mpi` collection.
+
+### Flow 1 — Doctor searches a patient ID or name
+
+```mermaid
+sequenceDiagram
+    participant D as Doctor (browser)
+    participant A as FastAPI /search
+    participant M as Mongo (profiles + mpi)
+    participant G as 6 gateways
+    participant V as 6 vendor systems
+
+    D->>A: GET /search?term=P1001
+    A->>M: find profile matching P1001
+    M-->>A: {patient_id, name, age, ...}
+    A->>M: find mpi doc for P1001
+    M-->>A: {sunquest_lab_id, ris_mri_id, xray_local_id, ...}
+    A->>G: get_records_for_patient(db, "P1001") × 6
+    G->>V: query each vendor system by its own local ID
+    V-->>G: raw vendor-shaped rows
+    G-->>A: normalized records (patient_id, name, test_name, ...)
+    A-->>D: unified JSON — profile + all 6 departments' records
+```
+
+The doctor never sees any of this — the response looks exactly like it did
+before this rework, one JSON object with all departments. The difference is
+entirely under the hood: 6 separate lookups through 6 separate technologies,
+stitched together transparently.
+
+### Flow 2 — DocAssist AI answers a question
+
+```mermaid
+sequenceDiagram
+    participant D as Doctor (browser)
+    participant A as FastAPI /deep-query
+    participant K as Keyword matcher
+    participant G as Relevant gateway(s) only
+    participant V as Relevant vendor system(s)
+    participant AI as Gemini
+
+    D->>A: "What did the brain MRI show?"
+    A->>K: match question against department keywords
+    K-->>A: only "MRI" matched — skip the other 5 departments entirely
+    A->>G: mri_gateway.get_records_for_patient(db, "P1001")
+    G->>V: MPI lookup → query RIS JSON file store
+    V-->>G: raw MRI records
+    G-->>A: normalized records
+    A->>AI: patient context (MRI only) + system prompt + question
+    AI-->>A: clinical answer, grounded in the fetched records
+    A-->>D: answer + evidence cards
+```
+
+"Smart context" (built in Phase 3) already skipped irrelevant departments to
+save tokens — now it also means fewer vendor systems get touched per
+question, which matters more now that each one is a real separate query.
+
+---
+
 ## Step 1 — Scope decision (2026-07-20)
 
 Discussed and decided:
@@ -132,7 +262,72 @@ Verified end-to-end with 500 patients / 547 MRI records:
 - [x] `/deep-query` ("what did the brain MRI show?") → correct answer + evidence,
       sourced entirely from the JSON file store via the gateway
 
+## Step 7 — Remaining 4 departments: X-Ray, CT Scan, ECG, Treatment (2026-07-23) — DONE
+
+Built all 4 in one pass (user opted for speed over the strict one-at-a-time
+build order from Step 5, but every department was still independently offline-
+tested before touching the live server, and all 4 were verified end-to-end
+together at the end).
+
+**New MPI fields**: `xray_local_id`, `ct_local_id`, `ecg_local_id`,
+`treatment_local_id` added alongside the existing two.
+
+- **X-Ray** → `backend/data/xray_system.py`, `dbm.dumb` key-value store
+  (`xray_store.dir/.dat/.bak`). Explicitly pinned to `dbm.dumb` rather than the
+  generic `dbm` module — the generic one auto-picks a backend that varies by
+  platform (gdbm/ndbm/dumb), which would make the on-disk filenames
+  unpredictable.
+- **CT Scan** → `backend/data/ct_system.py`, `shelve` persisted-object store
+  (`ct_store`).
+- **ECG** → `backend/data/ecg_system.py`, a single flat CSV file
+  (`ecg_store.csv`) — mimics a legacy system that only exposes data via
+  scheduled file exports rather than a live query API.
+- **Treatment** → `backend/data/treatment_system.py`, a single `pickle` file
+  (`treatment_store.pkl`) holding one binary-serialized dict — mimics a
+  legacy system exposing a periodic binary data dump. Different record shape
+  from the others (`treatment_name`/`treatment_date`/`medicines` instead of
+  `test_name`/`test_date`/`report_image`) — `treatment_gateway.py` normalizes
+  to that shape instead of reusing the standard one.
+
+**Bug caught during offline testing, before touching the live server**:
+`ct_system.py`'s existence check guessed `shelve`'s output file extension
+(`.dir`/`.db`), but on this machine `shelve` actually writes a single
+extensionless file (just `ct_store`). The check silently failed and
+`query_all()`/`query_by_local_id()` always returned empty, even though seeding
+had worked. Fixed by switching to `glob.glob(path + "*")` instead of guessing
+extensions — this is also what made `clear()` robust across platforms. Caught
+because every module gets an isolated offline correctness check (expected
+count vs actual count) before being wired into the live app — this is why
+that check exists.
+
+`server.py` simplified further while wiring these in: `/department` and
+`/deep-query`'s `fetch()` now use a `gateway_by_collection` dict instead of a
+chain of `if` statements, since all 6 departments follow the exact same
+call shape now.
+
+Verified end-to-end with 500 patients, all matching pre-migration counts
+exactly, zero orphaned records in any department:
+
+| Department | Total records | Missing patient_id | Search (P1001) | AI chat |
+|---|---|---|---|---|
+| X-Ray | 568 | 0 | ✅ 3 records | not separately tested (same code path as MRI, already proven) |
+| CT Scan | 947 | 0 | ✅ 3 records | not separately tested |
+| ECG | 626 | 0 | ✅ 1 record | not separately tested |
+| Treatment | 1938 | 0 | ✅ 5 records | ✅ tested — correct chemo/immunotherapy summary with medicines, correctly flagged a neutropenia dose-reduction event, evidence cards correct |
+
+**All 6 departments are now fully isolated.** Nothing in `server.py` queries
+department data directly from Mongo anymore — every read goes through a
+gateway. Mongo's only remaining job is the central EMR: `profiles` + `mpi`.
+
 ## Open questions for later
 
-- X-Ray, CT Scan, ECG, Treatment still on shared Mongo — next 4 departments to
-  isolate, one at a time, per Step 5's decision.
+- Whether to keep all 6 isolated long-term or consolidate later (e.g. real
+  PACS-style consolidation of MRI/X-Ray/CT) is still an open call — current
+  state deliberately favors maximum isolation per an explicit decision in
+  Step 5, not because it's the most realistic hospital structure.
+- No HL7/FHIR message simulation and no fuzzy/probabilistic patient matching
+  in the MPI — both still explicitly out of scope, noted since Step 1.
+- Per-patient PDF report generation (an actual formatted lab/imaging report
+  document, vs. today's generic stock reference image) was discussed and
+  intentionally deferred — different kind of work (document generation) from
+  this architecture initiative.

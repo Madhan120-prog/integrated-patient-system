@@ -184,9 +184,13 @@ async def text_to_speech(request: TTSRequest):
     return Response(content=buffer.getvalue(), media_type="audio/mpeg")
 
 from data.seed import build_seed_data
-from data import lab_system, mri_system
+from data import lab_system, mri_system, xray_system, ct_system, ecg_system, treatment_system
 import lab_gateway
 import mri_gateway
+import xray_gateway
+import ct_gateway
+import ecg_gateway
+import treatment_gateway
 
 async def populate_sample_data():
     """Populate all department collections with curated oncology patient data"""
@@ -196,11 +200,14 @@ async def populate_sample_data():
         return {"message": "Data already exists", "patients_created": existing_count}
 
     await db.profiles.delete_many({})
+    # legacy — no department collection is written to anymore, all 6 live in
+    # their own isolated vendor systems now. Cleared once here for migration
+    # hygiene in case old documents are still sitting in Mongo from before.
     await db.xray_records.delete_many({})
     await db.ecg_records.delete_many({})
     await db.treatment_records.delete_many({})
-    await db.blood_profile_records.delete_many({})  # legacy, no longer written to
-    await db.mri_records.delete_many({})  # legacy, no longer written to
+    await db.blood_profile_records.delete_many({})
+    await db.mri_records.delete_many({})
     await db.ct_scan_records.delete_many({})
     await db.mpi.delete_many({})
 
@@ -208,9 +215,6 @@ async def populate_sample_data():
 
     await db.profiles.insert_many(seed_data["profiles"])
     await db.mpi.insert_many(seed_data["mpi"])
-    for coll_name in ["xray_records", "ecg_records", "ct_scan_records", "treatment_records"]:
-        if seed_data[coll_name]:
-            await db[coll_name].insert_many(seed_data[coll_name])
 
     def group_by_local_id(records, mpi_field):
         """Each department vendor system only knows its own local ID, not our
@@ -222,12 +226,25 @@ async def populate_sample_data():
             grouped.setdefault(local_id, []).append(rec)
         return grouped
 
-    # Labs and MRI each live in a separate simulated vendor system, not Mongo.
+    # All 6 departments live in their own isolated simulated vendor system now —
+    # nothing left to insert into Mongo besides profiles + the MPI itself.
     await asyncio.to_thread(
         lab_system.reset_and_seed, group_by_local_id(seed_data["blood_profile_records"], "sunquest_lab_id")
     )
     await asyncio.to_thread(
         mri_system.reset_and_seed, group_by_local_id(seed_data["mri_records"], "ris_mri_id")
+    )
+    await asyncio.to_thread(
+        xray_system.reset_and_seed, group_by_local_id(seed_data["xray_records"], "xray_local_id")
+    )
+    await asyncio.to_thread(
+        ct_system.reset_and_seed, group_by_local_id(seed_data["ct_scan_records"], "ct_local_id")
+    )
+    await asyncio.to_thread(
+        ecg_system.reset_and_seed, group_by_local_id(seed_data["ecg_records"], "ecg_local_id")
+    )
+    await asyncio.to_thread(
+        treatment_system.reset_and_seed, group_by_local_id(seed_data["treatment_records"], "treatment_local_id")
     )
 
     return {"message": "Sample data populated successfully", "patients_created": len(seed_data["profiles"])}
@@ -282,6 +299,10 @@ async def clear_data():
     await db.mpi.delete_many({})
     await asyncio.to_thread(lab_system.clear)
     await asyncio.to_thread(mri_system.clear)
+    await asyncio.to_thread(xray_system.clear)
+    await asyncio.to_thread(ct_system.clear)
+    await asyncio.to_thread(ecg_system.clear)
+    await asyncio.to_thread(treatment_system.clear)
     return {"message": "All data cleared successfully"}
 
 @api_router.get("/search")
@@ -305,18 +326,17 @@ async def search_patient(term: str = Query(..., description="Patient ID or Name 
     
     # Search profile
     profile = await db.profiles.find_one(query, {"_id": 0})
-    
-    # Search all department records
-    xray_records = await db.xray_records.find(query, {"_id": 0}).to_list(1000)
-    ecg_records = await db.ecg_records.find(query, {"_id": 0}).to_list(1000)
-    treatment_records = await db.treatment_records.find(query, {"_id": 0}).to_list(1000)
-    ct_scan_records = await db.ct_scan_records.find(query, {"_id": 0}).to_list(1000)
 
-    # Labs and MRI live in separate simulated vendor systems — reached via MPI,
-    # not a direct Mongo query, so they need the patient already identified.
-    blood_profile_records = await lab_gateway.get_records_for_patient(db, profile["patient_id"]) if profile else []
-    mri_records = await mri_gateway.get_records_for_patient(db, profile["patient_id"]) if profile else []
-    
+    # Every department lives in its own isolated vendor system now — reached via
+    # MPI, not a direct Mongo query, so they all need the patient already identified.
+    pid = profile["patient_id"] if profile else None
+    blood_profile_records = await lab_gateway.get_records_for_patient(db, pid) if pid else []
+    mri_records = await mri_gateway.get_records_for_patient(db, pid) if pid else []
+    xray_records = await xray_gateway.get_records_for_patient(db, pid) if pid else []
+    ct_scan_records = await ct_gateway.get_records_for_patient(db, pid) if pid else []
+    ecg_records = await ecg_gateway.get_records_for_patient(db, pid) if pid else []
+    treatment_records = await treatment_gateway.get_records_for_patient(db, pid) if pid else []
+
     # Sort records by date (ascending)
     mri_records = sorted(mri_records, key=lambda x: x.get("test_date", ""))
     xray_records = sorted(xray_records, key=lambda x: x.get("test_date", ""))
@@ -339,15 +359,13 @@ async def search_patient(term: str = Query(..., description="Patient ID or Name 
 async def get_patient_analytics(patient_id: str):
     """Get patient analytics and statistics"""
     
-    query = {"patient_id": patient_id}
-    
-    # Get all records
-    xray_records = await db.xray_records.find(query, {"_id": 0}).to_list(1000)
-    ecg_records = await db.ecg_records.find(query, {"_id": 0}).to_list(1000)
-    treatment_records = await db.treatment_records.find(query, {"_id": 0}).to_list(1000)
-    ct_scan_records = await db.ct_scan_records.find(query, {"_id": 0}).to_list(1000)
+    # Every department lives in its own isolated vendor system — all reached via MPI.
     blood_profile_records = await lab_gateway.get_records_for_patient(db, patient_id)
     mri_records = await mri_gateway.get_records_for_patient(db, patient_id)
+    xray_records = await xray_gateway.get_records_for_patient(db, patient_id)
+    ct_scan_records = await ct_gateway.get_records_for_patient(db, patient_id)
+    ecg_records = await ecg_gateway.get_records_for_patient(db, patient_id)
+    treatment_records = await treatment_gateway.get_records_for_patient(db, patient_id)
     
     # Calculate total tests
     total_tests = len(mri_records) + len(xray_records) + len(ecg_records) + len(blood_profile_records) + len(ct_scan_records)
@@ -451,13 +469,15 @@ async def get_department_records(department_name: str):
     if not collection_name:
         raise HTTPException(status_code=404, detail="Department not found")
 
-    if collection_name == "blood_profile_records":
-        records = await lab_gateway.get_all_records(db)
-    elif collection_name == "mri_records":
-        records = await mri_gateway.get_all_records(db)
-    else:
-        collection = db[collection_name]
-        records = await collection.find({}, {"_id": 0}).to_list(None)
+    gateway_by_collection = {
+        "blood_profile_records": lab_gateway,
+        "mri_records": mri_gateway,
+        "xray_records": xray_gateway,
+        "ct_scan_records": ct_gateway,
+        "ecg_records": ecg_gateway,
+        "treatment_records": treatment_gateway,
+    }
+    records = await gateway_by_collection[collection_name].get_all_records(db)
     
     # Sort by date
     if collection_name == "treatment_records":
@@ -508,14 +528,19 @@ async def deep_query(request: DeepQueryRequest):
     is_overview = not keyword_matched and any(w in question_lower for w in overview_keywords)
     needs_dept = lambda d: d in keyword_matched or is_overview
 
+    gateway_by_collection = {
+        "blood_profile_records": lab_gateway,
+        "mri_records": mri_gateway,
+        "xray_records": xray_gateway,
+        "ct_scan_records": ct_gateway,
+        "ecg_records": ecg_gateway,
+        "treatment_records": treatment_gateway,
+    }
+
     async def fetch(coll, name):
         if not needs_dept(name):
             return []
-        if coll == "blood_profile_records":
-            return await lab_gateway.get_records_for_patient(db, patient_id)
-        if coll == "mri_records":
-            return await mri_gateway.get_records_for_patient(db, patient_id)
-        return await db[coll].find(query, {"_id": 0}).to_list(1000)
+        return await gateway_by_collection[coll].get_records_for_patient(db, patient_id)
 
     mri_records = await fetch("mri_records", "MRI")
     xray_records = await fetch("xray_records", "X-Ray")
