@@ -48,6 +48,9 @@ __pycache__/
 venv/
 .venv/
 
+# Generated data (mirrors: we don't commit the local Mongo instance either)
+backend/data/sunquest.db
+
 # Archive files and large assets
 **/*.zip
 **/*.tar.gz

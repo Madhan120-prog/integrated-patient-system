@@ -184,6 +184,8 @@ async def text_to_speech(request: TTSRequest):
     return Response(content=buffer.getvalue(), media_type="audio/mpeg")
 
 from data.seed import build_seed_data
+from data import lab_system
+import lab_gateway
 
 async def populate_sample_data():
     """Populate all department collections with curated oncology patient data"""
@@ -197,16 +199,27 @@ async def populate_sample_data():
     await db.xray_records.delete_many({})
     await db.ecg_records.delete_many({})
     await db.treatment_records.delete_many({})
-    await db.blood_profile_records.delete_many({})
+    await db.blood_profile_records.delete_many({})  # legacy, no longer written to
     await db.ct_scan_records.delete_many({})
+    await db.mpi.delete_many({})
 
     seed_data = build_seed_data(extra_count=488)
 
     await db.profiles.insert_many(seed_data["profiles"])
+    await db.mpi.insert_many(seed_data["mpi"])
     for coll_name in ["mri_records", "xray_records", "ecg_records",
-                       "blood_profile_records", "ct_scan_records", "treatment_records"]:
+                       "ct_scan_records", "treatment_records"]:
         if seed_data[coll_name]:
             await db[coll_name].insert_many(seed_data[coll_name])
+
+    # Labs live in a separate simulated vendor system (SQLite), not Mongo — group
+    # records by each patient's vendor-local ID before seeding it.
+    local_id_by_patient = {m["patient_id"]: m["sunquest_lab_id"] for m in seed_data["mpi"]}
+    records_by_local_id = {}
+    for rec in seed_data["blood_profile_records"]:
+        local_id = local_id_by_patient[rec["patient_id"]]
+        records_by_local_id.setdefault(local_id, []).append(rec)
+    await asyncio.to_thread(lab_system.reset_and_seed, records_by_local_id)
 
     return {"message": "Sample data populated successfully", "patients_created": len(seed_data["profiles"])}
 
@@ -257,6 +270,8 @@ async def clear_data():
     await db.treatment_records.delete_many({})
     await db.blood_profile_records.delete_many({})
     await db.ct_scan_records.delete_many({})
+    await db.mpi.delete_many({})
+    await asyncio.to_thread(lab_system.clear)
     return {"message": "All data cleared successfully"}
 
 @api_router.get("/search")
@@ -286,8 +301,11 @@ async def search_patient(term: str = Query(..., description="Patient ID or Name 
     xray_records = await db.xray_records.find(query, {"_id": 0}).to_list(1000)
     ecg_records = await db.ecg_records.find(query, {"_id": 0}).to_list(1000)
     treatment_records = await db.treatment_records.find(query, {"_id": 0}).to_list(1000)
-    blood_profile_records = await db.blood_profile_records.find(query, {"_id": 0}).to_list(1000)
     ct_scan_records = await db.ct_scan_records.find(query, {"_id": 0}).to_list(1000)
+
+    # Labs live in a separate simulated vendor system — reached via MPI, not a
+    # direct Mongo query, so it needs the patient already identified.
+    blood_profile_records = await lab_gateway.get_records_for_patient(db, profile["patient_id"]) if profile else []
     
     # Sort records by date (ascending)
     mri_records = sorted(mri_records, key=lambda x: x.get("test_date", ""))
@@ -318,8 +336,8 @@ async def get_patient_analytics(patient_id: str):
     xray_records = await db.xray_records.find(query, {"_id": 0}).to_list(1000)
     ecg_records = await db.ecg_records.find(query, {"_id": 0}).to_list(1000)
     treatment_records = await db.treatment_records.find(query, {"_id": 0}).to_list(1000)
-    blood_profile_records = await db.blood_profile_records.find(query, {"_id": 0}).to_list(1000)
     ct_scan_records = await db.ct_scan_records.find(query, {"_id": 0}).to_list(1000)
+    blood_profile_records = await lab_gateway.get_records_for_patient(db, patient_id)
     
     # Calculate total tests
     total_tests = len(mri_records) + len(xray_records) + len(ecg_records) + len(blood_profile_records) + len(ct_scan_records)
@@ -422,9 +440,12 @@ async def get_department_records(department_name: str):
     collection_name = department_map.get(department_name.lower())
     if not collection_name:
         raise HTTPException(status_code=404, detail="Department not found")
-    
-    collection = db[collection_name]
-    records = await collection.find({}, {"_id": 0}).to_list(None)
+
+    if collection_name == "blood_profile_records":
+        records = await lab_gateway.get_all_records(db)
+    else:
+        collection = db[collection_name]
+        records = await collection.find({}, {"_id": 0}).to_list(None)
     
     # Sort by date
     if collection_name == "treatment_records":
@@ -478,6 +499,8 @@ async def deep_query(request: DeepQueryRequest):
     async def fetch(coll, name):
         if not needs_dept(name):
             return []
+        if coll == "blood_profile_records":
+            return await lab_gateway.get_records_for_patient(db, patient_id)
         return await db[coll].find(query, {"_id": 0}).to_list(1000)
 
     mri_records = await fetch("mri_records", "MRI")
