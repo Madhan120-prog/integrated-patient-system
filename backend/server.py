@@ -162,6 +162,7 @@ class PatientAnalytics(BaseModel):
 class DeepQueryRequest(BaseModel):
     patient_id: str
     question: str
+    conversation_history: List[dict] = []
 
 class DeepQueryResponse(BaseModel):
     answer: str
@@ -523,7 +524,8 @@ async def deep_query(request: DeepQueryRequest):
         'Treatment': ['treatment', 'medicine', 'medication', 'prescription', 'therapy'],
     }
     overview_keywords = ['summarize', 'summary', 'overview', 'status', 'records',
-                          'details', 'history', 'everything', 'concerns', 'concerning']
+                          'details', 'history', 'everything', 'concerns', 'concerning',
+                          'changed', 'change', 'compare', 'comparison', 'trend', 'progress']
     keyword_matched = [d for d, kws in dept_keywords.items() if any(k in question_lower for k in kws)]
     is_overview = not keyword_matched and any(w in question_lower for w in overview_keywords)
     needs_dept = lambda d: d in keyword_matched or is_overview
@@ -590,6 +592,9 @@ Guidelines:
 - Always reference specific records (dates, values) when answering
 - If asked about something not in the records, say so directly — don't pad
 - Never make diagnoses - only summarize and analyze existing data
+- When a department has 2+ results of the same test type, always call out the
+  trend explicitly (e.g. "CEA 12.5 → 5.2 ng/mL, decreasing") rather than just
+  listing values — the direction of change matters more than any single reading
 
 Scope — read this carefully, it controls when patient data appears in your answer:
 - Greetings ("hi", "hello", "how are you") → reply naturally in one short sentence.
@@ -607,8 +612,20 @@ calls for it. Including it in a reply to "hi" is a failure mode — do not do th
         if not gemini_client:
             raise HTTPException(status_code=500, detail="LLM API key not configured")
 
+        # Conversation history is only for LLM continuity — kept separate from
+        # `question` so the smart-context keyword classifier above only ever
+        # looks at the doctor's actual new question, never stale department
+        # mentions from earlier turns (e.g. "WBC" from 3 questions ago silently
+        # narrowing which departments get fetched for an unrelated new question).
+        history_block = ""
+        if request.conversation_history:
+            history_lines = "\n".join(
+                f"{h.get('role', '')}: {h.get('content', '')}" for h in request.conversation_history[-6:]
+            )
+            history_block = f"Previous conversation:\n{history_lines}\n\n"
+
         # Create user message with patient context
-        prompt = f"""Based on the following patient records, please answer this question: {question}
+        prompt = f"""{history_block}Based on the following patient records, please answer this question: {question}
 
 {patient_context}"""
 

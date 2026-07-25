@@ -296,6 +296,30 @@ const DeepSearchModal = ({ open, onClose }) => {
       content: welcomeMsg
     }]);
     speak(welcomeMsg);
+    runProactiveCheck(patientData);
+  };
+
+  // Runs silently right after a patient loads — surfaces abnormal findings
+  // without the doctor having to ask. Only shows a message if something is
+  // actually flagged (⚠), so a healthy patient doesn't get a noisy "all clear"
+  // banner every time.
+  const runProactiveCheck = async (pd) => {
+    try {
+      const response = await axios.post(`${API}/deep-query`, {
+        patient_id: pd.profile.patient_id,
+        question: "What are the most concerning findings or abnormal results for this patient right now?"
+      });
+      if (response.data.answer.includes('⚠')) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: response.data.answer,
+          evidence: response.data.evidence,
+          departments: response.data.matched_departments
+        }]);
+      }
+    } catch (error) {
+      // silent — background check, don't interrupt the doctor with an error toast
+    }
   };
 
   const handleAskQuestion = async (overrideText) => {
@@ -310,14 +334,14 @@ const DeepSearchModal = ({ open, onClose }) => {
     setLoading(true);
 
     try {
-      // Build context from conversation history for follow-up questions
-      const contextPrompt = conversationHistory.length > 0 
-        ? `Previous conversation context:\n${conversationHistory.slice(-6).map(h => `${h.role}: ${h.content}`).join('\n')}\n\nCurrent question: ${currentQuestion}`
-        : currentQuestion;
-
+      // Conversation history goes as its own field, not baked into the question
+      // string — keeps the backend's smart-context keyword matching looking at
+      // only the doctor's actual new question, not stale department mentions
+      // from earlier turns.
       const response = await axios.post(`${API}/deep-query`, {
         patient_id: patientData.profile.patient_id,
-        question: contextPrompt
+        question: currentQuestion,
+        conversation_history: conversationHistory.slice(-6)
       });
 
       const assistantMessage = {
@@ -605,6 +629,9 @@ const DeepSearchModal = ({ open, onClose }) => {
                   onClick={isSpeaking ? stopSpeaking : toggleVoice}
                 />
               </Card>
+              <p className="text-[11px] text-gray-400 text-center">
+                AI-assisted analysis — verify against clinical judgment before acting.
+              </p>
 
               {/* Chat Messages */}
               <div className={`overflow-y-auto space-y-4 p-4 bg-gray-50 rounded ${isFullscreen ? 'h-[calc(100vh-350px)]' : 'h-[350px]'}`}>
@@ -740,6 +767,7 @@ const DeepSearchModal = ({ open, onClose }) => {
                     ['Flag concerns', "What are the most concerning findings or abnormal results for this patient?"],
                     ['Latest labs', "What were the most recent lab and blood test results?"],
                     ['Treatment plan', "What is the current treatment plan and status?"],
+                    ['What changed?', "What has changed since this patient's last visit? Compare the most recent results to the prior ones for each department and highlight meaningful changes."],
                   ].map(([label, prompt]) => (
                     <Button
                       key={label}
