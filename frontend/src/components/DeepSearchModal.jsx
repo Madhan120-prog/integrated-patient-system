@@ -137,6 +137,7 @@ const DeepSearchModal = ({ open, onClose }) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [conversationHistory, setConversationHistory] = useState([]); // For context memory
+  const [expandedEvidence, setExpandedEvidence] = useState({}); // message idx -> shown/hidden
   const recognitionRef = useRef(null);
   const audioRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -659,11 +660,16 @@ const DeepSearchModal = ({ open, onClose }) => {
                         </div>
                       )}
                       
-                      {/* Evidence Cards with View Report Button */}
+                      {/* Evidence Cards — collapsed behind a toggle so answers stay clean by default */}
                       {msg.evidence && msg.evidence.length > 0 && (
                         <div className="mt-3 space-y-2">
-                          <p className="text-xs font-semibold text-gray-500">📋 Supporting Evidence:</p>
-                          {msg.evidence.map((ev, i) => (
+                          <button
+                            className="text-xs font-semibold text-teal-700 hover:underline"
+                            onClick={() => setExpandedEvidence(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                          >
+                            📋 {expandedEvidence[idx] ? 'Hide' : 'Show'} Supporting Evidence ({msg.evidence.length})
+                          </button>
+                          {expandedEvidence[idx] && msg.evidence.map((ev, i) => (
                             <Card key={i} className="p-3 text-sm bg-gray-50">
                               <div className="flex justify-between items-start">
                                 <div className="flex-1">
