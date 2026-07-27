@@ -178,19 +178,32 @@ types are present in the schema. ✅
 
 ---
 
-## Step 4 — LLM_BACKEND Env Var (PENDING)
+## Step 4 — LLM_BACKEND Env Var (DONE — 2026-07-27)
 
 Single env var in `.env`: `LLM_BACKEND=gemini` (default).
 
-`server.py` routes to a thin adapter per backend — same prompt in, same
-structured response out. No change to prompt logic, guardrails, or
-anything downstream. Switching model = changing one line in `.env`.
+`server.py` reads `LLM_BACKEND` at startup and routes `generate_response()`
+to one of three thin adapters — same prompt in, same structured response out.
+No change to prompt logic, guardrails, or anything downstream. Switching model
+= changing one line in `.env`.
 
 `.env.example` updated with all three options and setup notes for each.
 
+**What was built:**
+- `LLM_BACKEND = os.environ.get("LLM_BACKEND", "gemini")` at module level
+- `generate_response(prompt, system_message)` dispatches to `_gemini_generate`,
+  `_ollama_generate`, or `_azure_generate` based on env var
+- All three adapters share the same function signature; callers see no difference
+- `/deep-query` now calls `generate_response()` instead of Gemini directly
+- Auth import moved to top of `server.py` (was below `/tts` route — caused
+  `NameError: get_current_user is not defined` at startup)
+
+**Verified:** `test_gemini_backend_called_by_default`, `test_ollama_backend_called_when_set`,
+`test_azure_backend_called_when_set` — each backend called exactly once with correct args. ✅
+
 ---
 
-## Step 5 — Ollama Local Path (PENDING)
+## Step 5 — Ollama Local Path (DONE — 2026-07-27)
 
 **Requires (user-side, one time):**
 ```bash
@@ -199,12 +212,21 @@ ollama pull llama3.2        # 2GB — fast, capable
 # or: ollama pull meditron3  # if available — medical fine-tuned
 ```
 
-**Backend:** HTTP call to `http://localhost:11434/api/chat` with OpenAI-compatible
-schema. Ollama's API matches the OpenAI format exactly, so the adapter is ~10 lines.
+**Backend:** `_ollama_generate()` — HTTP POST to `http://localhost:11434/api/chat`
+with OpenAI-compatible message schema (`[{role:system,...},{role:user,...}]`).
+Ollama's API matches OpenAI format exactly; the adapter is ~15 lines including
+error handling.
 
 **Why this matters for compliance demo:** Set `LLM_BACKEND=ollama` and PHI never
 leaves the machine. No BAA needed. This is the "on-prem HIPAA story" for a demo
 audience.
+
+**Error handling:** `httpx.ConnectError` → `HTTPException(503)` with message
+`"Ollama is not running. Start it with: ollama serve"` — actionable for the user.
+
+**Verified:** `test_ollama_sends_correct_payload` — confirms URL, model, stream=False,
+system+user message roles. `test_ollama_connect_error_gives_clear_message` — confirms
+503 + guidance text when Ollama is unreachable. ✅
 
 ---
 

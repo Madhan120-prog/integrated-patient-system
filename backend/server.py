@@ -22,6 +22,7 @@ import asyncio
 import json
 import shutil
 import uuid
+from auth import create_token, get_current_user, require_physician, require_admin, USERS
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -31,14 +32,88 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Gemini LLM client (used by /deep-query and /analyze-document)
+# LLM configuration — swap backend via LLM_BACKEND env var, no code change needed.
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 GEMINI_MODEL = "gemini-3-flash-preview"
 gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
+LLM_BACKEND = os.environ.get("LLM_BACKEND", "gemini")  # gemini | ollama | azure
 
+
+async def _gemini_generate(prompt: str, system_message: str) -> str:
+    """Gemini path — retries once on 503 (free-tier overload, seen repeatedly)."""
+    if not gemini_client:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    kwargs = dict(
+        model=GEMINI_MODEL,
+        contents=prompt,
+        config=genai_types.GenerateContentConfig(system_instruction=system_message),
+    )
+    try:
+        result = await gemini_client.aio.models.generate_content(**kwargs)
+        return result.text
+    except genai_errors.ServerError:
+        await asyncio.sleep(1)
+        try:
+            result = await gemini_client.aio.models.generate_content(**kwargs)
+            return result.text
+        except genai_errors.ServerError:
+            raise HTTPException(status_code=503, detail="The AI is temporarily overloaded. Please try again in a moment.")
+
+
+async def _ollama_generate(prompt: str, system_message: str) -> str:
+    """Ollama path — PHI never leaves the machine. Requires Ollama running locally."""
+    import httpx
+    model = os.environ.get("OLLAMA_MODEL", "llama3.2")
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": prompt},
+        ],
+        "stream": False,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=120.0) as http:
+            resp = await http.post("http://localhost:11434/api/chat", json=payload)
+            resp.raise_for_status()
+            return resp.json()["message"]["content"]
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Ollama is not running. Start it with: ollama serve")
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Ollama error: {str(e)}")
+
+
+async def _azure_generate(prompt: str, system_message: str) -> str:
+    """Azure OpenAI path — HIPAA-eligible with BAA. Requires AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_KEY."""
+    from openai import AsyncAzureOpenAI
+    endpoint = os.environ.get("AZURE_OPENAI_ENDPOINT")
+    key = os.environ.get("AZURE_OPENAI_KEY")
+    if not endpoint or not key:
+        raise HTTPException(status_code=500, detail="AZURE_OPENAI_ENDPOINT and AZURE_OPENAI_KEY must be set")
+    az = AsyncAzureOpenAI(azure_endpoint=endpoint, api_key=key, api_version="2024-08-01-preview")
+    resp = await az.chat.completions.create(
+        model=os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini"),
+        messages=[
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    return resp.choices[0].message.content
+
+
+async def generate_response(prompt: str, system_message: str) -> str:
+    """Route to configured LLM backend. Same interface regardless of backend."""
+    if LLM_BACKEND == "ollama":
+        return await _ollama_generate(prompt, system_message)
+    if LLM_BACKEND == "azure":
+        return await _azure_generate(prompt, system_message)
+    return await _gemini_generate(prompt, system_message)
+
+
+# Kept for /analyze-document — multimodal (image bytes) only works with Gemini today.
 async def generate_content_with_retry(**kwargs):
-    """Gemini's free tier occasionally returns 503 'high demand' — one retry
-    resolves it almost every time (observed repeatedly in testing)."""
+    if not gemini_client:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
     try:
         return await gemini_client.aio.models.generate_content(**kwargs)
     except genai_errors.ServerError:
@@ -46,10 +121,7 @@ async def generate_content_with_retry(**kwargs):
         try:
             return await gemini_client.aio.models.generate_content(**kwargs)
         except genai_errors.ServerError:
-            raise HTTPException(
-                status_code=503,
-                detail="The AI is temporarily overloaded. Please try again in a moment."
-            )
+            raise HTTPException(status_code=503, detail="The AI is temporarily overloaded. Please try again in a moment.")
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -186,7 +258,6 @@ async def text_to_speech(request: TTSRequest, _: dict = Depends(get_current_user
     gTTS(text=clean_text, lang='en').write_to_fp(buffer)
     return Response(content=buffer.getvalue(), media_type="audio/mpeg")
 
-from auth import create_token, get_current_user, require_physician, require_admin, USERS
 from data.seed import build_seed_data
 from data import lab_system, mri_system, xray_system, ct_system, ecg_system, treatment_system
 import lab_gateway
@@ -600,9 +671,6 @@ Patient data is available in every turn, but only use it when the question actua
 calls for it. Including it in a reply to "hi" is a failure mode — do not do that."""
 
     try:
-        if not gemini_client:
-            raise HTTPException(status_code=500, detail="LLM API key not configured")
-
         # Conversation history is only for LLM continuity — kept separate from
         # `question` so the smart-context keyword classifier above only ever
         # looks at the doctor's actual new question, never stale department
@@ -620,13 +688,7 @@ calls for it. Including it in a reply to "hi" is a failure mode — do not do th
 
 {patient_context}"""
 
-        # Get LLM response
-        result = await generate_content_with_retry(
-            model=GEMINI_MODEL,
-            contents=prompt,
-            config=genai_types.GenerateContentConfig(system_instruction=system_message),
-        )
-        response = result.text
+        response = await generate_response(prompt, system_message)
 
         # Evidence departments: keyword matches, or (for overview questions) every
         # department that actually has data — computed earlier alongside fetching
