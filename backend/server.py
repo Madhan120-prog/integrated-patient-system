@@ -23,6 +23,7 @@ import json
 import shutil
 import uuid
 from auth import create_token, get_current_user, require_physician, require_admin, USERS
+from encoder import detect_trends, extract_ner_signals, format_encoder_block
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -683,8 +684,21 @@ calls for it. Including it in a reply to "hi" is a failure mode — do not do th
             )
             history_block = f"Previous conversation:\n{history_lines}\n\n"
 
+        # Encoder layer: compute trends + NER signals from all fetched records.
+        # Results are injected as pre-computed facts so the LLM cites arithmetic,
+        # not its own number-crunching (which can hallucinate).
+        all_records = (
+            blood_profile_records + mri_records + xray_records +
+            ecg_records + ct_scan_records + treatment_records
+        )
+        trends = detect_trends(blood_profile_records)  # numeric trends only on lab data
+        ner = extract_ner_signals(all_records)
+        encoder_block = format_encoder_block(trends, ner)
+
         # Create user message with patient context
         prompt = f"""{history_block}Based on the following patient records, please answer this question: {question}
+
+{encoder_block}
 
 {patient_context}"""
 

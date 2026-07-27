@@ -230,25 +230,38 @@ system+user message roles. `test_ollama_connect_error_gives_clear_message` — c
 
 ---
 
-## Step 6 — Encoder Layer (PENDING)
+## Step 6 — Encoder Layer (DONE — 2026-07-27)
 
-Two sub-components:
+Two sub-components in `backend/encoder.py`:
 
-**Trend detector** (pure Python, no ML needed):
-- Input: list of records with a numeric result value + test_name
-- Groups by test_name, sorts by date, computes direction + % change
-- Output: `{"wbc": {"trend": "↓", "pct_change": -93, "flag": "CRITICAL"}}`
-- No model required — this is arithmetic, not AI
+**Trend detector** (pure Python, no ML):
+- Groups lab records by `test_name`, sorts by `test_date`, computes direction + % change
+- Flags: `CRITICAL` (≥50% change) | `HIGH` (≥20%) | `WATCH` (≥5%) | `STABLE`
+- Output sorted by severity (most extreme changes first in the prompt block)
+- Skips tests with only one reading (need ≥2 for a trend)
 
-**NER signals via spaCy + scispaCy** (lightweight, CPU-only):
-- Extract drug names, diagnoses, dosage values from free-text result fields
-- Output: `{"drugs": ["Cisplatin", "Pemetrexed"], "diagnoses": ["neutropenia"]}`
-- These structured signals feed into the LLM prompt as context, alongside raw records
-- The LLM interprets; the encoder detects
+**NER signal extractor** (regex, no ML dependency):
+- Scans `result`, `notes`, `medication`, `diagnosis` fields across all records
+- Matches against curated lists: 31 oncology drugs, 20 diagnoses
+- Case-insensitive, word-boundary matched — no false positives on substrings
 
-**Why separate the encoder:** LLMs hallucinate numbers. A trend computed by Python
-is provably correct. The LLM citing a Python-computed trend is safer than the LLM
-independently computing it from raw text.
+**Prompt injection:** `format_encoder_block()` renders both as a structured block
+injected between conversation history and raw records:
+```
+=== ENCODER ANALYSIS (Python-computed — cite these as facts) ===
+LAB TRENDS:
+  [CRITICAL] WBC: 45000 /µL → 3200 /µL (↓ 92.9%) [2026-01 → 2026-03]
+DETECTED MEDICATIONS: cisplatin, pemetrexed
+DETECTED CONDITIONS: neutropenia
+=== END ENCODER ===
+```
+
+**Why this matters:** LLMs hallucinate numbers. A trend computed by Python is
+provably correct. The LLM citing encoder output is safer than the LLM deriving
+it independently from raw text.
+
+**Verified:** 11/11 tests — falling/rising/stable trends, CRITICAL flag, date-sort
+correctness, drug/diagnosis NER, case-insensitivity, empty-record handling, block format. ✅
 
 ---
 
