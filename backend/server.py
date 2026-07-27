@@ -23,7 +23,10 @@ import json
 import shutil
 import uuid
 from auth import create_token, get_current_user, require_physician, require_admin, USERS
-from encoder import detect_trends, extract_ner_signals, format_encoder_block
+from encoder import (
+    detect_trends, extract_ner_signals, format_encoder_block,
+    TOOL_INSTRUCTIONS, parse_tool_call, execute_tool,
+)
 from guardrails import apply_guardrails
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -78,6 +81,11 @@ async def _ollama_generate(prompt: str, system_message: str) -> str:
             {"role": "user", "content": prompt},
         ],
         "stream": False,
+        # Ollama defaults n_ctx to a VRAM-based guess (often 4096) regardless of what
+        # the model was trained on — our prompts run ~3000 tokens, leaving too little
+        # headroom for a coherent reply. Force it up; 8192 fits in 12GB of Metal VRAM
+        # for a 3B model with room to spare.
+        "options": {"num_ctx": 8192},
     }
     try:
         async with httpx.AsyncClient(timeout=120.0) as http:
@@ -696,6 +704,7 @@ Scope — read this carefully, it controls when patient data appears in your ans
   when the full chart-note style above applies.
 Patient data is available in every turn, but only use it when the question actually
 calls for it. Including it in a reply to "hi" is a failure mode — do not do that."""
+    system_message += TOOL_INSTRUCTIONS
 
     try:
         # Conversation history is only for LLM continuity — kept separate from
@@ -729,6 +738,21 @@ calls for it. Including it in a reply to "hi" is a failure mode — do not do th
 {patient_context}"""
 
         response = await generate_response(prompt, system_message)
+
+        # Tool-calling loop: give the model one chance to request an exact fact
+        # instead of restating it from memory. Provider-agnostic — works the
+        # same whether the backend is Gemini, Ollama, or Azure.
+        tool_call = parse_tool_call(response)
+        if tool_call:
+            tool_name, tool_arg = tool_call
+            tool_result = execute_tool(tool_name, tool_arg, trends, ner)
+            followup_prompt = (
+                f"{prompt}\n\nTool result — {tool_name}(\"{tool_arg or ''}\"): {tool_result}\n\n"
+                f"Now answer the doctor's original question using this exact data. "
+                f"Do not call any more tools."
+            )
+            response = await generate_response(followup_prompt, system_message)
+
         response = apply_guardrails(response, trends_available=bool(trends))
 
         # Evidence departments: keyword matches, or (for overview questions) every

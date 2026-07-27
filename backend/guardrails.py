@@ -74,11 +74,37 @@ def check_citations(response: str, trends_available: bool) -> str:
     return response
 
 
+# ── Diagnosis check ─────────────────────────────────────────────────────────────
+
+# The system prompt tells the LLM to never diagnose, only summarize existing
+# records. Small local models don't reliably follow that instruction — this is
+# the backstop. Patterns target active diagnostic reasoning ("most likely
+# diagnosis is X"), not passive citation of a diagnosis already in the chart.
+_DIAGNOSIS_RE = re.compile(
+    r"\b(most likely diagnosis|the diagnosis is|i diagnose|"
+    r"this (?:indicates|suggests|is consistent with) a diagnosis of|"
+    r"(?:she|he|patient) (?:has|is suffering from) (?!been|not))\b",
+    re.IGNORECASE,
+)
+
+_DIAGNOSIS_WARNING = (
+    "\n\n⚠ **Diagnostic language detected** — this assistant does not diagnose. "
+    "Treat this as a summary of existing records only, not a clinical determination."
+)
+
+
+def check_diagnosis(response: str) -> str:
+    if _DIAGNOSIS_RE.search(response):
+        return response + _DIAGNOSIS_WARNING
+    return response
+
+
 # ── Apply all guardrails in sequence ──────────────────────────────────────────
 
 def apply_guardrails(response: str, trends_available: bool) -> str:
-    """Run all three checks in order. Each may append a warning."""
+    """Run all four checks in order. Each may append a warning."""
     response = check_confidence(response)
     response = check_drug_dosage(response)
     response = check_citations(response, trends_available)
+    response = check_diagnosis(response)
     return response

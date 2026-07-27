@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from guardrails import check_confidence, check_drug_dosage, check_citations, apply_guardrails
+from guardrails import check_confidence, check_drug_dosage, check_citations, check_diagnosis, apply_guardrails
 
 
 # ── Confidence gate ────────────────────────────────────────────────────────────
@@ -70,6 +70,29 @@ def test_citation_with_trends_no_warning():
 def test_no_specific_values_no_warning():
     r = check_citations("The patient appears to be improving.", trends_available=False)
     assert "Unverified claim" not in r
+
+
+# ── Diagnosis check ────────────────────────────────────────────────────────────
+
+def test_most_likely_diagnosis_triggers_warning():
+    r = check_diagnosis("Based on the available records, Breast Cancer is the most likely diagnosis.")
+    assert "Diagnostic language detected" in r
+
+
+def test_the_diagnosis_is_triggers_warning():
+    r = check_diagnosis("The diagnosis is stage II adenocarcinoma.")
+    assert "Diagnostic language detected" in r
+
+
+def test_patient_has_x_triggers_warning():
+    r = check_diagnosis("Patient has neutropenia based on the WBC trend.")
+    assert "Diagnostic language detected" in r
+
+
+def test_passive_summary_no_warning():
+    """Citing an already-recorded diagnosis is not the LLM diagnosing."""
+    r = check_diagnosis("Existing diagnosis on file: hormone receptor-positive breast cancer.")
+    assert "Diagnostic language detected" not in r
 
 
 # ── apply_guardrails (full pipeline) ──────────────────────────────────────────

@@ -92,6 +92,8 @@ def extract_ner_signals(records: list) -> dict:
             str(rec.get("result", "")),
             str(rec.get("notes", "")),
             str(rec.get("medication", "")),
+            str(rec.get("medicines", "")),      # treatment records store drugs here
+            str(rec.get("treatment_name", "")),  # drug names also appear in the treatment label itself
             str(rec.get("diagnosis", "")),
         ])
         for rec in records
@@ -128,3 +130,65 @@ def format_encoder_block(trends: dict, ner: dict) -> str:
 
     lines.append("\n=== END ENCODER ===")
     return "\n".join(lines)
+
+
+# ── Tool-calling interface ─────────────────────────────────────────────────────
+# A lightweight, provider-agnostic tool protocol: the LLM emits one TOOL_CALL
+# line to request a deterministic fact instead of restating it from memory.
+# Works identically across Gemini/Ollama/Azure — no backend-specific function-
+# calling API needed, which matters most for the local model: small models
+# restate structured numbers unreliably (verified in live testing — a 38→22
+# U/mL trend was reported back as "0.0% change"). Routing it through a tool
+# call means the number the doctor sees is the exact string Python computed.
+
+TOOL_INSTRUCTIONS = """
+You have two tools for exact data instead of estimating from memory:
+- get_lab_trend("test name") — returns the precise computed trend for a lab test
+- get_medications() — returns the exact list of medications on record
+
+If answering requires a specific trend or medication list, respond with EXACTLY
+one line and nothing else:
+TOOL_CALL: get_lab_trend("test name")
+or
+TOOL_CALL: get_medications()
+
+Otherwise answer normally without calling a tool.
+"""
+
+_TOOL_CALL_RE = re.compile(r'TOOL_CALL:\s*(get_lab_trend|get_medications)\((?:"([^"]*)")?\)')
+
+
+def parse_tool_call(response: str):
+    """Return (tool_name, arg) if the response requests a tool, else None."""
+    m = _TOOL_CALL_RE.search(response)
+    if not m:
+        return None
+    return m.group(1), m.group(2)
+
+
+def execute_tool(tool_name: str, arg: str, trends: dict, ner: dict) -> str:
+    """Run a tool against this request's already-computed encoder output."""
+    if tool_name == "get_lab_trend":
+        if not arg:
+            return "No test name provided."
+        # Doctors ask by the clinical name ("CA 15-3"), but trends are keyed by
+        # the panel name ("Tumor Marker Panel") — the clinical name only shows
+        # up in the raw result text, so match against both.
+        arg_lower = arg.lower()
+        match = next(
+            (name for name, t in trends.items()
+             if arg_lower in name.lower()
+             or arg_lower in t["first_val"].lower()
+             or arg_lower in t["last_val"].lower()),
+            None,
+        )
+        if not match:
+            return f"No trend data available for '{arg}' — fewer than 2 readings on record."
+        t = trends[match]
+        return (f"{match}: {t['first_val']} → {t['last_val']} "
+                f"({t['trend']} {abs(t['pct_change'])}%) [{t['dates'][0]} → {t['dates'][1]}] "
+                f"— flag: {t['flag']}")
+    if tool_name == "get_medications":
+        drugs = ner.get("drugs", [])
+        return ", ".join(drugs) if drugs else "No medications detected in records."
+    return f"Unknown tool: {tool_name}"

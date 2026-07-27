@@ -316,6 +316,52 @@ Audit log + rate limit together = detection AND prevention.
 
 ---
 
+## Step 9 — Tool-calling protocol + live-test bug fixes (DONE — 2026-07-27)
+
+Live testing with `llama3.2:3B` on Ollama surfaced real failures the guardrails
+layer didn't catch:
+- Model diagnosed a patient outright ("Breast Cancer is the most likely diagnosis"),
+  violating the explicit "never diagnose" system prompt rule
+- A lab trend Python computed as -42.1% was restated by the LLM as "0.0% change"
+- Self-contradiction across turns — a chemo dosage stated in turn 1 was denied
+  ("no dosage info available") in a later turn of the same conversation
+- Medication list omitted Paclitaxel — traced to a real encoder bug: treatment
+  records store drug names under `medicines`/`treatment_name` fields, which
+  `extract_ner_signals()` never scanned (only checked `result`/`notes`/`medication`)
+
+**Fixes:**
+
+1. **Encoder field-scan bug fixed** — `extract_ner_signals()` now also scans
+   `medicines` and `treatment_name`. Verified: Paclitaxel now detected.
+
+2. **Ollama context window forced up** — Ollama silently caps `num_ctx` at 4096
+   based on a VRAM heuristic regardless of what the model was trained on. Passed
+   `"options": {"num_ctx": 8192}` in the `/api/chat` payload — request-level fix,
+   not a model or encoder change.
+
+3. **Diagnosis guardrail added (4th guardrail)** — backstops the "never diagnose"
+   rule the model itself doesn't reliably follow. Regex targets active diagnostic
+   assertions ("most likely diagnosis is X", "the diagnosis is X") without
+   flagging passive citation of an already-recorded diagnosis.
+
+4. **Provider-agnostic tool-calling protocol** (`encoder.py`) — rather than
+   trusting the LLM to restate encoder-computed numbers from memory (where it
+   hallucinates), the LLM can now emit `TOOL_CALL: get_lab_trend("CA 15-3")` or
+   `TOOL_CALL: get_medications()` and get back the *exact* Python-computed
+   string. Works identically across Gemini/Ollama/Azure — a plain text protocol,
+   not a backend-specific function-calling API, which avoids betting six ways
+   on the current google-genai/Ollama/OpenAI SDK function-calling shapes staying
+   stable, and works even for a 3B model with weak native tool-calling support.
+   One round-trip max per query (no loop risk). Falls back cleanly — if the
+   model never emits a tool call, behavior is unchanged from before this step.
+
+**Verified:** 14/14 new tests — tool-call parsing (including malformed/embedded
+cases), exact-match and partial-match lookups, empty-data fallback messages,
+diagnosis guardrail (4 cases), medicines-field NER fix. 50/50 total across all
+V3 work. ✅
+
+---
+
 ## Test Plan
 
 ```bash

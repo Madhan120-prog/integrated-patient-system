@@ -76,6 +76,18 @@ def test_ner_detects_diagnosis():
     assert "neutropenia" in signals["diagnoses"]
 
 
+def test_ner_detects_drug_in_medicines_field():
+    """Treatment records store drug names under 'medicines', not 'medication' —
+    real bug found in live testing where Paclitaxel was omitted from a drug list."""
+    records = [{
+        "treatment_name": "Chemotherapy — Paclitaxel Cycle 1",
+        "result": "Completed",
+        "medicines": "Paclitaxel 80mg/m² weekly, Diphenhydramine 50mg",
+    }]
+    signals = extract_ner_signals(records)
+    assert "paclitaxel" in signals["drugs"]
+
+
 def test_ner_case_insensitive():
     records = [{"medication": "PACLITAXEL 175mg", "result": "Metastatic adenocarcinoma"}]
     signals = extract_ner_signals(records)
