@@ -25,6 +25,7 @@ import uuid
 from auth import create_token, get_current_user, require_physician, require_admin, USERS
 from encoder import detect_trends, extract_ner_signals, format_encoder_block
 from guardrails import apply_guardrails
+from starlette.requests import Request
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -562,7 +563,7 @@ async def get_all_patients(_: dict = Depends(get_current_user)):
 
 @api_router.post("/deep-query", response_model=DeepQueryResponse)
 async def deep_query(request: DeepQueryRequest, current_user: dict = Depends(require_physician)):
-    
+
     patient_id = request.patient_id
     question = request.question
     

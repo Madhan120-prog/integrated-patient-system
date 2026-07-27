@@ -291,11 +291,16 @@ clean responses unchanged. 36/36 total across all V3 tasks. ✅
 
 ---
 
-## Step 8 — Rate Limiting (PENDING)
+## Step 8 — Rate Limiting (DROPPED — intentional)
 
-`slowapi` + `@limiter.limit("10/minute")` on `/deep-query` and `/analyze-document`.
-Per-user limit based on JWT user_id, not IP (IP limits are trivially bypassed with VPN).
-429 response includes `Retry-After` header.
+Originally planned: `slowapi` 10 req/min on AI endpoints.
+
+**Why it was removed:** Rate limiting belongs on unauthenticated public APIs, not
+behind auth. A doctor mid-shift should never get a 429 because they asked too many
+questions — that's a patient safety issue. The real protections are already in place:
+JWT auth (only authenticated users reach the endpoint), RBAC (only PHYSICIAN role),
+and the audit log (every query is recorded — abuse is detectable and traceable after
+the fact, which is the right tool for a stolen token scenario).
 
 ---
 
