@@ -24,6 +24,7 @@ import shutil
 import uuid
 from auth import create_token, get_current_user, require_physician, require_admin, USERS
 from encoder import detect_trends, extract_ner_signals, format_encoder_block
+from guardrails import apply_guardrails
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -703,6 +704,7 @@ calls for it. Including it in a reply to "hi" is a failure mode — do not do th
 {patient_context}"""
 
         response = await generate_response(prompt, system_message)
+        response = apply_guardrails(response, trends_available=bool(trends))
 
         # Evidence departments: keyword matches, or (for overview questions) every
         # department that actually has data — computed earlier alongside fetching

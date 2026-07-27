@@ -265,24 +265,29 @@ correctness, drug/diagnosis NER, case-insensitivity, empty-record handling, bloc
 
 ---
 
-## Step 7 — Guardrails Layer (PENDING)
+## Step 7 — Guardrails Layer (DONE — 2026-07-27)
 
-Three checks applied to every LLM response before it reaches the frontend:
+Three additive checks in `backend/guardrails.py`, applied via `apply_guardrails()`
+after every `generate_response()` call in `/deep-query`. Never removes content —
+only appends structured warnings.
 
-**Citation check:** Every factual claim about a lab value, diagnosis, or
-treatment should trace to a retrieved record. System prompt enforces this.
-Post-processing checks: if response makes a claim with no evidence card
-counterpart, append `⚠ Unverified claim — check source records.`
+**Confidence gate:** Fires if response is <80 words OR contains hedging phrases
+("I'm not sure", "unclear", "it may be", "cannot determine", etc. — 14 patterns,
+case-insensitive). Appends: `⚠ Low confidence — verify against current clinical
+guidelines before acting.`
 
-**Confidence gate:** If response is shorter than N tokens or contains hedging
-phrases ("I'm not sure", "it may be", "unclear from the records"), append:
-`Verify against current clinical guidelines before acting.`
+**Drug dosage flag:** Fires if response contains a dosage pattern
+(`\d+\s*(?:mg|g|mcg|ml|mmol|units?)(?:/(?:m²|kg|day|...))?`).
+Appends: `⚠ Drug dosage mentioned — always confirm against current formulary.`
 
-**Drug dosage flag:** Any response mentioning a drug dosage appends:
-`Always confirm dosage against current formulary.`
+**Citation check:** Fires if response cites specific values (lab units, ISO dates)
+but the encoder had no trend data for this patient (i.e., no source records to
+cross-reference). Appends: `⚠ Unverified claim — cross-check against raw records.`
 
-These are additive — they don't remove content, they append structured warnings.
-The frontend renders them distinctly (amber badge, not inline text).
+Warnings stack — a short hedging response with a dosage gets both.
+
+**Verified:** 13/13 tests — each guardrail individually, stacking behavior,
+clean responses unchanged. 36/36 total across all V3 tasks. ✅
 
 ---
 
