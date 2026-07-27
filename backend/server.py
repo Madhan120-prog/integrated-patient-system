@@ -586,10 +586,10 @@ async def get_all_patients(_: dict = Depends(get_current_user)):
 
 @api_router.post("/deep-query", response_model=DeepQueryResponse)
 @limiter.limit("60/minute")
-async def deep_query(http_request: Request, request: DeepQueryRequest, current_user: dict = Depends(require_physician)):
+async def deep_query(request: Request, body: DeepQueryRequest, current_user: dict = Depends(require_physician)):
 
-    patient_id = request.patient_id
-    question = request.question
+    patient_id = body.patient_id
+    question = body.question
     
     query = {"patient_id": patient_id}
 
@@ -704,9 +704,9 @@ calls for it. Including it in a reply to "hi" is a failure mode — do not do th
         # mentions from earlier turns (e.g. "WBC" from 3 questions ago silently
         # narrowing which departments get fetched for an unrelated new question).
         history_block = ""
-        if request.conversation_history:
+        if body.conversation_history:
             history_lines = "\n".join(
-                f"{h.get('role', '')}: {h.get('content', '')}" for h in request.conversation_history[-6:]
+                f"{h.get('role', '')}: {h.get('content', '')}" for h in body.conversation_history[-6:]
             )
             history_block = f"Previous conversation:\n{history_lines}\n\n"
 
@@ -790,7 +790,7 @@ class FileAnalysisResponse(BaseModel):
 @api_router.post("/analyze-document", response_model=FileAnalysisResponse)
 @limiter.limit("60/minute")
 async def analyze_document(
-    http_request: Request,
+    request: Request,
     file: UploadFile = File(...),
     patient_id: str = Form(...),
     question: str = Form(default="Analyze this medical document and provide a detailed summary."),
