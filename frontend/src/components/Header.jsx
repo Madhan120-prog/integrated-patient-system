@@ -1,6 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
+import axios from 'axios';
 
 const Header = () => {
   const navigate = useNavigate();
@@ -10,6 +11,8 @@ const Header = () => {
   const handleLogout = () => {
     localStorage.removeItem('isAuthenticated');
     localStorage.removeItem('user');
+    localStorage.removeItem('token');
+    delete axios.defaults.headers.common['Authorization'];
     navigate('/');
   };
 

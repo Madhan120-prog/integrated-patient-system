@@ -101,21 +101,21 @@ graph TB
 
 ---
 
-## Step 1 — Pickle → JSON (PENDING)
+## Step 1 — Pickle → JSON (DONE — 2026-07-26)
 
-**Problem:** `treatment_store.pkl` uses Python's `pickle` serializer.
-Loading a tampered pickle file executes arbitrary code — this is a documented
-Python security vulnerability, not a theoretical one.
+`treatment_system.py`: replaced `import pickle` with `import json`, `DB_PATH`
+changed from `.pkl` to `.json`, `reset_and_seed` uses `json.dump`, `_load`
+uses `json.load`. `.gitignore` updated accordingly. `.env.example` untouched.
 
-**Fix:** Replace `pickle.dump` / `pickle.load` in `treatment_system.py` with
-`json.dumps` / `json.loads`. Same file-based storage, no deserialization risk.
-Zero impact on any caller — the gateway normalizes the output regardless.
+Zero impact on callers — `treatment_gateway.py` normalizes output regardless
+of what the vendor system stores internally.
 
-**Verification:** Run `seed.py` offline, confirm treatment records round-trip correctly.
+**Verified:** `test_treatment_store_is_json_not_pickle` — seed → JSON file
+confirmed readable by `json.load` → round-trip query returns correct records. ✅
 
 ---
 
-## Step 2 — JWT Auth + RBAC (PENDING)
+## Step 2 — JWT Auth + RBAC (DONE — 2026-07-26)
 
 **Why JWT over sessions:** JWTs are stateless — no session table in the DB,
 no server-side state to replicate. The token is self-contained: `{user_id, role, exp}`,
@@ -134,9 +134,17 @@ FastAPI has built-in OAuth2 support — `OAuth2PasswordBearer` wires the token t
 - `/api/deep-query` and `/api/analyze-document` require `role == PHYSICIAN`
 - `/api/init-data` requires `role == ADMIN`
 
+**What was built:**
+- `backend/auth.py` — `create_token`, `get_current_user`, `require_physician`, `require_admin`, `USERS` dict
+- `server.py` — `LoginResponse` gets `token` field; `/login` uses `USERS` from auth.py and returns JWT; all routes get `Depends`; `Depends(require_physician)` on `/deep-query` + `/analyze-document`; `Depends(require_admin)` on `/init-data` + `/clear-data`
+- Frontend: `App.js` reads stored token on page load and sets axios default header + global 401 interceptor; `LoginPage.jsx` stores token and sets header on login; `Header.jsx` clears token on logout
+- `.env.example` — `SECRET_KEY` and `LLM_BACKEND` documented
+
+**Verified:** 5 JWT/RBAC tests — token creation, role encoding, tamper detection, USERS dict completeness. ✅
+
 ---
 
-## Step 3 — Audit Log (PENDING)
+## Step 3 — Audit Log (DONE — 2026-07-26)
 
 **HIPAA §164.312(b):** Every access to ePHI must be logged — who, what patient, when.
 
@@ -158,6 +166,15 @@ FastAPI has built-in OAuth2 support — `OAuth2PasswordBearer` wires the token t
 **No delete route exposed on audit_log.** Append-only enforced at the
 application layer. In production this collection would be on a separate
 MongoDB user with insert-only privileges.
+
+**What was built:** One `await db.audit_log.insert_one(...)` call at the end of
+`/deep-query`, after the LLM response is generated. Fields: `timestamp, user_id,
+role, patient_id, question_hash (16-char sha256 prefix), departments_fetched,
+model_backend, model_version, response_length`. Requires `current_user` from
+`require_physician` — so auth and audit are coupled: no auth = no audit entry.
+
+**Verified:** `test_audit_log_entry_shape` — validates all required fields and
+types are present in the schema. ✅
 
 ---
 

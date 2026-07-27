@@ -35,6 +35,8 @@ const LoginPage = () => {
       if (response.data.success) {
         localStorage.setItem('isAuthenticated', 'true');
         localStorage.setItem('user', JSON.stringify(response.data.user));
+        localStorage.setItem('token', response.data.token);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
         toast.success('Login successful!');
         navigate('/welcome');
       }

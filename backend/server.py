@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Query, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, APIRouter, Query, HTTPException, UploadFile, File, Form, Depends
 from fastapi.responses import Response
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -11,6 +11,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime, timezone
+import hashlib
 import random
 from collections import Counter
 from google import genai
@@ -69,6 +70,7 @@ class LoginResponse(BaseModel):
     success: bool
     message: str
     user: Optional[dict] = None
+    token: Optional[str] = None
 
 class Profile(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -173,7 +175,7 @@ class TTSRequest(BaseModel):
     text: str
 
 @api_router.post("/tts")
-async def text_to_speech(request: TTSRequest):
+async def text_to_speech(request: TTSRequest, _: dict = Depends(get_current_user)):
     """Server-side text-to-speech — sidesteps flaky browser SpeechSynthesis engines"""
     clean_text = re.sub(r'\*\*(.*?)\*\*', r'\1', request.text)
     clean_text = re.sub(r'[*#_`]', '', clean_text).strip()
@@ -184,6 +186,7 @@ async def text_to_speech(request: TTSRequest):
     gTTS(text=clean_text, lang='en').write_to_fp(buffer)
     return Response(content=buffer.getvalue(), media_type="audio/mpeg")
 
+from auth import create_token, get_current_user, require_physician, require_admin, USERS
 from data.seed import build_seed_data
 from data import lab_system, mri_system, xray_system, ct_system, ecg_system, treatment_system
 import lab_gateway
@@ -258,37 +261,24 @@ async def root():
 
 @api_router.post("/login", response_model=LoginResponse)
 async def login(credentials: LoginRequest):
-    """Simple demo login endpoint"""
-    # Demo credentials
-    valid_users = {
-        "doctor": {"password": "doctor123", "role": "Doctor", "name": "Dr. Smith"},
-        "nurse": {"password": "nurse123", "role": "Nurse", "name": "Nurse Johnson"},
-        "admin": {"password": "admin123", "role": "Administrator", "name": "Admin Davis"}
-    }
-    
-    if credentials.username in valid_users:
-        user_data = valid_users[credentials.username]
-        if credentials.password == user_data["password"]:
-            return LoginResponse(
-                success=True,
-                message="Login successful",
-                user={
-                    "username": credentials.username,
-                    "role": user_data["role"],
-                    "name": user_data["name"]
-                }
-            )
-    
+    user_data = USERS.get(credentials.username)
+    if user_data and credentials.password == user_data["password"]:
+        token = create_token(credentials.username, user_data["role"])
+        return LoginResponse(
+            success=True,
+            message="Login successful",
+            user={"username": credentials.username, "role": user_data["role"], "name": user_data["name"]},
+            token=token,
+        )
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
 @api_router.post("/init-data")
-async def initialize_data():
-    """Initialize database with sample patient data"""
+async def initialize_data(_: dict = Depends(require_admin)):
     result = await populate_sample_data()
     return result
 
 @api_router.post("/clear-data")
-async def clear_data():
+async def clear_data(_: dict = Depends(require_admin)):
     """Clear all patient data from database"""
     await db.profiles.delete_many({})
     await db.mri_records.delete_many({})
@@ -307,7 +297,7 @@ async def clear_data():
     return {"message": "All data cleared successfully"}
 
 @api_router.get("/search")
-async def search_patient(term: str = Query(..., description="Patient ID or Name to search")):
+async def search_patient(term: str = Query(..., description="Patient ID or Name to search"), _: dict = Depends(get_current_user)):
     """Search patient records across all departments
     
     Args:
@@ -357,7 +347,7 @@ async def search_patient(term: str = Query(..., description="Patient ID or Name 
     }
 
 @api_router.get("/analytics/{patient_id}")
-async def get_patient_analytics(patient_id: str):
+async def get_patient_analytics(patient_id: str, _: dict = Depends(get_current_user)):
     """Get patient analytics and statistics"""
     
     # Every department lives in its own isolated vendor system — all reached via MPI.
@@ -444,7 +434,7 @@ async def get_patient_analytics(patient_id: str):
     }
 
 @api_router.get("/department/{department_name}")
-async def get_department_records(department_name: str):
+async def get_department_records(department_name: str, _: dict = Depends(get_current_user)):
     """Get all patient records for a specific department
     
     Args:
@@ -493,14 +483,12 @@ async def get_department_records(department_name: str):
     }
 
 @api_router.get("/patients")
-async def get_all_patients():
-    """Get list of all patient IDs and names for reference"""
+async def get_all_patients(_: dict = Depends(get_current_user)):
     profiles = await db.profiles.find({}, {"_id": 0, "patient_id": 1, "name": 1}).to_list(None)
     return {"patients": profiles}
 
 @api_router.post("/deep-query", response_model=DeepQueryResponse)
-async def deep_query(request: DeepQueryRequest):
-    """AI-powered clinical assistant to analyze patient records and answer questions"""
+async def deep_query(request: DeepQueryRequest, current_user: dict = Depends(require_physician)):
     
     patient_id = request.patient_id
     question = request.question
@@ -665,9 +653,23 @@ calls for it. Including it in a reply to "hi" is a failure mode — do not do th
         if 'Treatment' in matched_departments and treatment_records:
             evidence.extend(sorted(treatment_records, key=lambda x: x.get('treatment_date', ''), reverse=True)[:2])
         
+        # Audit log — HIPAA §164.312(b): every ePHI access must be recorded.
+        # Append-only: no delete/update route is exposed on this collection.
+        await db.audit_log.insert_one({
+            "timestamp": datetime.now(timezone.utc),
+            "user_id": current_user["username"],
+            "role": current_user["role"],
+            "patient_id": patient_id,
+            "question_hash": hashlib.sha256(question.encode()).hexdigest()[:16],
+            "departments_fetched": matched_departments,
+            "model_backend": os.environ.get("LLM_BACKEND", "gemini"),
+            "model_version": GEMINI_MODEL,
+            "response_length": len(response),
+        })
+
         return DeepQueryResponse(
             answer=response,
-            evidence=evidence[:6],  # Limit to 6 evidence cards
+            evidence=evidence[:6],
             matched_departments=matched_departments
         )
         
@@ -686,7 +688,8 @@ class FileAnalysisResponse(BaseModel):
 async def analyze_document(
     file: UploadFile = File(...),
     patient_id: str = Form(...),
-    question: str = Form(default="Analyze this medical document and provide a detailed summary.")
+    question: str = Form(default="Analyze this medical document and provide a detailed summary."),
+    _: dict = Depends(require_physician),
 ):
     """Analyze uploaded medical documents (images, PDFs) using Gemini AI"""
     

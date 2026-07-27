@@ -54,7 +54,7 @@ backend/data/mri_store/
 backend/data/xray_store*
 backend/data/ct_store*
 backend/data/ecg_store.csv
-backend/data/treatment_store.pkl
+backend/data/treatment_store.json
 
 # Archive files and large assets
 **/*.zip
