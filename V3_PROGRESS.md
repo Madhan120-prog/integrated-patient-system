@@ -291,16 +291,28 @@ clean responses unchanged. 36/36 total across all V3 tasks. ✅
 
 ---
 
-## Step 8 — Rate Limiting (DROPPED — intentional)
+## Step 8 — Rate Limiting (DONE — 2026-07-27)
 
-Originally planned: `slowapi` 10 req/min on AI endpoints.
+`slowapi` 60 req/min on `/deep-query` and `/analyze-document`.
 
-**Why it was removed:** Rate limiting belongs on unauthenticated public APIs, not
-behind auth. A doctor mid-shift should never get a 429 because they asked too many
-questions — that's a patient safety issue. The real protections are already in place:
-JWT auth (only authenticated users reach the endpoint), RBAC (only PHYSICIAN role),
-and the audit log (every query is recorded — abuse is detectable and traceable after
-the fact, which is the right tool for a stolen token scenario).
+**Why 60, not 10:** No human clinician types and reads AI responses faster than
+1/second. 60/min is invisible to legitimate use but stops automated PHI scraping
+via a stolen token — which the audit log alone can't prevent (it's reactive; rate
+limiting is the circuit breaker that buys time).
+
+**Key design choice — per-user JWT key, not IP:**
+IP-based limits are bypassed with a VPN in seconds. Keyed on the first 13 chars
+of the Bearer token — unique per user, no decode overhead.
+
+**429 response:** Includes `Retry-After: 60` header and a clear message.
+Audit log + rate limit together = detection AND prevention.
+
+**What was built:**
+- `_rate_limit_key()` extracts JWT prefix from Authorization header
+- `limiter = Limiter(key_func=_rate_limit_key)` registered on `app.state`
+- `@limiter.limit("60/minute")` on both AI endpoints
+- Custom `rate_limit_handler` returns 429 + Retry-After header
+- `slowapi==0.1.9` added to `requirements.txt`
 
 ---
 

@@ -25,7 +25,11 @@ import uuid
 from auth import create_token, get_current_user, require_physician, require_admin, USERS
 from encoder import detect_trends, extract_ner_signals, format_encoder_block
 from guardrails import apply_guardrails
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -126,8 +130,27 @@ async def generate_content_with_retry(**kwargs):
         except genai_errors.ServerError:
             raise HTTPException(status_code=503, detail="The AI is temporarily overloaded. Please try again in a moment.")
 
+def _rate_limit_key(request: Request) -> str:
+    """Rate limit per JWT token prefix, not IP — IP limits are bypassed with VPN.
+    60/min stops automated scraping of PHI; no real human clinician types faster."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        return auth[7:20]  # first 13 chars unique per user, no decode needed
+    return get_remote_address(request)
+
+limiter = Limiter(key_func=_rate_limit_key)
+
 # Create the main app without a prefix
 app = FastAPI()
+app.state.limiter = limiter
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content={"detail": "Rate limit reached — please slow down. Max 60 AI queries/minute per user."},
+        headers={"Retry-After": "60"},
+    )
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
@@ -562,7 +585,8 @@ async def get_all_patients(_: dict = Depends(get_current_user)):
     return {"patients": profiles}
 
 @api_router.post("/deep-query", response_model=DeepQueryResponse)
-async def deep_query(request: DeepQueryRequest, current_user: dict = Depends(require_physician)):
+@limiter.limit("60/minute")
+async def deep_query(http_request: Request, request: DeepQueryRequest, current_user: dict = Depends(require_physician)):
 
     patient_id = request.patient_id
     question = request.question
@@ -764,7 +788,9 @@ class FileAnalysisResponse(BaseModel):
     suggestions: List[str] = []
 
 @api_router.post("/analyze-document", response_model=FileAnalysisResponse)
+@limiter.limit("60/minute")
 async def analyze_document(
+    http_request: Request,
     file: UploadFile = File(...),
     patient_id: str = Form(...),
     question: str = Form(default="Analyze this medical document and provide a detailed summary."),

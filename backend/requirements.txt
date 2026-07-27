@@ -1,4 +1,5 @@
 aiohappyeyeballs==2.6.1
+slowapi==0.1.9
 aiohttp==3.13.3
 aiosignal==1.4.0
 annotated-types==0.7.0
