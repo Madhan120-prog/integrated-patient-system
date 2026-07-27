@@ -186,21 +186,62 @@ departments, powered by an AI clinical assistant that can reason across the comb
 
 ---
 
-## Phase 5: Security & Hardening (FUTURE)
+## Phase 5 — V3: Security, AI Pipeline & Local Model (IN PROGRESS)
 
-- [ ] JWT authentication (replace hardcoded demo credentials)
-- [ ] Rate limiting on AI endpoints
-- [ ] Prompt injection defense
-- [ ] HIPAA considerations (Vertex AI or on-premise LLM)
-- [ ] Audit logging for AI queries
-- [ ] MongoDB authentication
+Branch: `feature/v3-security-ai-pipeline`
+Full design + rationale: see `V3_PROGRESS.md`
+Rules for this phase: see `RULES.md` → V3 section
+
+### A. Security Layer
+- [ ] Replace pickle with JSON in `treatment_system.py` (eliminates deserialization vulnerability)
+- [ ] JWT authentication — `python-jose` + `passlib`, FastAPI `OAuth2PasswordBearer`
+- [ ] RBAC — 3 roles: `PHYSICIAN` (full), `NURSE` (read-only), `ADMIN` (user mgmt)
+- [ ] Rate limiting — `slowapi`, per-user JWT key, 10/min on AI endpoints
+- [ ] Prompt injection defense — strip instruction-shaped text from patient data before injection
+
+### B. Audit & Compliance
+- [ ] Audit log — MongoDB `audit_log` collection, append-only, one entry per AI query
+- [ ] Audit fields: `timestamp, user_id, role, patient_id, question_hash, departments_fetched, model_backend, model_version`
+- [ ] No delete/update route on `audit_log`
+
+### C. Swappable LLM Backend
+- [ ] `LLM_BACKEND` env var — `gemini` (default) / `azure` / `ollama`
+- [ ] Thin adapter per backend — same prompt in, same response shape out
+- [ ] Ollama local path — `http://localhost:11434/api/chat`, OpenAI-compatible schema
+- [ ] `.env.example` updated with all three options + setup notes
+
+### D. Encoder Layer (Deterministic Pre-processing)
+- [ ] Trend detector — groups records by test_name, computes direction + % change, flags CRITICAL/ABNORMAL/NORMAL
+- [ ] NER via spaCy + scispaCy — extracts drug names, diagnoses, dosages from free-text result fields
+- [ ] Structured signal dict fed to LLM alongside raw records (LLM interprets, encoder detects)
+
+### E. Guardrails
+- [ ] Citation check — flag claims with no matching evidence record
+- [ ] Confidence gate — append "verify against guidelines" on hedging or short responses
+- [ ] Drug dosage flag — always append formulary check reminder when dosage mentioned
+- [ ] Frontend renders guardrail warnings distinctly (amber badge)
+
+### F. Tests
+- [ ] `backend/tests/` — one test file per V3 feature (JWT, RBAC, audit, LLM switch, encoder, guardrails, rate limit)
+- [ ] All tests pass before any V3 task is marked complete
+
+---
+
+## Phase 6: Cloud Deployment (LATER — after V3 complete)
+
+- [ ] MongoDB Atlas (free tier) — replace local Homebrew MongoDB
+- [ ] Backend on Railway / Render / Fly.io — or Azure with BAA for HIPAA demo
+- [ ] Frontend on Vercel / Netlify
+- [ ] Hospital branding (West Cancer Center, Memphis)
+- [ ] Custom domain, HTTPS, production CORS
 
 ---
 
 ## Notes
-- **Hospital concept**: Cancer hospital in Memphis, US (name TBD — currently "XYZ Hospital")
-- **Branch**: `chore/remove-emergent-dependency`
-- **LLM**: Gemini 3 Flash Preview (free tier — older models deprecated for this API key)
-- **Database**: MongoDB 7.0 via Homebrew (6 collections simulating 6 department databases)
+- **Hospital**: West Cancer Center, Memphis US (oncology-focused, 6 departments)
+- **Active branch**: `feature/v3-security-ai-pipeline`
+- **Branch lineage**: `v3` stacked on `ai-capabilities-v2` stacked on `department-integration-v2` stacked on `main`
+- **LLM**: Gemini 3 Flash Preview (default for demo); Ollama (local HIPAA path); Azure OpenAI (production HIPAA path)
+- **Database**: MongoDB 7.0 via Homebrew (MPI + profiles) + 6 isolated vendor stores (SQLite, JSON, dbm, shelve, CSV, JSON replacing pickle)
 - **Real-world dept software**: Epic/Cerner (EMR), GE PACS (radiology), MUSE (ECG), Sunquest (lab)
-- **Stack**: FastAPI + Motor (backend), React + CRA/craco + Tailwind/shadcn (frontend)
+- **Stack**: FastAPI + Motor (backend), React CRA/craco + Tailwind + shadcn/ui + Recharts (frontend)

@@ -31,3 +31,15 @@ Conventions for this repo. Check before adding code, deps, or data.
 - Frontend: `cd frontend && npm start` (needs `frontend/.env` with `REACT_APP_BACKEND_URL=http://localhost:8000` — CRA won't pick up new env vars without a restart).
 - Ponytail plugin is active — lean/minimal code by default, no unrequested scaffolding.
 - **Never start/run backend or frontend servers from Claude's end.** Make the code change, then hand the user the exact command(s) to run and ask them to confirm the result. Exception: if the user says they can't tell what's wrong or can't resolve it themselves, Claude may run it directly to diagnose.
+
+## V3 Security & AI Pipeline (branch: feature/v3-security-ai-pipeline)
+
+- **No pickle.** `treatment_system.py` must use JSON serialization, not pickle. Pickle deserialization of untrusted data executes arbitrary code — this is not theoretical.
+- **JWT on every route.** All `/api/*` endpoints require a valid JWT. No exceptions for "internal" or "utility" routes. If a route serves data, it requires auth.
+- **RBAC enforced at the route level.** Do not check role inside business logic — use FastAPI dependencies so the role check runs before any DB call. Three roles: `PHYSICIAN`, `NURSE`, `ADMIN`. See `V3_PROGRESS.md` for permission matrix.
+- **Audit log is append-only.** The `audit_log` MongoDB collection has no delete or update route. Every AI query writes one entry. The entry includes `model_backend` and `model_version` — required for future model change traceability.
+- **`LLM_BACKEND` controls the model path.** Valid values: `gemini`, `azure`, `ollama`. Default: `gemini`. Switching model = changing `.env`, nothing else. Do not hardcode a model path anywhere in `server.py`.
+- **Encoder layer is deterministic.** Trend detection and NER are not LLM tasks. Compute them with Python/spaCy and pass structured signals to the LLM as input. Never let the LLM re-derive a numeric trend from raw text.
+- **Guardrails are additive.** Do not strip or modify LLM output — only append structured warnings (confidence, citation, drug dosage flags). The doctor sees the original answer plus the warnings, not a filtered version.
+- **Rate limits are per-user, not per-IP.** Use `user_id` from the JWT as the rate-limit key. IP-based limits are trivially bypassed.
+- **Tests ship with each feature.** Every V3 task has a corresponding test in `backend/tests/`. Do not mark a task complete without a passing test. See `V3_PROGRESS.md` test plan for the full list.

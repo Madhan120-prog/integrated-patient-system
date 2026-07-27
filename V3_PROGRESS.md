@@ -1,0 +1,263 @@
+# V3 Progress Log — Security, AI Pipeline & Local Model
+
+> Running log for the `feature/v3-security-ai-pipeline` branch.
+> Same format as `V2_PROGRESS.md` — decisions, rationale, what got built, what broke, what got verified.
+> Read this to understand the V3 architecture. For the overall roadmap see `plan.md`. For conventions see `RULES.md`.
+
+Branch: `feature/v3-security-ai-pipeline`
+Stacked on: `feature/ai-capabilities-v2` → `feature/department-integration-v2` → `main`
+
+---
+
+## Why This Exists
+
+V2 proved the federated architecture and DocAssist AI layer. What V2 does NOT have:
+- Any authentication — any process on the network can call `/deep-query` with any patient ID
+- Any audit trail — HIPAA §164.312(b) mandates logging every ePHI access; we log nothing
+- PHI staying on-network — every DocAssist query sends patient data to Google's Gemini API (no BAA)
+- A swappable model backend — we're locked to one cloud provider
+- Guardrails — the LLM can hallucinate, cite nothing, and the frontend shows it anyway
+
+V3 fixes all of these. It's not a feature release — it's the security and compliance layer that would be required before any real hospital could run this system.
+
+---
+
+## Locked Design (decided 2026-07-26)
+
+### What changes in V3
+
+```
+V2 pipeline:
+  Doctor → /deep-query (no auth) → keyword router → gateways → Gemini → answer
+
+V3 pipeline:
+  Doctor → JWT auth check → /deep-query → query triage → gateways
+        → [Encoder layer: trend signals + NER] → LLM (swappable backend)
+        → [Guardrails: citation check + confidence] → answer + audit log entry
+```
+
+### Eight tasks, in build order
+
+| # | Task | Risk | Time estimate |
+|---|---|---|---|
+| 1 | Pickle → JSON in `treatment_system.py` | Zero — isolated module | 30 min |
+| 2 | JWT auth + RBAC (3 roles) | Medium — touches all routes | Half-day |
+| 3 | Audit log (MongoDB append-only) | Low — one insert per query | 2 hours |
+| 4 | `LLM_BACKEND` env var + routing | Low — additive | 2 hours |
+| 5 | Ollama local model path | Medium — new HTTP client | Half-day |
+| 6 | Encoder layer (trend detector + NER signals) | Medium — new module | 1–2 days |
+| 7 | Guardrails layer (citation enforcer + confidence) | Medium — prompt + post-processing | 1 day |
+| 8 | Rate limiting on AI endpoints | Zero — one decorator | 15 min |
+
+---
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    DOC["Doctor (React frontend)"]
+
+    subgraph "Layer 0 — Access Control (NEW)"
+        AUTH["JWT verifier\n+ RBAC check\n(physician / nurse / admin)"]
+        RATE["Rate limiter\n(slowapi, 10/min on AI)"]
+    end
+
+    subgraph "Layer 1 — Data (V2, unchanged)"
+        MPI["MPI (MongoDB)"]
+        GW["6 gateways → 6 vendor systems"]
+    end
+
+    subgraph "Layer 2 — Intelligence Pipeline (NEW)"
+        ENC["Encoder layer\nBioBERT NER · Trend detector · Threshold rules"]
+        LLM["LLM (swappable)\ngemini · azure · ollama"]
+        GRD["Guardrails\nCitation check · Confidence · Drug flag"]
+    end
+
+    subgraph "Layer 3 — Audit (NEW)"
+        AUDT["audit_log collection\n(append-only, tamper-resistant)"]
+    end
+
+    DOC --> AUTH --> RATE --> GW
+    GW --> MPI
+    GW --> ENC --> LLM --> GRD --> DOC
+    GRD --> AUDT
+```
+
+### Three LLM backends (swappable via `LLM_BACKEND` env var)
+
+| Value | Endpoint | When to use |
+|---|---|---|
+| `gemini` | Google Gemini API | Demo — best quality, no BAA |
+| `azure` | Azure OpenAI private tenant | Staging/production — HIPAA BAA available |
+| `ollama` | `http://localhost:11434` | On-prem — PHI never leaves the machine |
+
+### Three RBAC roles
+
+| Role | Permissions |
+|---|---|
+| `PHYSICIAN` | Full AI access + all records |
+| `NURSE` | Records read-only, no AI endpoints |
+| `ADMIN` | User management, no patient data |
+
+---
+
+## Step 1 — Pickle → JSON (PENDING)
+
+**Problem:** `treatment_store.pkl` uses Python's `pickle` serializer.
+Loading a tampered pickle file executes arbitrary code — this is a documented
+Python security vulnerability, not a theoretical one.
+
+**Fix:** Replace `pickle.dump` / `pickle.load` in `treatment_system.py` with
+`json.dumps` / `json.loads`. Same file-based storage, no deserialization risk.
+Zero impact on any caller — the gateway normalizes the output regardless.
+
+**Verification:** Run `seed.py` offline, confirm treatment records round-trip correctly.
+
+---
+
+## Step 2 — JWT Auth + RBAC (PENDING)
+
+**Why JWT over sessions:** JWTs are stateless — no session table in the DB,
+no server-side state to replicate. The token is self-contained: `{user_id, role, exp}`,
+signed with a secret. Backend verifies signature on every request — O(1), no DB lookup.
+
+**Three roles:**
+- `PHYSICIAN` — the default clinical user. Full access to all patient data + AI endpoints.
+- `NURSE` — read-only access to records. Cannot call `/deep-query` or `/analyze-document`.
+- `ADMIN` — user management only. Cannot see patient data at all.
+
+**Libraries:** `python-jose` (JWT signing/verification) + `passlib` (password hashing).
+FastAPI has built-in OAuth2 support — `OAuth2PasswordBearer` wires the token to every route.
+
+**Routes to protect:**
+- All `/api/*` routes require a valid token
+- `/api/deep-query` and `/api/analyze-document` require `role == PHYSICIAN`
+- `/api/init-data` requires `role == ADMIN`
+
+---
+
+## Step 3 — Audit Log (PENDING)
+
+**HIPAA §164.312(b):** Every access to ePHI must be logged — who, what patient, when.
+
+**Implementation:** MongoDB `audit_log` collection. One document per AI query:
+```json
+{
+  "timestamp": "2026-07-26T14:32:01Z",
+  "user_id": "dr_smith",
+  "role": "PHYSICIAN",
+  "patient_id": "P1001",
+  "question_hash": "sha256_of_question",
+  "departments_fetched": ["blood_profile_records", "mri_records"],
+  "model_backend": "gemini",
+  "model_version": "gemini-3-flash-preview",
+  "response_length": 412
+}
+```
+
+**No delete route exposed on audit_log.** Append-only enforced at the
+application layer. In production this collection would be on a separate
+MongoDB user with insert-only privileges.
+
+---
+
+## Step 4 — LLM_BACKEND Env Var (PENDING)
+
+Single env var in `.env`: `LLM_BACKEND=gemini` (default).
+
+`server.py` routes to a thin adapter per backend — same prompt in, same
+structured response out. No change to prompt logic, guardrails, or
+anything downstream. Switching model = changing one line in `.env`.
+
+`.env.example` updated with all three options and setup notes for each.
+
+---
+
+## Step 5 — Ollama Local Path (PENDING)
+
+**Requires (user-side, one time):**
+```bash
+brew install ollama
+ollama pull llama3.2        # 2GB — fast, capable
+# or: ollama pull meditron3  # if available — medical fine-tuned
+```
+
+**Backend:** HTTP call to `http://localhost:11434/api/chat` with OpenAI-compatible
+schema. Ollama's API matches the OpenAI format exactly, so the adapter is ~10 lines.
+
+**Why this matters for compliance demo:** Set `LLM_BACKEND=ollama` and PHI never
+leaves the machine. No BAA needed. This is the "on-prem HIPAA story" for a demo
+audience.
+
+---
+
+## Step 6 — Encoder Layer (PENDING)
+
+Two sub-components:
+
+**Trend detector** (pure Python, no ML needed):
+- Input: list of records with a numeric result value + test_name
+- Groups by test_name, sorts by date, computes direction + % change
+- Output: `{"wbc": {"trend": "↓", "pct_change": -93, "flag": "CRITICAL"}}`
+- No model required — this is arithmetic, not AI
+
+**NER signals via spaCy + scispaCy** (lightweight, CPU-only):
+- Extract drug names, diagnoses, dosage values from free-text result fields
+- Output: `{"drugs": ["Cisplatin", "Pemetrexed"], "diagnoses": ["neutropenia"]}`
+- These structured signals feed into the LLM prompt as context, alongside raw records
+- The LLM interprets; the encoder detects
+
+**Why separate the encoder:** LLMs hallucinate numbers. A trend computed by Python
+is provably correct. The LLM citing a Python-computed trend is safer than the LLM
+independently computing it from raw text.
+
+---
+
+## Step 7 — Guardrails Layer (PENDING)
+
+Three checks applied to every LLM response before it reaches the frontend:
+
+**Citation check:** Every factual claim about a lab value, diagnosis, or
+treatment should trace to a retrieved record. System prompt enforces this.
+Post-processing checks: if response makes a claim with no evidence card
+counterpart, append `⚠ Unverified claim — check source records.`
+
+**Confidence gate:** If response is shorter than N tokens or contains hedging
+phrases ("I'm not sure", "it may be", "unclear from the records"), append:
+`Verify against current clinical guidelines before acting.`
+
+**Drug dosage flag:** Any response mentioning a drug dosage appends:
+`Always confirm dosage against current formulary.`
+
+These are additive — they don't remove content, they append structured warnings.
+The frontend renders them distinctly (amber badge, not inline text).
+
+---
+
+## Step 8 — Rate Limiting (PENDING)
+
+`slowapi` + `@limiter.limit("10/minute")` on `/deep-query` and `/analyze-document`.
+Per-user limit based on JWT user_id, not IP (IP limits are trivially bypassed with VPN).
+429 response includes `Retry-After` header.
+
+---
+
+## Test Plan
+
+```bash
+pip install pytest httpx pytest-asyncio
+pytest backend/tests/ -v
+```
+
+Tests per feature:
+
+| Feature | Test |
+|---|---|
+| JWT | No token → 401. Wrong role → 403. Valid physician token → 200. |
+| RBAC | Nurse calls /deep-query → 403. |
+| Audit log | Call /deep-query → audit_log collection has entry with correct user_id + patient_id. |
+| LLM switch | `LLM_BACKEND=ollama` → Ollama endpoint called (mock). `LLM_BACKEND=gemini` → Gemini called. |
+| Trend detector | Feed [{wbc:45000,date:T1},{wbc:3200,date:T2}] → {trend:"↓", pct:-93, flag:"CRITICAL"}. |
+| Guardrails | Short/hedging LLM output → confidence warning appended. Drug mention → dosage flag appended. |
+| Rate limit | 11th request in 1 minute → 429 with Retry-After header. |
+| Pickle removed | `treatment_store` now a `.json` file, not `.pkl`. Round-trip test: seed → query → correct records. |
