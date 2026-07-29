@@ -362,6 +362,54 @@ V3 work. ✅
 
 ---
 
+## Step 9b — Live re-verification fixes (DONE — 2026-07-28)
+
+First live re-test against the running app (Ollama, `llama3.2:3B`) surfaced two
+real bugs the unit tests couldn't catch, since they test parsing/execution logic
+in isolation, never the full round-trip through `generate_response()` + guardrails:
+
+**Bug 1 — tool-call syntax leaking into the doctor-facing answer.** The model
+echoed `TOOL_CALL: get_medications()` verbatim as the opening line of its own
+final answer, and in another response embedded `get_lab_trend("WBC") output
+"..."` mid-sentence — both times because the system prompt shows that exact
+syntax as an example, and a 3B model doesn't reliably treat it as backend-only.
+
+Fix: `encoder.py` — `strip_tool_artifacts()`, a defensive regex cleanup applied
+unconditionally to the final response before guardrails run, regardless of
+whether a tool call was detected. Strips both a leading `TOOL_CALL: ...` line
+and any bare `get_lab_trend(...)`/`get_medications()` token appearing anywhere
+in the text. Also strengthened the follow-up prompt wording ("do not repeat the
+tool name or function syntax anywhere in your answer") as a first line of
+defense, with the regex as the guaranteed backstop.
+
+**Bug 2 — diagnosis guardrail regex too narrow.** Live test: *"breast cancer is
+likely"* is diagnostic language, but the regex only matched exact phrasings
+like "most likely diagnosis is X" / "the diagnosis is X" — calibrated to the
+original failing test's exact wording. The guardrail didn't fire.
+
+Fix: `guardrails.py` — added `is likely` and `likely (?:represents|indicates|has)`
+to `_DIAGNOSIS_RE`. Broader by design — a safety backstop should over-flag
+rather than miss a real diagnostic assertion; the passive-citation exclusion
+(`test_passive_summary_no_warning`) still holds, so it doesn't fire on legitimate
+chart citations.
+
+**What's confirmed working from this live test:** the tool-calling numeric fix
+holds — CA 15-3 showed the correct 38→22 U/mL values (not "0.0%") on a live
+query. Medications list now includes Paclitaxel. Dosage question now finds and
+states a real dosage instead of denying one exists. WBC asked twice gave an
+identical answer both times.
+
+**Still open, not addressed by these fixes** (see `HANDOFF.md` §8 for detail):
+scope leakage on greetings/general questions, alert fatigue on the confidence
+guardrail, and the trend "flag" word (HIGH/CRITICAL/etc.) still occasionally
+gets mis-stated by the model even though the underlying numbers are now correct
+via the tool call.
+
+**Verified:** 5 new tests (3 for `strip_tool_artifacts`, 2 for the broadened
+diagnosis regex). 55/55 total across all V3 work. ✅
+
+---
+
 ## Test Plan
 
 ```bash

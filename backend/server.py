@@ -25,7 +25,7 @@ import uuid
 from auth import create_token, get_current_user, require_physician, require_admin, USERS
 from encoder import (
     detect_trends, extract_ner_signals, format_encoder_block,
-    TOOL_INSTRUCTIONS, parse_tool_call, execute_tool,
+    TOOL_INSTRUCTIONS, parse_tool_call, execute_tool, strip_tool_artifacts,
 )
 from guardrails import apply_guardrails
 from slowapi import Limiter
@@ -748,10 +748,15 @@ calls for it. Including it in a reply to "hi" is a failure mode — do not do th
             tool_result = execute_tool(tool_name, tool_arg, trends, ner)
             followup_prompt = (
                 f"{prompt}\n\nTool result — {tool_name}(\"{tool_arg or ''}\"): {tool_result}\n\n"
-                f"Now answer the doctor's original question using this exact data. "
-                f"Do not call any more tools."
+                f"Now answer the doctor's original question using this exact data, in plain "
+                f"language. Do not call any more tools, and do not repeat the tool name or "
+                f"function syntax anywhere in your answer."
             )
             response = await generate_response(followup_prompt, system_message)
+
+        # Defensive cleanup — small models sometimes echo tool syntax into their
+        # own final answer despite being told not to (verified in live testing).
+        response = strip_tool_artifacts(response)
 
         response = apply_guardrails(response, trends_available=bool(trends))
 

@@ -192,3 +192,18 @@ def execute_tool(tool_name: str, arg: str, trends: dict, ner: dict) -> str:
         drugs = ner.get("drugs", [])
         return ", ".join(drugs) if drugs else "No medications detected in records."
     return f"Unknown tool: {tool_name}"
+
+
+# Defensive cleanup — live testing showed the 3B model echoing the tool-call
+# syntax back into its own final answer (e.g. "TOOL_CALL: get_medications()\nShe
+# is on...") instead of treating it as backend-only. Strip any residual
+# TOOL_CALL lines or bare function-call tokens before the doctor ever sees them.
+_TOOL_ARTIFACT_RE = re.compile(
+    r'TOOL_CALL:\s*(?:get_lab_trend|get_medications)\([^)]*\)\s*\n?'
+    r'|\b(?:get_lab_trend|get_medications)\([^)]*\)'
+)
+
+
+def strip_tool_artifacts(text: str) -> str:
+    cleaned = _TOOL_ARTIFACT_RE.sub('', text)
+    return re.sub(r'\n{3,}', '\n\n', cleaned).strip()

@@ -83,7 +83,9 @@ def check_citations(response: str, trends_available: bool) -> str:
 _DIAGNOSIS_RE = re.compile(
     r"\b(most likely diagnosis|the diagnosis is|i diagnose|"
     r"this (?:indicates|suggests|is consistent with) a diagnosis of|"
-    r"(?:she|he|patient) (?:has|is suffering from) (?!been|not))\b",
+    r"(?:she|he|patient) (?:has|is suffering from) (?!been|not)|"
+    r"is likely|"
+    r"likely (?:represents|indicates|has))\b",
     re.IGNORECASE,
 )
 

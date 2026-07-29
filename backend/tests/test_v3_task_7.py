@@ -95,6 +95,18 @@ def test_passive_summary_no_warning():
     assert "Diagnostic language detected" not in r
 
 
+def test_is_likely_phrasing_triggers_warning():
+    """Live-testing regression: 'Breast cancer is likely' evaded the original
+    regex, which only matched 'most likely diagnosis is X' / 'the diagnosis is X'."""
+    r = check_diagnosis("Based on her age and hormone therapy response, breast cancer is likely.")
+    assert "Diagnostic language detected" in r
+
+
+def test_likely_represents_phrasing_triggers_warning():
+    r = check_diagnosis("This finding likely represents disease recurrence.")
+    assert "Diagnostic language detected" in r
+
+
 # ── apply_guardrails (full pipeline) ──────────────────────────────────────────
 
 def test_multiple_warnings_can_stack():

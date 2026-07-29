@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from encoder import parse_tool_call, execute_tool
+from encoder import parse_tool_call, execute_tool, strip_tool_artifacts
 
 
 # ── parse_tool_call ────────────────────────────────────────────────────────────
@@ -74,3 +74,24 @@ def test_get_medications_returns_full_list():
 def test_get_medications_empty_says_so():
     result = execute_tool("get_medications", None, {}, {"drugs": [], "diagnoses": []})
     assert "No medications detected" in result
+
+
+# ── strip_tool_artifacts (live-testing regression: model echoed tool syntax) ───
+
+def test_strips_leading_tool_call_line():
+    text = 'TOOL_CALL: get_medications()\nShe is on cyclophosphamide, doxorubicin, paclitaxel, and tamoxifen.'
+    result = strip_tool_artifacts(text)
+    assert "TOOL_CALL" not in result
+    assert "get_medications()" not in result
+    assert result == "She is on cyclophosphamide, doxorubicin, paclitaxel, and tamoxifen."
+
+
+def test_strips_inline_function_call_reference():
+    text = 'Note: Due to limited data, get_lab_trend("WBC") output "No trend data available for \'WBC\'".'
+    result = strip_tool_artifacts(text)
+    assert 'get_lab_trend("WBC")' not in result
+
+
+def test_leaves_normal_text_unchanged():
+    text = "WBC is within normal limits, no concerns at this time."
+    assert strip_tool_artifacts(text) == text
