@@ -410,6 +410,43 @@ diagnosis regex). 55/55 total across all V3 work. ✅
 
 ---
 
+## Step 9c — Deterministic greeting bypass + prompt-injection defense (DONE — 2026-07-28)
+
+Two hardening fixes, done before starting V4 (RAG) specifically because one of
+them protects the RAG work too.
+
+**Deterministic greeting bypass.** Live testing showed prompting the model not
+to use patient data on a greeting was unreliable — the same "hi" leaked full
+patient data in one session and answered cleanly in another (small-model
+non-determinism, not a fixable prompt-wording problem). Fix: `is_greeting_message()`
+in `server.py` detects a real greeting (exact match against a short phrase set,
+or a greeting opener + ≤2 words, and only when no department keyword matched
+and it's not an overview question) and skips building `patient_context`/
+`history_block` into the prompt entirely for that turn — the model gets just
+the question, nothing else. Can't leak data that was never in the prompt.
+Deliberately conservative: `"hi what's her wbc count"` still matches the Blood
+Profile keyword and is never treated as a greeting, regardless of the opener.
+
+**Prompt-injection defense.** Patient record free-text fields (`result`, `notes`,
+etc.) are written by simulated hospital vendor systems, not typed by the doctor
+— untrusted input from the LLM's perspective. `wrap_patient_data()` wraps the
+injected `patient_context` block in explicit `=== BEGIN/END PATIENT DATA ===`
+delimiters, and the system prompt now explicitly instructs the model to treat
+anything between those markers as data only, never as instructions — same
+principle applied to tool results in this assistant's own instructions. Done
+now, ahead of RAG, because RAG introduces a second untrusted-text injection
+point (retrieved literature chunks) — better to establish the "injected content
+is data, not commands" pattern once and reuse it, than retrofit two injection
+points separately later.
+
+**Verified:** 9 new tests (`test_v3_hardening.py`) — 8 for the greeting
+detector (including the "greeting opener followed by a real question" case,
+and confirming a short-but-matched medical question like "WBC?" is never
+misclassified as a greeting), 1 for the delimiter wrapping. 64/64 total across
+all V3 work. ✅
+
+---
+
 ## Test Plan
 
 ```bash
