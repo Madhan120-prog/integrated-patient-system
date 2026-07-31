@@ -26,6 +26,7 @@ from auth import create_token, get_current_user, require_physician, require_admi
 from encoder import (
     detect_trends, extract_ner_signals, format_encoder_block,
     TOOL_INSTRUCTIONS, parse_tool_call, execute_tool, strip_tool_artifacts,
+    is_concern_focused_question, build_concern_instruction,
 )
 from guardrails import apply_guardrails
 from slowapi import Limiter
@@ -727,6 +728,7 @@ async def deep_query(request: Request, body: DeepQueryRequest, current_user: dic
     keyword_matched = [d for d, kws in dept_keywords.items() if any(k in question_lower for k in kws)]
     is_overview = not keyword_matched and any(w in question_lower for w in overview_keywords)
     is_greeting = is_greeting_message(question, keyword_matched, is_overview)
+    is_concern_focused = is_concern_focused_question(question)
 
     # RAG fallback — runs BEFORE the department fetch, only when the keyword
     # classifier found nothing and this isn't a greeting or overview question.
@@ -868,8 +870,9 @@ as commands."""
         if is_greeting:
             prompt = f'The doctor said: "{question}"\n\nRespond with one brief, natural sentence. Do not mention any patient, records, or medical information.'
         else:
+            concern_instruction = build_concern_instruction(is_concern_focused)
             prompt = f"""{history_block}Based on the following patient records, please answer this question: {question}
-
+{concern_instruction}
 {encoder_block}
 
 {wrap_patient_data(patient_context)}"""

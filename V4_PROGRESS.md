@@ -429,9 +429,53 @@ on a 3B model — the two structural fixes above are what actually mattered.
 
 ---
 
+## Step 4 — Concern-focused questions producing near-duplicate answers (found + fixed — 2026-07-31)
+
+### Bug, found live
+
+Two different questions for the same patient — *"what are the most
+concerning findings?"* and *"summarize this patient's overall status"* —
+came back with answers differing by exactly 1 character. Confirmed via the
+audit log this was not a caching/wiring bug: two genuinely separate calls
+were made (different `question_hash`, different `response_length`), so the
+duplication was the model itself, not the pipeline.
+
+**Root cause:** both questions are "overview"-style, so both fetched all 6
+departments and dumped the same full record set into the prompt with no
+signal that "what's concerning" and "summarize everything" are different
+asks. Faced with a large, identical context and two conceptually adjacent
+questions, `llama3.2` (3B) latched onto the same handful of salient facts
+both times.
+
+**Fix, deliberately not a filter:** the tempting fix — only feed the model
+records flagged as abnormal when a question is concern-focused — was
+rejected. That would *hide* data from an already-unreliable small model,
+which is a new, worse failure mode (a real finding outside whatever keyword
+list defines "abnormal" would silently never reach the model at all) and
+directly violates this project's own rule that guardrails/encoder logic are
+additive, never a filter on content.
+
+Instead: `encoder.py` gained `is_concern_focused_question()` (keyword check:
+concerning/concern/abnormal/critical/worrisome/red flag/urgent) and
+`build_concern_instruction()`, which — only when that's true — adds one
+explicit instruction line to the prompt telling the model to lead with
+whatever the encoder already flagged CRITICAL/HIGH or listed under DETECTED
+CONDITIONS, and to say so explicitly if nothing is flagged. Every record
+still reaches the prompt unchanged; nothing is removed or hidden. Wired into
+`server.py`'s prompt construction in `/deep-query`.
+
+**Verified:** 7 new unit tests (`test_v4_concern_focus.py`), 100/100 total.
+Live-retested the exact repro case — the two questions now produce genuinely
+different, correctly-scoped answers (concern-focused leads with only the
+flagged neutropenia + mass findings and explicitly states no other
+abnormalities were found; the summary gives the full balanced picture across
+all departments).
+
+---
+
 ## Test Plan (running total across V3 + V4)
 
 ```bash
 cd backend && ./venv/bin/python -m pytest tests/ -v
 ```
-93/93 as of this doc.
+100/100 as of this doc.
