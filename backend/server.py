@@ -353,6 +353,7 @@ import ct_gateway
 import ecg_gateway
 import treatment_gateway
 import rag
+import multi_agent
 
 async def populate_sample_data():
     """Populate all department collections with curated oncology patient data"""
@@ -873,26 +874,57 @@ as commands."""
 
 {wrap_patient_data(patient_context)}"""
 
-        response = await generate_response(prompt, system_message)
-
-        # Tool-calling loop: give the model one chance to request an exact fact
-        # instead of restating it from memory. Provider-agnostic — works the
-        # same whether the backend is Gemini, Ollama, or Azure.
-        tool_call = parse_tool_call(response)
-        if tool_call:
-            tool_name, tool_arg = tool_call
-            tool_result = execute_tool(tool_name, tool_arg, trends, ner)
-            followup_prompt = (
-                f"{prompt}\n\nTool result — {tool_name}(\"{tool_arg or ''}\"): {tool_result}\n\n"
-                f"Now answer the doctor's original question using this exact data, in plain "
-                f"language. Do not call any more tools, and do not repeat the tool name or "
-                f"function syntax anywhere in your answer."
+        # Multi-agent path: compound questions naming 2+ specific departments
+        # get a specialist per department (narrow context, narrow answer) plus
+        # a synthesizer call, instead of one prompt trying to reason over every
+        # department's records at once. Greetings never reach here (is_greeting
+        # short-circuits above); overview questions stay on the single-call
+        # path since they're already a well-scoped "summarize everything" ask.
+        multi_agent_used = not is_greeting and multi_agent.should_use_multi_agent(keyword_matched, is_overview)
+        if multi_agent_used:
+            records_by_dept = {
+                'MRI': mri_records, 'X-Ray': xray_records, 'ECG': ecg_records,
+                'Blood Profile': blood_profile_records, 'CT Scan': ct_scan_records,
+                'Treatment': treatment_records,
+            }
+            records_text_by_dept = {
+                d: (json.dumps(records_by_dept[d], indent=2) if records_by_dept.get(d) else "No records.")
+                for d in keyword_matched
+            }
+            # Per-department encoder facts, not the shared global block — see
+            # multi_agent.run_multi_agent's docstring for the cross-contamination
+            # bug this avoids (a specialist inventing another department's facts).
+            encoder_block_by_dept = {
+                d: format_encoder_block(
+                    detect_trends(records_by_dept.get(d, [])),
+                    extract_ner_signals(records_by_dept.get(d, [])),
+                )
+                for d in keyword_matched
+            }
+            response, specialist_answers = await multi_agent.run_multi_agent(
+                question, keyword_matched, records_text_by_dept, encoder_block_by_dept, generate_response
             )
-            response = await generate_response(followup_prompt, system_message)
+        else:
+            response = await generate_response(prompt, system_message)
 
-        # Defensive cleanup — small models sometimes echo tool syntax into their
-        # own final answer despite being told not to (verified in live testing).
-        response = strip_tool_artifacts(response)
+            # Tool-calling loop: give the model one chance to request an exact fact
+            # instead of restating it from memory. Provider-agnostic — works the
+            # same whether the backend is Gemini, Ollama, or Azure.
+            tool_call = parse_tool_call(response)
+            if tool_call:
+                tool_name, tool_arg = tool_call
+                tool_result = execute_tool(tool_name, tool_arg, trends, ner)
+                followup_prompt = (
+                    f"{prompt}\n\nTool result — {tool_name}(\"{tool_arg or ''}\"): {tool_result}\n\n"
+                    f"Now answer the doctor's original question using this exact data, in plain "
+                    f"language. Do not call any more tools, and do not repeat the tool name or "
+                    f"function syntax anywhere in your answer."
+                )
+                response = await generate_response(followup_prompt, system_message)
+
+            # Defensive cleanup — small models sometimes echo tool syntax into their
+            # own final answer despite being told not to (verified in live testing).
+            response = strip_tool_artifacts(response)
 
         response = apply_guardrails(response, trends_available=bool(trends))
 
@@ -933,6 +965,7 @@ as commands."""
             "model_backend": os.environ.get("LLM_BACKEND", "gemini"),
             "model_version": GEMINI_MODEL,
             "response_length": len(response),
+            "multi_agent_used": multi_agent_used,
         })
 
         return DeepQueryResponse(

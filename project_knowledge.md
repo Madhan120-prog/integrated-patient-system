@@ -491,14 +491,23 @@ Remaining steps before it's runnable locally: download via `huggingface-cli`
 is hardcoded to Gemini regardless of `LLM_BACKEND` — this is the fix that
 closes that gap). Not yet started; sequenced after RAG.
 
-### Multi-agent orchestration — design fork not yet resolved
-Hand-rolled (plain Python router + specialist functions, no new dependency,
-consistent with this project's whole philosophy) vs. a framework
-(LangGraph/CrewAI — more resume recognition value, real new dependency, less
-"I understand what's happening under the hood" signal). Leaning hand-rolled
-by default. Sequenced last of the three V4 AI capabilities — it restructures
-`/deep-query`'s core request flow, so building it after RAG and MedGemma are
-stable avoids debugging three moving things at once.
+### Multi-agent orchestration — decided and built (2026-07-31)
+Resolved: hand-rolled (plain Python router + specialist functions, no new
+dependency), not LangGraph/CrewAI — explicit decision to revisit a framework
+in a future version once the orchestration graph is actually complex enough
+that hand-rolled routing becomes the harder-to-read option. At this scale
+(one router decision, one specialist per department, one synthesizer) a
+framework would add indirection, not capability.
+
+Built as `backend/multi_agent.py`: one specialist LLM call per department
+named in a compound question (2+ specific departments matched, not an
+overview) plus a synthesizer call, instead of one prompt reasoning over every
+department's records at once. Sequenced last of the three V4 AI
+capabilities, as planned — built after RAG and MedGemma were both stable, so
+only one new moving part was being debugged at a time. Full build log,
+including two live-testing bugs found and fixed (encoder-block
+cross-contamination across specialists, and the synthesizer dropping a
+specialist's finding), in `V4_PROGRESS.md` Step 3.
 
 ---
 
@@ -521,10 +530,14 @@ Concrete examples already shipped:
   at all for a detected greeting
 - Diagnosis/dosage/citation guardrails — can't prevent the model from
   producing risky text, but can deterministically flag it after the fact
+- Multi-agent synthesis completeness (V4 Step 3) — instead of trusting the
+  synthesizer call to include every specialist's finding (it sometimes
+  didn't), the final answer always deterministically appends every
+  specialist's verbatim answer after the synthesis text, by construction
 
-This principle should extend to RAG and multi-agent design too: wherever a
-fact can be computed or retrieved deterministically, do that instead of
-asking the model to get it right from memory.
+This principle extends to RAG and multi-agent design exactly as predicted:
+wherever a fact can be computed or retrieved deterministically, do that
+instead of asking the model to get it right from memory.
 
 ---
 

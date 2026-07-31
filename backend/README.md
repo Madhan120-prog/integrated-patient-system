@@ -208,7 +208,7 @@ See `V3_PROGRESS.md` for full design, build order, and the live-testing bugs
 that shaped the final numbers above (rate limit and NER approach both changed
 from the original plan during implementation).
 
-## V4 Additions (RAG built + live-verified; MedGemma vision built + live-verified)
+## V4 Additions (RAG, MedGemma vision, multi-agent — all built + live-verified)
 
 - RAG (`rag.py`): `sentence-transformers` (`all-MiniLM-L6-v2`, local) + Chroma
   (local vector DB), patient-scoped semantic search — runs as a fallback when
@@ -217,10 +217,15 @@ from the original plan during implementation).
 - MedGemma vision adapter (`_ollama_generate_vision` in `server.py`): local,
   on-prem image analysis via Ollama when `LLM_BACKEND=ollama`; PDFs still
   route to Gemini (Ollama vision models take image bytes only)
+- Multi-agent orchestration (`multi_agent.py`): hand-rolled, not a framework —
+  one specialist LLM call per department for compound questions naming 2+
+  specific departments, then a synthesizer call; single-department and
+  overview questions are unaffected and stay on the original one-call path
 
-See `V4_PROGRESS.md` for full design, the two live-testing bugs found and
-fixed (Chroma batch-size limit, RAG's missing relevance floor), and the
-MedGemma GGUF/mmproj setup steps.
+See `V4_PROGRESS.md` for full design and every live-testing bug found and
+fixed along the way — RAG's Chroma batch-size limit and missing relevance
+floor, the MedGemma GGUF/mmproj setup, and multi-agent's encoder-block
+cross-contamination and synthesis-completeness bugs.
 
 ## Running Tests (V3 + V4)
 
