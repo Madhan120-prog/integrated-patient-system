@@ -30,7 +30,7 @@ confirmed the fixes. V4 adds new AI capability on top of a now-hardened base:
 |---|---|---|
 | 1 | RAG over the 6 databases | **Built + live-verified** (Step 1) |
 | 2 | MedGemma vision adapter | **Built + live-verified direct-to-Ollama** (Step 2); in-app end-to-end retest still pending |
-| 3 | Multi-agent orchestration | Not started — design fork (hand-rolled vs. framework) still open |
+| 3 | Multi-agent orchestration | **Built + live-verified** (Step 3) — hand-rolled, LangGraph deferred to a future version |
 | 4 | Production deployment path | Research done (`project_knowledge.md` §14–16), no implementation — infra work, not code |
 
 RAG target was redirected from "external medical literature" to "our own 6
@@ -41,11 +41,13 @@ is deprioritized, not dropped — a smaller follow-on later if wanted.
 
 ## Architecture Overview
 
-Same layered shape as `V3_PROGRESS.md`'s diagram, with V4's two additions
+Same layered shape as `V3_PROGRESS.md`'s diagram, with V4's three additions
 made explicit: a retrieval layer in front of the gateways (RAG, replacing
 keyword-only routing as the *primary* signal — keyword matches still win
-when they hit; RAG is the fallback, see Step 1 below) and a second model
-path for images/PDFs that V3 didn't have at all.
+when they hit; RAG is the fallback, see Step 1 below), a hand-rolled
+multi-agent split inside the intelligence pipeline for compound questions
+(Step 3), and a second model path for images/PDFs that V3 didn't have at all
+(Step 2).
 
 ```mermaid
 graph TB
@@ -62,10 +64,11 @@ graph TB
         GW["6 gateways → 6 vendor systems"]
     end
 
-    subgraph "Layer 2 — Intelligence Pipeline (V3, unchanged)"
+    subgraph "Layer 2 — Intelligence Pipeline (V3 base + V4 multi-agent)"
         WRAP["Prompt-injection defense"]
         ENC["Encoder — regex NER + trend detector\ntool-calling protocol"]
-        LLM["Text LLM (swappable)\ngemini · ollama (llama3.2) · azure"]
+        LLM["Single-agent path (unchanged)\ngemini · ollama (llama3.2) · azure"]
+        MULTI["Multi-agent (NEW) — one specialist per\ndepartment + synthesis, only for compound\nquestions naming 2+ specific departments"]
         GRD["Guardrails\ncitation · confidence · dosage · diagnosis"]
     end
 
@@ -79,7 +82,10 @@ graph TB
     DOC -->|"/deep-query"| AUTH --> RATE --> RAG
     RAG -->|"keyword hit ∪ RAG hit → matched departments"| GW
     GW --> MPI
-    GW --> WRAP --> ENC --> LLM --> GRD --> DOC
+    GW --> WRAP --> ENC
+    ENC -->|"1 department, or overview"| LLM --> GRD
+    ENC -->|"2+ specific departments"| MULTI --> GRD
+    GRD --> DOC
     GRD --> AUDT
 
     DOC -->|"/analyze-document, LLM_BACKEND=ollama + image"| MED --> DOC
@@ -319,9 +325,113 @@ end-to-end, not just Ollama in isolation.
 
 ---
 
+## Step 3 — Multi-agent orchestration (BUILT + live-verified — 2026-07-31)
+
+### Design decision, resolved
+
+Hand-rolled (plain Python), not LangGraph/CrewAI — explicit instruction: use
+plain Python now, revisit a framework in a future version. Consistent with
+this project's whole philosophy (`project_knowledge.md` §12) — no new
+dependency, and the orchestration is simple enough that a framework would
+add indirection without adding capability.
+
+### Why this fix, specifically
+
+Every question, however compound, went through one LLM call with every
+matched department's records dumped into one prompt. For a question like
+"how's her WBC and what did the MRI show?" that means one model call
+reasoning over two unrelated departments at once — exactly the shape of
+question a small local model (`llama3.2`) handles least reliably.
+
+### Design
+
+One specialist LLM call per matched department (narrow context: only that
+department's records + that department's own encoder facts) → one
+synthesizer call that merges the specialist answers into the existing
+chart-note style. Mirrors the "explicit roles + shared-state handoff"
+pattern from real multi-agent clinical-AI literature (`project_knowledge.md`
+§11) rather than inventing a bespoke taxonomy.
+
+**Trigger, reusing an existing signal — no new detection logic:**
+`should_use_multi_agent(keyword_matched, is_overview)` = `len(keyword_matched)
+>= 2 and not is_overview`. Two or more *specific* departments named in one
+question → compound, worth splitting. A single department, or an overview
+question ("summarize everything," which already fetches all 6 and works fine
+as one broad prompt) → stays on the existing single-call path unchanged.
+
+### What was built
+
+**`backend/multi_agent.py`** (new):
+- `should_use_multi_agent(keyword_matched, is_overview) -> bool`
+- `run_specialist(department, records_text, question, encoder_block, generate_fn) -> str`
+- `run_multi_agent(question, matched_departments, records_text_by_dept, encoder_block_by_dept, generate_fn) -> (final_answer, specialist_answers)`
+- `generate_fn` is passed in (the existing `generate_response`) rather than
+  imported directly — provider-agnostic for free, and trivially mockable in
+  tests, same pattern already used elsewhere in this codebase.
+
+**`server.py` wiring — `/deep-query`:** after departments are fetched, if
+`multi_agent.should_use_multi_agent(...)` and not a greeting, branch to the
+multi-agent path instead of the single `generate_response()` call; the
+tool-calling loop is skipped for this path (specialists already receive
+their own pre-computed encoder facts directly, so there's nothing left for
+`TOOL_CALL` to fetch). Guardrails and the audit log run on the result either
+way, unchanged — `multi_agent_used: bool` added to the audit log entry so
+which path handled a given query is observable after the fact.
+
+**Verified:** 11 new tests (`test_v4_multi_agent.py`) — trigger logic,
+specialist prompt scoping, specialist-call-count and per-department
+isolation, synthesis completeness. 93/93 total across V3 + V4.
+
+### Live-verified 2026-07-31
+
+Asked *"how is his WBC and what did the brain MRI show?"* for patient P1001
+(James Mitchell — 1 MRI record, 6 Blood Profile records) — both via direct
+`curl` against `/deep-query` and through the actual DocAssist chat in the
+browser. `multi_agent_used: true` confirmed in the audit log both times.
+
+**Bug found and fixed — cross-contamination via a shared global encoder
+block.** First working version passed one `encoder_block` (computed over
+*every* fetched department) to every specialist. The MRI specialist — given
+zero blood data — started inventing WBC readings ("3,000 cells/μL", "4,200
+cells/mm³") because a blood-derived `DETECTED CONDITIONS: neutropenia` fact
+was sitting in its prompt and `llama3.2` treated it as its own to report on.
+**Fix:** each specialist now gets an `encoder_block` computed *only* from its
+own department's records (`encoder_block_by_dept`, built per-department in
+`server.py` via the existing `detect_trends`/`extract_ner_signals`) — never
+the shared global block. Regression-tested (`test_each_specialist_only_sees_
+its_own_encoder_block`).
+
+**Second bug found and fixed — the synthesizer sometimes dropped a
+specialist's finding entirely.** Same live question, run three times: one
+run's synthesis paragraph said "brain imaging not available" despite the MRI
+specialist correctly reporting "No intracranial metastases" right there in
+its own answer — the synthesis call silently failed to include it. Same
+failure mode already documented in `V3_PROGRESS.md` steps 9/9b/9c: small
+local models don't reliably restate/merge structured input every time.
+
+**Fix, following this project's established "remove the opportunity to
+fail" pattern (`project_knowledge.md` §13) rather than re-prompting and
+hoping:** the final answer is no longer *only* whatever the synthesizer
+returns. `run_multi_agent` now deterministically appends a verbatim
+"by department" breakdown built directly from `specialist_answers` after the
+synthesis text, every time — so even if the LLM's leading summary is
+imperfect, the correct per-department finding is always present somewhere in
+the response, by construction, not by hoping the model gets it right.
+Confirmed in the live UI test: the synthesis paragraph occasionally still
+undersells one department, but the "By department" section below it has
+never once dropped a finding across repeated live runs.
+
+Tightened the specialist prompt too (explicitly: omit out-of-scope topics
+entirely rather than commenting on their absence) — reduced but didn't fully
+eliminate a `llama3.2` habit of noting "WBC not available in MRI records."
+Harmless (true statement, no fabricated data) and not worth further chasing
+on a 3B model — the two structural fixes above are what actually mattered.
+
+---
+
 ## Test Plan (running total across V3 + V4)
 
 ```bash
 cd backend && ./venv/bin/python -m pytest tests/ -v
 ```
-82/82 as of this doc.
+93/93 as of this doc.
