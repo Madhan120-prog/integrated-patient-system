@@ -352,3 +352,344 @@ and ideally regression testing before any model change goes live in clinical wor
 | Low | De-identification layer for analytics | High | Enables model training |
 | Low | FHIR R4 schema for treatment records | Medium | Interoperability |
 | Low | HL7 ADT feed simulation | High | Realistic real-time patient events |
+
+---
+
+## 11. Real-World Implementation Survey (research done 2026-07-27)
+
+Searched for hospitals/companies building similar systems, to validate our
+architecture against real production patterns rather than inventing in a
+vacuum. Findings, organized by what each validates or corrects in our design:
+
+### Federated data integration — direct match to our MPI + gateway pattern
+**Health Gorilla, Redox, Particle Health** — commercial healthcare
+interoperability platforms. Health Gorilla's stack: FHIR Store + Provider
+Portal + **Master Patient Index** + **Record Locator Service** + **Data
+Normalization Engine** — the same four conceptual pieces as our `mpi`
+collection + gateway normalization step, at real multi-institution scale.
+Validates that the non-AI half of this project isn't a toy pattern.
+
+### EHR-embedded AI copilots — the dominant commercial pattern (different category)
+**Epic + Microsoft Nuance DAX Copilot** (deployed at UNC Health, Lifespan) —
+Azure OpenAI (GPT-4) + ambient listening, embedded in Epic's Haiku mobile app.
+Transcribes doctor-patient conversations into notes — a different product
+category from DocAssist (ambient scribing vs. Q&A over existing records), but
+the dominant real-world integration shape. Reported 50% reduction in
+documentation time, 70% reduction in reported burnout.
+
+**Epic Cosmos** — Epic trains proprietary foundation models on aggregated
+(de-identified) EHR data *across thousands of hospitals*. Confirms something
+argued earlier: single-hospital training data is too small to train a model
+from scratch on — Epic can only do this by aggregating at massive
+multi-institution scale.
+
+### Big-tech medical LLM partnerships
+**Mayo Clinic + Google** — Med-PaLM 2 (85%+ on USMLE-style questions), now
+Vertex AI/Gemini for research notes and clinical trial matching. Their
+production use leans research/administrative so far, not live doctor-facing
+chat on real-time patient records the way DocAssist works.
+
+### Ambient AI scribes — adjacent category, one real gap in our NER found here
+**Abridge, Ambience, Nabla, DAX Copilot** — pipeline: ASR with speaker
+diarization → clinical NLP extracting structured entities (medications,
+diagnoses) with **negation detection** and dose parsing → draft note.
+
+**Real gap this surfaced in our `encoder.py`:** our regex NER has no negation
+detection — it would flag "metastasis" as detected even inside "no evidence
+of metastasis." Real systems explicitly handle this. Not yet fixed — the
+better long-term fix is replacing regex NER with a real trained biomedical
+NER model (BioBERT/ClinicalBERT — this was the *original* V3 plan before it
+got simplified to regex during implementation), not patching negation
+detection onto regex we already plan to replace.
+
+### Academic research — closest published match to our exact architecture
+- **"Medi-Gemma: A Hybrid Clinical Decision Support System Integrating
+  Deterministic EMR Analytics and Retrieval-Augmented Generation"** (arXiv)
+  — title alone matches our encoder (deterministic) + LLM (RAG-to-be) split.
+  Full content not yet reviewed (PDF fetch failed, corrupted).
+- **"An auditable and source-verified framework for clinical AI decision
+  support: integrating RAG with data provenance"** (Frontiers/PMC) —
+  describes a curated knowledge base with provenance metadata + RAG linking
+  recommendations to identifiable sources + tamper-evident audit logging.
+  This is our citation guardrail + `audit_log` collection, independently
+  described in a published paper.
+
+### Multi-agent — a real evaluation framework exists, worth adopting
+An ACL 2026 survey formalizes **"AI Hospitals"**: LLM agents with explicit
+roles, shared-state handoffs, EHR/guideline-grounded tools, safety gates,
+audit-ready logs — organized by **Integration Readiness Levels (IRL1–IRL6)**.
+When multi-agent orchestration is built (V4, sequenced after RAG), describe
+the design against this framework rather than inventing our own taxonomy.
+
+### On-prem/local deployment — validates V3, with one honest correction
+Standard on-prem architecture per multiple sources: fine-tuned model on
+de-identified clinical data + inference engine (Ollama/vLLM) + EHR
+integration layer + audit logging + RBAC via existing identity provider —
+matches our `LLM_BACKEND=ollama` + `audit_log` + JWT/RBAC almost point for
+point.
+
+**Correction:** production deployments at real hospital scale use **vLLM**,
+not Ollama — Ollama/llama.cpp are explicitly positioned for smaller
+deployments "where production-grade throughput isn't the constraint," which
+is exactly our demo. See §14 for what actually changes going from demo to
+production scale.
+
+### Azure OpenAI BAA — concrete, not a special negotiation
+The BAA is automatically included in Microsoft's standard Online Services
+Terms/Data Protection Addendum when purchasing Azure directly — not a
+separate legal process. What actually takes time (realistically 30–90 days)
+is infra: Entra ID integration, private endpoints, customer-managed keys in
+Key Vault, diagnostic logging into a SIEM. If this project ever moved to
+Azure OpenAI in production, the bottleneck is infra hardening, not BAA paperwork.
+
+---
+
+## 12. V4 Architecture Decisions
+
+### RAG target: our own 6 databases, not external literature (decided 2026-07-29, built 2026-07-30)
+Originally planned RAG over external medical literature (WHO/NCCN guidelines)
+to ground general-knowledge answers. Redirected: **RAG over the patient's own
+federated records** is the better first target — it fixes the actual
+documented weakness of the current keyword-matching smart-context router
+("blood cell count" won't match the `wbc` keyword — a synonym gap real vector
+search closes) and is architecturally differentiated (RAG applied to *our own*
+federated system, not a generic literature pile anyone could bolt on).
+
+Design: embed every record from all 6 gateways at seed time → Chroma (local,
+embedded, no new infra) with metadata `{patient_id, department, date,
+record_id}` → at query time, embed the question → similarity search **filtered
+to the current patient_id first**, then ranked → top-K records across all
+departments, replacing the department-bucket keyword match.
+
+**Non-negotiable security requirement, not an afterthought:** the patient_id
+filter must happen before/during ranking, never after. Searching across all
+500 patients' embeddings and trusting similarity alone to keep them separate
+would be a real PHI cross-patient leak, not a cosmetic bug.
+
+Embedding approach: local (`sentence-transformers`, CPU/GPU-local, no API
+key) over cloud (Gemini embedding endpoint) — consistent with the project's
+on-prem/PHI-never-leaves-the-machine story; patient record text shouldn't hit
+an external embedding API even "just for search."
+
+External-literature RAG (the original plan) is not dropped, just
+deprioritized — could be a smaller follow-on later, reusing the same Chroma
+instance as a second collection.
+
+### MedGemma — access granted (2026-07-29)
+`google/medgemma-4b-it` — instruction-tuned, multimodal (text + image),
+Gemma 3 base, SigLIP image encoder pre-trained on chest X-rays, dermatology,
+ophthalmology, histopathology. Confirmed via HuggingFace: this single model
+covers both `/deep-query` (text) and `/analyze-document` (image) — no need
+for a separate Meditron-for-text + MedGemma-for-vision split, since MedGemma
+already does both jobs.
+
+Gated repo, license accepted, HuggingFace read-scoped access token created —
+access confirmed live (file listing visible, not a request-access gate).
+Remaining steps before it's runnable locally: download via `huggingface-cli`
+→ convert to GGUF via `llama.cpp` → `ollama create` to import → new
+`_ollama_generate_vision()` adapter in `server.py` (currently `/analyze-document`
+is hardcoded to Gemini regardless of `LLM_BACKEND` — this is the fix that
+closes that gap). Not yet started; sequenced after RAG.
+
+### Multi-agent orchestration — design fork not yet resolved
+Hand-rolled (plain Python router + specialist functions, no new dependency,
+consistent with this project's whole philosophy) vs. a framework
+(LangGraph/CrewAI — more resume recognition value, real new dependency, less
+"I understand what's happening under the hood" signal). Leaning hand-rolled
+by default. Sequenced last of the three V4 AI capabilities — it restructures
+`/deep-query`'s core request flow, so building it after RAG and MedGemma are
+stable avoids debugging three moving things at once.
+
+---
+
+## 13. Live-Testing Bug Pattern — Small Local Models Need a Different Trust Model
+
+Recurring lesson from live-testing `llama3.2:3B` against V3 (full detail in
+`V3_PROGRESS.md` Steps 9/9b/9c): a 3B model does not reliably follow complex
+system-prompt instructions, restate structured data faithfully, or stay
+consistent across conversation turns. This isn't a bug in this codebase's
+prompts — it's a general small-model limitation.
+
+**The pattern that actually worked, worth repeating for future features:**
+don't ask the model to behave correctly by instruction alone — remove the
+opportunity to behave incorrectly at the pipeline level wherever possible.
+Concrete examples already shipped:
+- Tool-calling (Task 9) — instead of trusting the model to restate a computed
+  trend correctly, make it fetch the exact string via a tool call
+- Deterministic greeting bypass (Task 9c) — instead of trusting "don't mention
+  the patient" as a prompt instruction, don't put patient data in the prompt
+  at all for a detected greeting
+- Diagnosis/dosage/citation guardrails — can't prevent the model from
+  producing risky text, but can deterministically flag it after the fact
+
+This principle should extend to RAG and multi-agent design too: wherever a
+fact can be computed or retrieved deterministically, do that instead of
+asking the model to get it right from memory.
+
+---
+
+## 14. Path to Real-Time Hospital Production (discussed 2026-07-30)
+
+What changes going from "this project on a laptop" to "running for real
+hospital concurrency" — and, importantly, what *doesn't* change:
+
+**Doesn't change:** the application layer — JWT/RBAC, `audit_log`,
+`encoder.py`, `guardrails.py`. This is exactly what the `LLM_BACKEND`
+abstraction was built for — the inference backend is swappable without
+touching anything above it.
+
+**Changes:**
+1. **Hardware** — a dedicated GPU (A10/L4-class is enough for a 4B model;
+   A100/H100 for larger), in the hospital's own data center or a private
+   cloud VPC. Not a laptop.
+2. **Inference server: vLLM, not Ollama** — Ollama is single-request/dev-
+   oriented; vLLM does continuous batching (many doctors' concurrent
+   requests share a GPU efficiently), PagedAttention (better memory
+   utilization/throughput), and exposes production metrics. Would be added
+   as a 4th `LLM_BACKEND` option, reusing the OpenAI-compatible request shape
+   `_ollama_generate()` already uses — additive, not a rewrite.
+3. **Network isolation** — GPU server inside the hospital's private network,
+   reachable only by internal application servers, never public-internet-
+   facing. (The fully air-gapped/USB-transfer pattern from §11 is the extreme
+   end of this spectrum, for the most security-sensitive deployments — most
+   real health systems use private-network isolation, not literal air-gapping.)
+4. **High availability** — multiple GPU replicas behind a load balancer with
+   failover; DocAssist going down hospital-wide because one GPU crashed isn't
+   acceptable.
+5. **Model version pinning at the deployment config level** — same principle
+   as §8's "hospitals want pinned model versions," just enforced by vLLM's
+   deployment config instead of a local `.env` var once it's production infra.
+
+---
+
+## 15. Cloud Options for Healthcare AI (discussed 2026-07-30)
+
+Three real BAA-eligible paths for running a model in the cloud, compliantly:
+
+| Provider | BAA path | Real example |
+|---|---|---|
+| **Azure OpenAI** | Automatic — included in Microsoft's standard Online Services Terms/Data Protection Addendum when Azure is purchased directly, not a separate legal negotiation. Isolated tenant; region selection matters (data stays in-region). Real work is infra: Entra ID integration, private endpoints, customer-managed keys in Key Vault, diagnostic logging into a SIEM — realistically 30–90 days | Epic + Nuance DAX Copilot runs on Azure OpenAI (GPT-4), embedded directly in Epic |
+| **Google Cloud Vertex AI** | BAA available, but only via **Vertex AI** — not the consumer Gemini API this project currently uses for the `gemini` backend | Mayo Clinic uses Vertex AI/Gemini for research notes and clinical trial matching |
+| **AWS Bedrock** | AWS's BAA covers HIPAA-eligible services including Bedrock (their managed foundation-model hosting — serves Claude, Llama, and others) when properly configured | Architecturally the same shape as the other two (managed inference behind a compliance umbrella); less publicly documented in healthcare specifically than Azure/Google so far |
+
+**Common thread across all three:** the BAA paperwork is rarely the actual
+bottleneck — infra hardening (private networking, key management, audit
+logging, region pinning) is where the real implementation time goes.
+
+---
+
+## 16. Production Pipeline — Mapping the Real Architecture Stages
+
+Working sketch (2026-07-30): *databases → integration → fetch general
+patient data → fetch question-specific data → model analysis → answer.*
+Mapped to real, named techniques per stage:
+
+### Stage 1 — Databases → Integration
+Real technique: **HL7 FHIR REST APIs**. Real EHRs (Epic, Cerner) expose these
+today — mandated by the 21st Century Cures Act / ONC rules (§6). Integration
+middleware (**Redox, Particle Health, Health Gorilla, or Mirth Connect**) sits
+between the application and the hospital's live EHR, translating vendor-
+specific formats into normalized FHIR resources. This is exactly what our
+gateway layer (`lab_gateway.py` etc.) simulates at toy scale — at real scale,
+gateways would speak FHIR against a real EHR instead of querying SQLite/
+JSON/dbm.
+
+**Getting access to already-deployed hospital software — the honest hard
+part, and it's not primarily technical:**
+- Epic's **App Orchard / Epic on FHIR** developer program — registration,
+  sandbox testing, a security review, before any production API credentials
+- **SMART on FHIR** — the actual OAuth2-based protocol third-party apps use
+  to request scoped access to a patient's EHR data, with the hospital's own
+  identity provider handling doctor login/consent
+- Realistically: a signed BAA + formal procurement process with the
+  hospital's IT department before production credentials are ever issued.
+  This is a business/legal barrier as much as an engineering one — it's why
+  Abridge/Nuance/Ambience (§11) are venture-funded companies with dedicated
+  Epic partnership teams, not something a small team gets casually.
+
+**Is RAG the integration technique?** No — worth being precise. FHIR/SMART-
+on-FHIR/Redox is *how you connect to a data source at all*. RAG is what
+happens *after* access already exists — deciding which subset of reachable
+data is relevant to a given question. RAG doesn't replace integration, it
+sits on top of it.
+
+### Stage 2 — Fetching patient data (general) vs. Stage 3 — question-specific data
+Two different techniques, already distinct in this project's design:
+- **General patient data location** → the MPI/gateway lookup — deterministic:
+  given a patient ID, resolve every connected system's records for them.
+  Not a RAG problem.
+- **What's relevant to *this specific question*** → **RAG** (the vector
+  search over the 6 databases being built now, §12) — this is the correct
+  place for RAG in the pipeline.
+
+### Stage 4 — Model analysis
+Retrieved records (RAG) + deterministic facts (`encoder.py` trends/NER) +
+system prompt → sent to whichever backend `LLM_BACKEND` points at: self-
+hosted vLLM on hospital GPU infra (§14), or a cloud BAA endpoint (Azure
+OpenAI / Vertex AI / Bedrock, §15). The model's actual job is narrower than
+"analyze" — anything computable (trends, dosages) is computed by Python
+first, specifically so the model never has to get arithmetic right from
+memory (§13's "remove the opportunity to fail" pattern). The model's real
+job is synthesizing pre-verified facts into fluent, doctor-appropriate
+language and reasoning about the open-ended part of the question.
+
+### Stage 5 — Answering the doctor
+Response passes through the 4 guardrails (confidence/dosage/citation/
+diagnosis, `guardrails.py`) before reaching the UI, then gets logged to
+`audit_log`.
+
+---
+
+## 17. Presentation Planning Note
+
+Purpose: draft a deck for Dr. Dasgupta covering all versions (V1 baseline →
+V2 federated architecture → V3 security/AI pipeline → V4 in progress),
+problems faced at each stage, tech stack per version, what changed and why,
+future work, and the production-level implementation path (§14–16).
+This document is the source material — keep it current as V4 progresses so
+the deck can be assembled from here rather than reconstructed from memory.
+
+---
+
+## 18. Multimodal Chat — Uploading/Scanning Images Mid-Conversation (planned 2026-07-30)
+
+Two distinct scenarios, both requested, both need MedGemma's vision adapter
+(§12) — but with different value at current data maturity.
+
+**Why the encoder's "narrower than analyze" pattern (§13) doesn't extend to
+images:** for text/numbers, `encoder.py` precomputes deterministic facts so
+the LLM only has to synthesize already-verified data. There's no equivalent
+for images — no Python function can look at X-ray pixels and deterministically
+output a finding. For this feature, the vision model *is* the analysis, not
+a narrator of pre-computed facts. Categorically different task from the rest
+of this pipeline.
+
+**Important scoping caveat, easy to miss:** per `RULES.md`, `report_image`
+URLs are currently never sent to any LLM, and per `plan.md` those images are
+generic stock photos matched by test type — not a real image of that specific
+patient's scan. So "analyze Patricia's existing X-ray evidence" today would
+describe a generic stock photo, not a real per-patient finding. This makes
+Scenario A (below) the meaningful one for a demo; Scenario B mainly proves
+the pipeline works, not real findings, until/unless patient-specific images exist.
+
+**Scenario A — doctor uploads a new image/PDF mid-chat (real analysis, real value):**
+- `/analyze-document` already works standalone (Gemini multimodal)
+- Missing: fold the analysis into `conversation_history` (frontend,
+  `DeepSearchModal.jsx`) so a follow-up question later in the same
+  conversation can reference it — currently the analysis is disconnected
+  from the chat thread entirely. Needs pinning so it survives past the
+  6-turn rolling window.
+- Route through `LLM_BACKEND` via a new `_ollama_generate_vision()` adapter
+  (MedGemma) instead of being hardcoded to Gemini — otherwise a doctor on
+  local-mode silently leaks the image to Google regardless of their backend
+  setting, breaking the PHI-never-leaves-the-machine story.
+
+**Scenario B — "review her existing chest X-ray" (buildable, limited value now):**
+- MVP: a "Scan this image" button per evidence card — deterministic
+  reference, no ambiguity about which record is meant. New route
+  (`POST /api/scan-evidence`) fetches that record's image, runs it through
+  the same vision adapter as Scenario A.
+- Harder follow-on, not MVP: natural-language reference ("review her latest
+  chest x-ray" typed in chat, no button) — requires resolving which evidence
+  record is meant from plain text, either an extra LLM call or RAG-style
+  metadata matching. Deferred until the button version is proven.
