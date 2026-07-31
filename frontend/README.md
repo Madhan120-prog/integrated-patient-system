@@ -1,3 +1,59 @@
+# Frontend — Architecture Reference
+
+React (CRA/craco) + Tailwind + shadcn/ui client for the Integrated Patient
+Data Retrieval System. JWT-authenticated (V3) — every route past login is
+gated by `ProtectedRoute`, and every API call carries the token issued at
+login.
+
+## Architecture Overview
+
+```mermaid
+graph TB
+    LOGIN["/  — LoginPage\nJWT login"]
+    WELCOME["/welcome — WelcomePage"]
+    SEARCH["/search — SearchPage\npatient search by ID or name"]
+    RESULTS["/results — ResultsPage / ResultsPageDepartments\npatient record view"]
+    DEPT["/department/:name — DepartmentView\ndept-wide record browsing"]
+    ANALYTICS["/analytics — AnalyticsPage / AnalyticsPageWithCharts"]
+    MODAL["DeepSearchModal — DocAssist chat\nQ&A, image/PDF upload, voice output"]
+    API["FastAPI backend\n/api/deep-query · /api/analyze-document"]
+
+    LOGIN --> WELCOME --> SEARCH --> RESULTS
+    RESULTS --> DEPT
+    RESULTS --> ANALYTICS
+    RESULTS -.->|open| MODAL
+    MODAL -->|JWT-authenticated request| API
+```
+
+`ProtectedRoute` (`src/components/ProtectedRoute.jsx`) wraps every route
+except `/` — it checks for a valid JWT and redirects to login if missing.
+`Header.jsx` renders on every authenticated page (patient context, logout).
+`DeepSearchModal.jsx` is DocAssist — the AI chat surface — reachable from the
+results view, and is the only component that calls `/api/deep-query` and
+`/api/analyze-document`.
+
+## Directory Layout
+
+```
+frontend/src/
+├── App.js                    # BrowserRouter + route definitions
+├── components/
+│   ├── Header.jsx             # Top nav, patient context, logout
+│   ├── DeepSearchModal.jsx    # DocAssist chat — AI Q&A + image/PDF upload
+│   └── ProtectedRoute.jsx     # JWT gate on all routes except /
+├── pages/
+│   ├── LoginPage.jsx
+│   ├── WelcomePage.jsx
+│   ├── SearchPage.jsx
+│   ├── ResultsPage.jsx / ResultsPageDepartments.jsx
+│   ├── DepartmentView.jsx
+│   └── AnalyticsPage.jsx / AnalyticsPageWithCharts.jsx
+├── hooks/use-toast.js
+└── lib/utils.js
+```
+
+---
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

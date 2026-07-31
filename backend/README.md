@@ -28,12 +28,35 @@ backend/
     └── medical_images.json # Verified image URLs by test type
 ```
 
+## Architecture Overview
+
+```mermaid
+graph TB
+    DOC["Doctor (React frontend)"]
+    AUTH["JWT auth + RBAC"]
+    RAG["RAG fallback\nsentence-transformers + Chroma\n(only when keyword routing finds nothing)"]
+    GW["6 gateway modules"]
+    MPI[("MPI · MongoDB")]
+    ENC["Encoder\nregex NER + trend detector\ntool-calling protocol"]
+    LLM["Text LLM (swappable)\ngemini · ollama · azure"]
+    GRD["Guardrails\ncitation · confidence · dosage · diagnosis"]
+    AUDT[("audit_log")]
+    VIS["Vision — MedGemma (Ollama) or Gemini"]
+
+    DOC -->|"/deep-query"| AUTH --> RAG --> GW --> MPI
+    GW --> ENC --> LLM --> GRD --> DOC
+    GRD --> AUDT
+    DOC -->|"/analyze-document"| AUTH --> VIS --> DOC
+```
+
 ## How a Request Flows
 
 ```
 POST /api/deep-query  {patient_id: "P1001", question: "What did the MRI show?"}
         │
         ├── keyword classifier → matches "mri" → fetch only MRI dept
+        │       (if no keyword matches: RAG fallback — semantic search over
+        │        this patient's embedded records, see rag.py)
         │
         ├── mri_gateway.get_records_for_patient(db, "P1001")
         │       ├── MPI lookup: MongoDB mpi collection → ris_mri_id = "RIS-100000"
@@ -42,9 +65,16 @@ POST /api/deep-query  {patient_id: "P1001", question: "What did the MRI show?"}
         │
         ├── normalize records → shared shape: {patient_id, name, test_name, ...}
         │
-        ├── build Gemini prompt: history_block + question + patient_context
+        ├── encoder.py: regex NER + trend detector → deterministic facts,
+        │       wrapped in delimiters (prompt-injection defense)
         │
-        └── Gemini → answer + evidence cards → frontend
+        ├── build prompt: history_block + question + patient_context
+        │
+        ├── LLM_BACKEND-routed model (gemini / ollama / azure) → answer
+        │
+        ├── guardrails.py: citation / confidence / dosage / diagnosis checks
+        │
+        └── answer + evidence cards → frontend, logged to audit_log
 ```
 
 Key rule: **`server.py` never queries a vendor system directly.** Every dept read
@@ -151,23 +181,48 @@ History is sent as a separate `conversation_history` field so old mentions of
 MONGO_URL=mongodb://localhost:27017
 DB_NAME=integrated_patient_system
 GEMINI_API_KEY=your_key_here
-LLM_BACKEND=gemini          # gemini | azure | ollama  (V3)
-SECRET_KEY=your_jwt_secret  # (V3)
+LLM_BACKEND=gemini            # gemini | azure | ollama  (V3)
+SECRET_KEY=your_jwt_secret    # (V3)
+OLLAMA_MODEL=llama3.2         # text model when LLM_BACKEND=ollama  (V3)
+OLLAMA_VISION_MODEL=medgemma  # vision model for /analyze-document  (V4)
+HUGGINGFACE_TOKEN=            # only for backend/data/download_medgemma.py, one-time setup  (V4)
 ```
 
-## V3 Additions (in progress on feature/v3-security-ai-pipeline)
+## V3 Additions (done)
 
 - JWT auth on all routes (`python-jose` + `passlib`)
 - RBAC: `PHYSICIAN` / `NURSE` / `ADMIN`
 - Audit log: `audit_log` MongoDB collection, append-only
 - `LLM_BACKEND` switching: Gemini / Azure OpenAI / Ollama
-- Encoder layer: trend detector + spaCy NER before LLM call
-- Guardrails: citation check + confidence gate + drug dosage flag
-- Rate limiting: `slowapi`, per-user, 10/min on AI endpoints
+- Encoder layer (`encoder.py`): regex-based NER (drug/diagnosis lists) + trend
+  detector before the LLM call — deterministic, not model-generated
+- Prompt-injection defense: patient data wrapped in delimiters, system prompt
+  treats it as data-only
+- Tool-calling protocol: model fetches exact computed values (e.g. a lab
+  trend) via a `TOOL_CALL:` marker instead of restating them from memory
+- Guardrails (`guardrails.py`): citation check + confidence gate + drug
+  dosage flag + diagnosis-language flag
+- Rate limiting: `slowapi`, per-user (keyed to JWT), 60/min on AI endpoints
 
-See `V3_PROGRESS.md` for full design and build order.
+See `V3_PROGRESS.md` for full design, build order, and the live-testing bugs
+that shaped the final numbers above (rate limit and NER approach both changed
+from the original plan during implementation).
 
-## Running Tests (V3)
+## V4 Additions (RAG built + live-verified; MedGemma vision built + live-verified)
+
+- RAG (`rag.py`): `sentence-transformers` (`all-MiniLM-L6-v2`, local) + Chroma
+  (local vector DB), patient-scoped semantic search — runs as a fallback when
+  the keyword classifier finds nothing, catching synonyms it would otherwise
+  miss (e.g. "blood cell count" → WBC)
+- MedGemma vision adapter (`_ollama_generate_vision` in `server.py`): local,
+  on-prem image analysis via Ollama when `LLM_BACKEND=ollama`; PDFs still
+  route to Gemini (Ollama vision models take image bytes only)
+
+See `V4_PROGRESS.md` for full design, the two live-testing bugs found and
+fixed (Chroma batch-size limit, RAG's missing relevance floor), and the
+MedGemma GGUF/mmproj setup steps.
+
+## Running Tests (V3 + V4)
 
 ```bash
 cd backend

@@ -28,14 +28,69 @@ confirmed the fixes. V4 adds new AI capability on top of a now-hardened base:
 
 | # | Task | Status |
 |---|---|---|
-| 1 | RAG over the 6 databases | **Built — needs deps installed + live verification** |
-| 2 | MedGemma vision adapter | HuggingFace access granted, token saved. Not yet built. |
+| 1 | RAG over the 6 databases | **Built + live-verified** (Step 1) |
+| 2 | MedGemma vision adapter | **Built + live-verified direct-to-Ollama** (Step 2); in-app end-to-end retest still pending |
 | 3 | Multi-agent orchestration | Not started — design fork (hand-rolled vs. framework) still open |
 | 4 | Production deployment path | Research done (`project_knowledge.md` §14–16), no implementation — infra work, not code |
 
 RAG target was redirected from "external medical literature" to "our own 6
 databases" — see `project_knowledge.md` §12 for the reasoning. Literature RAG
 is deprioritized, not dropped — a smaller follow-on later if wanted.
+
+---
+
+## Architecture Overview
+
+Same layered shape as `V3_PROGRESS.md`'s diagram, with V4's two additions
+made explicit: a retrieval layer in front of the gateways (RAG, replacing
+keyword-only routing as the *primary* signal — keyword matches still win
+when they hit; RAG is the fallback, see Step 1 below) and a second model
+path for images/PDFs that V3 didn't have at all.
+
+```mermaid
+graph TB
+    DOC["Doctor (React frontend)"]
+
+    subgraph "Layer 0 — Access Control (V3, unchanged)"
+        AUTH["JWT verifier + RBAC"]
+        RATE["Rate limiter\n60/min per JWT"]
+    end
+
+    subgraph "Layer 1 — Retrieval (NEW in V4)"
+        RAG["RAG — sentence-transformers + Chroma\npatient-scoped semantic search\n(fallback when keyword routing finds nothing)"]
+        MPI[("MPI · MongoDB")]
+        GW["6 gateways → 6 vendor systems"]
+    end
+
+    subgraph "Layer 2 — Intelligence Pipeline (V3, unchanged)"
+        WRAP["Prompt-injection defense"]
+        ENC["Encoder — regex NER + trend detector\ntool-calling protocol"]
+        LLM["Text LLM (swappable)\ngemini · ollama (llama3.2) · azure"]
+        GRD["Guardrails\ncitation · confidence · dosage · diagnosis"]
+    end
+
+    subgraph "Layer 3 — Vision (NEW in V4)"
+        MED["MedGemma via Ollama\nlocal, images only"]
+        GEMV["Gemini vision\nimages + PDFs (PDF always routes here —\nOllama vision models take images only)"]
+    end
+
+    AUDT[("audit_log\nappend-only")]
+
+    DOC -->|"/deep-query"| AUTH --> RATE --> RAG
+    RAG -->|"keyword hit ∪ RAG hit → matched departments"| GW
+    GW --> MPI
+    GW --> WRAP --> ENC --> LLM --> GRD --> DOC
+    GRD --> AUDT
+
+    DOC -->|"/analyze-document, LLM_BACKEND=ollama + image"| MED --> DOC
+    DOC -->|"/analyze-document, LLM_BACKEND=gemini, or any PDF"| GEMV --> DOC
+```
+
+**Non-negotiable security requirement built into Layer 1, not retrofitted:**
+the RAG `patient_id` filter is applied *during* the Chroma query, never as a
+post-filter — verified by `test_retrieve_filters_by_patient_id`. Searching
+across all 500 patients' embeddings and trusting similarity alone to keep
+them separate would be a real cross-patient PHI leak, not a cosmetic bug.
 
 ---
 
