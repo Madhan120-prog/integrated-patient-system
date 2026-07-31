@@ -53,13 +53,18 @@ V3 pipeline:
 
 ## Architecture Overview
 
+> This diagram reflects what was actually shipped by the end of V3 (updated
+> 2026-07-31 — the original planning version of this diagram said "BioBERT
+> NER" and "10/min rate limit," neither of which is what got built; see
+> Steps 6/8/9 below for why each changed).
+
 ```mermaid
 graph TB
     DOC["Doctor (React frontend)"]
 
     subgraph "Layer 0 — Access Control (NEW)"
         AUTH["JWT verifier\n+ RBAC check\n(physician / nurse / admin)"]
-        RATE["Rate limiter\n(slowapi, 10/min on AI)"]
+        RATE["Rate limiter\n(slowapi, 60/min per JWT)"]
     end
 
     subgraph "Layer 1 — Data (V2, unchanged)"
@@ -68,9 +73,10 @@ graph TB
     end
 
     subgraph "Layer 2 — Intelligence Pipeline (NEW)"
-        ENC["Encoder layer\nBioBERT NER · Trend detector · Threshold rules"]
+        WRAP["Prompt-injection defense\npatient data wrapped in delimiters, treated as data-only"]
+        ENC["Encoder layer\nRegex NER (drugs/diagnoses) · trend detector\ntool-calling protocol (TOOL_CALL:)"]
         LLM["LLM (swappable)\ngemini · azure · ollama"]
-        GRD["Guardrails\nCitation check · Confidence · Drug flag"]
+        GRD["Guardrails\nCitation check · confidence gate\ndrug-dosage flag · diagnosis-language flag"]
     end
 
     subgraph "Layer 3 — Audit (NEW)"
@@ -79,7 +85,7 @@ graph TB
 
     DOC --> AUTH --> RATE --> GW
     GW --> MPI
-    GW --> ENC --> LLM --> GRD --> DOC
+    GW --> WRAP --> ENC --> LLM --> GRD --> DOC
     GRD --> AUDT
 ```
 
