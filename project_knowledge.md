@@ -534,6 +534,13 @@ Concrete examples already shipped:
   synthesizer call to include every specialist's finding (it sometimes
   didn't), the final answer always deterministically appends every
   specialist's verbatim answer after the synthesis text, by construction
+- Concern-focused vs. summary questions (V4 Step 4) — two different
+  questions were producing near-duplicate answers because nothing told the
+  model they were different asks. Fix stayed additive (a deterministic
+  instruction pointing at already-flagged findings), not a filter — the
+  tempting alternative, hiding "non-abnormal" records from the prompt, was
+  rejected specifically because it would silently hide a real finding that
+  fell outside whatever keyword list defines "abnormal"
 
 This principle extends to RAG and multi-agent design exactly as predicted:
 wherever a fact can be computed or retrieved deterministically, do that

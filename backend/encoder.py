@@ -106,6 +106,37 @@ def extract_ner_signals(records: list) -> dict:
 
 # ── Prompt block formatter ─────────────────────────────────────────────────────
 
+_CONCERN_KEYWORDS = ["concerning", "concern", "abnormal", "critical", "worrisome", "red flag", "urgent"]
+
+
+def is_concern_focused_question(question: str) -> bool:
+    """Detects a question asking specifically about abnormal/concerning findings,
+    as opposed to a general 'summarize everything' overview ask. Both currently
+    fetch the same records — this only changes how the model is instructed to
+    use them, never what data it sees (see build_concern_instruction)."""
+    q = question.lower()
+    return any(k in q for k in _CONCERN_KEYWORDS)
+
+
+def build_concern_instruction(is_concern_focused: bool) -> str:
+    """Live-testing bug (2026-07-31): 'what's concerning?' and 'summarize
+    status' both fell under the same is_overview bucket, got identical
+    records, and a small local model produced near-duplicate answers because
+    nothing told it these two asks are different. Fix is additive, not a
+    filter — every record still reaches the prompt unchanged; this just
+    points the model at the flagged findings that already exist in the
+    encoder block instead of leaving it to guess what counts as notable."""
+    if not is_concern_focused:
+        return ""
+    return (
+        "\nThe doctor is asking specifically about concerning or abnormal "
+        "findings, not a general summary. Lead with only the items flagged "
+        "CRITICAL or HIGH in the encoder analysis above, or listed under "
+        "DETECTED CONDITIONS. Do not restate routine or normal results, and "
+        "say so explicitly if nothing is flagged as abnormal.\n"
+    )
+
+
 def format_encoder_block(trends: dict, ner: dict) -> str:
     """Render encoder output as a structured text block for the LLM prompt."""
     lines = ["=== ENCODER ANALYSIS (Python-computed — cite these as facts, not estimates) ==="]
