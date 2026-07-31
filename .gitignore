@@ -55,6 +55,7 @@ backend/data/xray_store*
 backend/data/ct_store*
 backend/data/ecg_store.csv
 backend/data/treatment_store.json
+backend/data/chroma_store/
 
 # Archive files and large assets
 **/*.zip

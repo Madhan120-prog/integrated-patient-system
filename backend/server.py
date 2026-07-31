@@ -98,6 +98,36 @@ async def _ollama_generate(prompt: str, system_message: str) -> str:
         raise HTTPException(status_code=503, detail=f"Ollama error: {str(e)}")
 
 
+async def _ollama_generate_vision(image_bytes: bytes, prompt: str, system_message: str) -> str:
+    """Ollama vision path (MedGemma) — PHI-bearing images never leave the machine.
+    Images only, not PDFs: Ollama vision models take raw image bytes, unlike
+    Gemini's multimodal API which understands PDF documents natively. A PDF
+    upload always routes to Gemini regardless of LLM_BACKEND — see
+    generate_vision_response()."""
+    import httpx
+    import base64
+    model = os.environ.get("OLLAMA_VISION_MODEL", "medgemma")
+    image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": prompt, "images": [image_b64]},
+        ],
+        "stream": False,
+        "options": {"num_ctx": 8192},
+    }
+    try:
+        async with httpx.AsyncClient(timeout=180.0) as http:
+            resp = await http.post("http://localhost:11434/api/chat", json=payload)
+            resp.raise_for_status()
+            return resp.json()["message"]["content"]
+    except httpx.ConnectError:
+        raise HTTPException(status_code=503, detail="Ollama is not running. Start it with: ollama serve")
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Ollama vision error: {str(e)}")
+
+
 async def _azure_generate(prompt: str, system_message: str) -> str:
     """Azure OpenAI path — HIPAA-eligible with BAA. Requires AZURE_OPENAI_ENDPOINT + AZURE_OPENAI_KEY."""
     from openai import AsyncAzureOpenAI
@@ -125,7 +155,6 @@ async def generate_response(prompt: str, system_message: str) -> str:
     return await _gemini_generate(prompt, system_message)
 
 
-# Kept for /analyze-document — multimodal (image bytes) only works with Gemini today.
 async def generate_content_with_retry(**kwargs):
     if not gemini_client:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
@@ -137,6 +166,29 @@ async def generate_content_with_retry(**kwargs):
             return await gemini_client.aio.models.generate_content(**kwargs)
         except genai_errors.ServerError:
             raise HTTPException(status_code=503, detail="The AI is temporarily overloaded. Please try again in a moment.")
+
+
+async def _gemini_generate_vision(image_bytes: bytes, mime_type: str, prompt: str, system_message: str) -> str:
+    """Gemini multimodal path — handles images and PDFs natively, unlike Ollama."""
+    file_part = genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+    result = await generate_content_with_retry(
+        model=GEMINI_MODEL,
+        contents=[prompt, file_part],
+        config=genai_types.GenerateContentConfig(system_instruction=system_message),
+    )
+    return result.text
+
+
+async def generate_vision_response(image_bytes: bytes, mime_type: str, prompt: str, system_message: str) -> str:
+    """Route image/PDF analysis to the configured LLM backend. Same LLM_BACKEND
+    var as generate_response() — a doctor on LLM_BACKEND=ollama gets images
+    analyzed locally too, closing the gap where /analyze-document used to be
+    hardcoded to Gemini regardless of backend setting. PDFs are the one
+    exception: they always go to Gemini, since Ollama vision models take
+    image bytes only and PDF-to-image conversion isn't built yet."""
+    if LLM_BACKEND == "ollama" and mime_type != "application/pdf":
+        return await _ollama_generate_vision(image_bytes, prompt, system_message)
+    return await _gemini_generate_vision(image_bytes, mime_type, prompt, system_message)
 
 def _rate_limit_key(request: Request) -> str:
     """Rate limit per JWT token prefix, not IP — IP limits are bypassed with VPN.
@@ -300,6 +352,7 @@ import xray_gateway
 import ct_gateway
 import ecg_gateway
 import treatment_gateway
+import rag
 
 async def populate_sample_data():
     """Populate all department collections with curated oncology patient data"""
@@ -355,6 +408,20 @@ async def populate_sample_data():
     await asyncio.to_thread(
         treatment_system.reset_and_seed, group_by_local_id(seed_data["treatment_records"], "treatment_local_id")
     )
+
+    # Build the RAG index — embeds every record across all 6 departments for
+    # semantic retrieval. Runs after seeding so gateways have data to fetch.
+    await asyncio.to_thread(rag.reset_index)
+    records_by_department = {
+        "MRI": await mri_gateway.get_all_records(db),
+        "X-Ray": await xray_gateway.get_all_records(db),
+        "ECG": await ecg_gateway.get_all_records(db),
+        "Blood Profile": await lab_gateway.get_all_records(db),
+        "CT Scan": await ct_gateway.get_all_records(db),
+        "Treatment": await treatment_gateway.get_all_records(db),
+    }
+    indexed_count = await asyncio.to_thread(rag.build_rag_index, records_by_department)
+    logger.info(f"RAG index built: {indexed_count} records embedded")
 
     return {"message": "Sample data populated successfully", "patients_created": len(seed_data["profiles"])}
 
@@ -658,8 +725,24 @@ async def deep_query(request: Request, body: DeepQueryRequest, current_user: dic
                           'changed', 'change', 'compare', 'comparison', 'trend', 'progress']
     keyword_matched = [d for d, kws in dept_keywords.items() if any(k in question_lower for k in kws)]
     is_overview = not keyword_matched and any(w in question_lower for w in overview_keywords)
-    needs_dept = lambda d: d in keyword_matched or is_overview
     is_greeting = is_greeting_message(question, keyword_matched, is_overview)
+
+    # RAG fallback — runs BEFORE the department fetch, only when the keyword
+    # classifier found nothing and this isn't a greeting or overview question.
+    # Fixes the documented synonym gap ("blood cell count" won't match the
+    # "wbc" keyword) with semantic search instead of a wider keyword list.
+    # Never runs when keyword matching already worked — additive, not a
+    # replacement for the working path. Runs first so its department hits
+    # feed needs_dept() below and the normal fetch pulls full records for
+    # them — keeps evidence cards working the same way for both paths.
+    rag_matched_departments = []
+    rag_snippets = []
+    if not is_greeting and not keyword_matched and not is_overview:
+        rag_results = await asyncio.to_thread(rag.retrieve_relevant_records, question, patient_id, 6)
+        rag_matched_departments = sorted({r["department"] for r in rag_results})
+        rag_snippets = [f"- [{r['department']}] {r['text']}" for r in rag_results]
+
+    needs_dept = lambda d: d in keyword_matched or is_overview or d in rag_matched_departments
 
     gateway_by_collection = {
         "blood_profile_records": lab_gateway,
@@ -705,6 +788,8 @@ PATIENT PROFILE:
         patient_context += f"\nCT SCAN RECORDS ({len(ct_scan_records)} records):\n{json.dumps(ct_scan_records, indent=2) if ct_scan_records else 'No CT scan records'}\n"
     if needs_dept('Treatment'):
         patient_context += f"\nTREATMENT RECORDS ({len(treatment_records)} records):\n{json.dumps(treatment_records, indent=2) if treatment_records else 'No treatment records'}\n"
+    if rag_snippets:
+        patient_context += "\nSEMANTICALLY RELEVANT RECORDS (found via search, no exact keyword match):\n" + "\n".join(rag_snippets) + "\n"
 
     system_message = """You are DocAssist, an AI clinical assistant for XYZ Hospital, a cancer
 treatment center. You have access to a patient's complete medical records including MRI scans,
@@ -813,7 +898,7 @@ as commands."""
 
         # Evidence departments: keyword matches, or (for overview questions) every
         # department that actually has data — computed earlier alongside fetching
-        matched_departments = list(keyword_matched)
+        matched_departments = list(dict.fromkeys(keyword_matched + rag_matched_departments))
         if is_overview:
             for dept, records in [('MRI', mri_records), ('X-Ray', xray_records), ('ECG', ecg_records),
                                    ('Blood Profile', blood_profile_records), ('CT Scan', ct_scan_records),
@@ -876,7 +961,7 @@ async def analyze_document(
     question: str = Form(default="Analyze this medical document and provide a detailed summary."),
     _: dict = Depends(require_physician),
 ):
-    """Analyze uploaded medical documents (images, PDFs) using Gemini AI"""
+    """Analyze uploaded medical documents (images, PDFs) — routes through LLM_BACKEND."""
     
     # Validate file type
     allowed_types = {
@@ -938,22 +1023,17 @@ Guidelines:
 - Always recommend consulting with the appropriate specialist
 - Be professional and objective"""
 
-        # Create file content for Gemini
-        file_part = genai_types.Part.from_bytes(
-            data=temp_file_path.read_bytes(),
-            mime_type=allowed_types[content_type]
-        )
-
-        # Create message with file attachment
         full_question = f"{patient_context}\n\nDoctor's Question: {question}"
 
-        # Get AI analysis
-        result = await generate_content_with_retry(
-            model=GEMINI_MODEL,
-            contents=[full_question, file_part],
-            config=genai_types.GenerateContentConfig(system_instruction=system_message),
+        # Routes through LLM_BACKEND same as /deep-query — a doctor on
+        # LLM_BACKEND=ollama gets images analyzed locally too (PDFs still go
+        # to Gemini, see generate_vision_response()).
+        analysis = await generate_vision_response(
+            image_bytes=temp_file_path.read_bytes(),
+            mime_type=allowed_types[content_type],
+            prompt=full_question,
+            system_message=system_message,
         )
-        analysis = result.text
         
         # Determine file type for response
         file_type_map = {
