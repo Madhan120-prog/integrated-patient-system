@@ -28,12 +28,12 @@ const Header = () => {
           <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-md overflow-hidden p-1">
             <img 
               src="/logo.png"
-              alt="XYZ Hospital Logo" 
+              alt="Patient Records System Logo"
               className="w-full h-full object-contain"
             />
           </div>
           <div>
-            <h1 className="text-white text-xl font-bold" data-testid="hospital-name">XYZ Hospital</h1>
+            <h1 className="text-white text-xl font-bold" data-testid="hospital-name">Patient Records System</h1>
             <p className="text-teal-100 text-xs">Integrated Patient Record System</p>
           </div>
         </div>

@@ -65,12 +65,12 @@ const LoginPage = () => {
             <div className="w-24 h-24 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg p-3">
               <img 
                 src="/logo.png"
-                alt="XYZ Hospital" 
+                alt="Patient Records System"
                 className="w-full h-full object-contain"
               />
             </div>
             <h1 className="text-3xl font-bold text-gray-800 mb-1" data-testid="login-heading">
-              XYZ Hospital
+              Patient Records System
             </h1>
             <p className="text-lg text-teal-600 font-semibold mb-1">Integrated Patient Record System</p>
             <p className="text-gray-600 text-sm">Healthcare Staff Portal</p>
