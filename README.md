@@ -1,4 +1,4 @@
-# West Cancer Center — Integrated Patient Data Retrieval System
+# Integrated Patient Data Retrieval System
 
 A full-stack clinical tool that federates data from six isolated hospital department systems into a single unified view, with an AI clinical assistant (DocAssist) that reasons across all departments, flags abnormalities proactively, and supports voice interaction.
 
