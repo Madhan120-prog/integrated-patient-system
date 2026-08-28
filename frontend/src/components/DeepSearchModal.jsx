@@ -315,7 +315,8 @@ const DeepSearchModal = ({ open, onClose }) => {
           role: 'assistant',
           content: response.data.answer,
           evidence: response.data.evidence,
-          departments: response.data.matched_departments
+          departments: response.data.matched_departments,
+          proactive: true
         }]);
       }
     } catch (error) {
@@ -644,6 +645,9 @@ const DeepSearchModal = ({ open, onClose }) => {
                         : 'bg-white border border-gray-200'
                     }`}>
                       {msg.isFileUpload && <p className="text-sm mb-1">📎 File Upload</p>}
+                      {msg.proactive && (
+                        <p className="text-xs font-semibold text-amber-600 mb-1">⚡ Automatic check — not a reply to your message</p>
+                      )}
                       {msg.role === 'user' ? (
                         <p className="whitespace-pre-wrap">{msg.content}</p>
                       ) : (

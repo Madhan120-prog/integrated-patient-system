@@ -70,3 +70,12 @@ backend/data/chroma_store/
 .cache/
 .claude/
 *.Rhistory
+
+# Local model tooling/weights (large binaries, not project source)
+llama.cpp/
+model-weights/
+
+# Office lock files
+~$*.pptx
+~$*.docx
+~$*.xlsx
