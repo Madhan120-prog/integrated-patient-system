@@ -4,12 +4,27 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import axios from 'axios';
 import { toast } from 'sonner';
-import { BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 const API = `${BACKEND_URL}/api`;
 
 const COLORS = ['#14B8A6', '#06B6D4', '#3B82F6', '#EF4444', '#A855F7', '#10B981'];
+// Fixed order, matching COLORS above and the badge colors in the visit-history list below.
+const DEPT_TYPES = ['MRI', 'X-Ray', 'ECG', 'Blood Profile', 'CT Scan', 'Treatment'];
+
+const TimelineTooltip = ({ active, payload }) => {
+  if (!active || !payload || !payload.length) return null;
+  const visit = payload[0].payload;
+  return (
+    <div className="bg-white p-3 rounded-lg shadow-lg border text-sm">
+      <p className="font-semibold text-gray-800">{visit.test}</p>
+      <p className="text-gray-500">
+        {visit.type} · {new Date(visit.x).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+      </p>
+    </div>
+  );
+};
 
 const AnalyticsPageWithCharts = () => {
   const navigate = useNavigate();
@@ -94,8 +109,10 @@ const AnalyticsPageWithCharts = () => {
   ];
 
   const timelineData = analytics.visit_timeline.slice(-10).map(visit => ({
-    date: formatDate(visit.date),
-    visit: 1
+    x: new Date(visit.date).getTime(),
+    y: DEPT_TYPES.indexOf(visit.type),
+    type: visit.type,
+    test: visit.test
   }));
 
   return (
@@ -248,14 +265,30 @@ const AnalyticsPageWithCharts = () => {
         <Card className="p-6 bg-white shadow-lg mb-8">
           <h2 className="text-2xl font-bold text-gray-800 mb-6">Recent Visit Timeline</h2>
           <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={timelineData}>
+            <ScatterChart margin={{ top: 10, right: 20, bottom: 10, left: 10 }}>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="visit" stroke="#8B5CF6" strokeWidth={2} />
-            </LineChart>
+              <XAxis
+                dataKey="x"
+                type="number"
+                domain={['dataMin', 'dataMax']}
+                tickFormatter={(ts) => new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}
+              />
+              <YAxis
+                dataKey="y"
+                type="number"
+                domain={[-0.5, DEPT_TYPES.length - 0.5]}
+                ticks={DEPT_TYPES.map((_, i) => i)}
+                tickFormatter={(i) => DEPT_TYPES[i]}
+                width={100}
+                tick={{ fontSize: 12 }}
+              />
+              <Tooltip content={<TimelineTooltip />} />
+              <Scatter data={timelineData}>
+                {timelineData.map((visit, index) => (
+                  <Cell key={index} fill={COLORS[visit.y]} />
+                ))}
+              </Scatter>
+            </ScatterChart>
           </ResponsiveContainer>
         </Card>
 
