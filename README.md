@@ -25,7 +25,7 @@ graph LR
 |  |  |  |
 |----|----|----|
 | ![Login](docs/screenshots/01-dashboard.png){alt="Login"} | ![Patient records](docs/screenshots/02-patient-records.png){alt="Patient records"} | ![DocAssist AI chat](docs/screenshots/03-docassist-chat.png){alt="DocAssist AI chat"} |
-| ~Staff\ login~ | ~Unified\ patient\ record\ across\ all\ 6\ departments~ | ~DocAssist\ answering\ a\ real\ clinical\ question,\ grounded\ in\ the\ patient's\ actual\ records~ |
+| ~Staff login~ | ~Unified patient record across all 6 departments~ | ~DocAssist answering a real clinical question, grounded in the patient's actual records~ |
 
 ------------------------------------------------------------------------
 
@@ -205,6 +205,13 @@ npm start
 ```
 
 Open `http://localhost:3000`. Demo login: `doctor` / `doctor123`.
+
+### Deploying it
+
+Frontend on Vercel, backend on Render, database on MongoDB Atlas — see
+[`DEPLOYMENT.md`](./DEPLOYMENT.md) for the exact steps and why it's split
+that way (the backend's per-department storage and local-model option
+don't survive a serverless environment).
 
 ------------------------------------------------------------------------
 

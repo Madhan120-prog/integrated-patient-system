@@ -123,7 +123,7 @@ CPU-only for a demo.
 ### Critical (would fail a real HIPAA audit)
 
 | Issue | Location | Risk |
-|------------------------|------------------------|------------------------|
+|----|----|----|
 | **PHI sent to external Gemini API** | `server.py` `/deep-query` | Google receives patient data; requires signed BAA |
 | **Pickle deserialization** | `treatment_system.py` | Arbitrary code execution if store is tampered |
 | **No authentication on any API endpoint** | All FastAPI routes | Any process on the network can query any patient |
@@ -134,7 +134,7 @@ CPU-only for a demo.
 ### High
 
 | Issue | Location | Risk |
-|------------------------|------------------------|------------------------|
+|----|----|----|
 | **No rate limiting on AI endpoints** | `/deep-query`, `/analyze-document` | Denial-of-service, quota exhaustion |
 | **SQL injection via f-string** | `lab_system.py` (if any raw SQL) | Confirm parameterized queries are used |
 | **No TLS between gateway and vendor** | All gateways | In-memory calls, fine for demo; real vendors need mTLS |
@@ -144,7 +144,7 @@ CPU-only for a demo.
 ### Medium
 
 | Issue | Risk |
-|------------------------------------|------------------------------------|
+|----|----|
 | Prompt injection via patient data | Malicious record in DB could manipulate Gemini's output |
 | No output validation on LLM response | Model could hallucinate a lab value |
 | No session timeout | Shared workstation = open patient chart |
@@ -276,7 +276,7 @@ integration.
 ### Local Model Options
 
 | Model | Size | Strengths | Weaknesses |
-|------------------|------------------|------------------|------------------|
+|----|----|----|----|
 | **Llama 3.1 8B** | \~5GB | Strong instruction following, good context | Needs GPU for real-time; CPU is slow |
 | **Llama 3.2 3B** | \~2GB | Fast on CPU, surprisingly capable | Less reasoning depth |
 | **Gemma 2 9B** | \~6GB | Google-trained, good clinical text | No multimodal |
@@ -408,7 +408,7 @@ before any model change goes live in clinical workflows.
 ## 10. Next Capability Candidates (Prioritized)
 
 | Priority | Feature | Complexity | HIPAA Impact |
-|------------------|------------------|------------------|------------------|
+|----|----|----|----|
 | High | JWT auth + role-based access | Medium | Required for production |
 | High | Audit logging (MongoDB append-only) | Low | Required for production |
 | High | Replace pickle with JSON in treatment_system | Low | Eliminates deserialization risk |
