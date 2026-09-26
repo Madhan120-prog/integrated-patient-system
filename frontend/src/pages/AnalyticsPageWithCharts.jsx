@@ -2,6 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { BarChart, Bar, PieChart, Pie, Cell, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
@@ -22,6 +28,23 @@ const TimelineTooltip = ({ active, payload }) => {
       <p className="text-gray-500">
         {visit.type} · {new Date(visit.x).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
       </p>
+      {visit.image && <p className="text-teal-600 text-xs mt-1">Click to view report</p>}
+    </div>
+  );
+};
+
+const DepartmentTooltip = ({ active, payload }) => {
+  if (!active || !payload || !payload.length) return null;
+  const dept = payload[0].payload;
+  return (
+    <div className="bg-white p-3 rounded-lg shadow-lg border text-sm flex items-center gap-3">
+      {dept.image && (
+        <img src={dept.image} alt={dept.name} className="w-14 h-14 object-cover rounded" />
+      )}
+      <div>
+        <p className="font-semibold text-gray-800">{dept.name}</p>
+        <p className="text-gray-500">{dept.tests} test{dept.tests === 1 ? '' : 's'}</p>
+      </div>
     </div>
   );
 };
@@ -34,6 +57,14 @@ const AnalyticsPageWithCharts = () => {
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState(null);
   const [patientInfo, setPatientInfo] = useState(null);
+  const [reportImage, setReportImage] = useState(null);
+  const [reportOpen, setReportOpen] = useState(false);
+
+  const handleViewReport = (imageUrl) => {
+    if (!imageUrl) return;
+    setReportImage(imageUrl);
+    setReportOpen(true);
+  };
 
   useEffect(() => {
     if (patientId) {
@@ -99,7 +130,8 @@ const AnalyticsPageWithCharts = () => {
   // Prepare data for charts
   const departmentData = Object.entries(analytics.departments_visited).map(([name, value]) => ({
     name,
-    tests: value
+    tests: value,
+    image: analytics.department_latest_image?.[name]
   }));
 
   const treatmentData = [
@@ -112,7 +144,8 @@ const AnalyticsPageWithCharts = () => {
     x: new Date(visit.date).getTime(),
     y: DEPT_TYPES.indexOf(visit.type),
     type: visit.type,
-    test: visit.test
+    test: visit.test,
+    image: visit.image
   }));
 
   return (
@@ -216,7 +249,7 @@ const AnalyticsPageWithCharts = () => {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
                 <YAxis />
-                <Tooltip />
+                <Tooltip content={<DepartmentTooltip />} />
                 <Bar dataKey="tests" fill="#14B8A6" />
               </BarChart>
             </ResponsiveContainer>
@@ -283,9 +316,13 @@ const AnalyticsPageWithCharts = () => {
                 tick={{ fontSize: 12 }}
               />
               <Tooltip content={<TimelineTooltip />} />
-              <Scatter data={timelineData}>
+              <Scatter data={timelineData} onClick={(point) => handleViewReport(point.image)}>
                 {timelineData.map((visit, index) => (
-                  <Cell key={index} fill={COLORS[visit.y]} />
+                  <Cell
+                    key={index}
+                    fill={COLORS[visit.y]}
+                    style={{ cursor: visit.image ? 'pointer' : 'default' }}
+                  />
                 ))}
               </Scatter>
             </ScatterChart>
@@ -320,6 +357,25 @@ const AnalyticsPageWithCharts = () => {
           </div>
         </Card>
       </div>
+
+      {/* Report Image Modal */}
+      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Medical Report</DialogTitle>
+          </DialogHeader>
+          <div className="mt-4">
+            {reportImage && (
+              <img
+                src={reportImage}
+                alt="Medical Report"
+                className="w-full h-auto rounded-lg shadow-lg"
+                data-testid="report-image"
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

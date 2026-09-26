@@ -548,20 +548,28 @@ async def get_patient_analytics(patient_id: str, _: dict = Depends(get_current_u
     # Create visit timeline (all tests combined and sorted)
     all_visits = []
     for record in mri_records:
-        all_visits.append({"date": record["test_date"], "type": "MRI", "test": record["test_name"]})
+        all_visits.append({"date": record["test_date"], "type": "MRI", "test": record["test_name"], "image": record.get("report_image")})
     for record in xray_records:
-        all_visits.append({"date": record["test_date"], "type": "X-Ray", "test": record["test_name"]})
+        all_visits.append({"date": record["test_date"], "type": "X-Ray", "test": record["test_name"], "image": record.get("report_image")})
     for record in ecg_records:
-        all_visits.append({"date": record["test_date"], "type": "ECG", "test": record["test_name"]})
+        all_visits.append({"date": record["test_date"], "type": "ECG", "test": record["test_name"], "image": record.get("report_image")})
     for record in blood_profile_records:
-        all_visits.append({"date": record["test_date"], "type": "Blood Profile", "test": record["test_name"]})
+        all_visits.append({"date": record["test_date"], "type": "Blood Profile", "test": record["test_name"], "image": record.get("report_image")})
     for record in ct_scan_records:
-        all_visits.append({"date": record["test_date"], "type": "CT Scan", "test": record["test_name"]})
+        all_visits.append({"date": record["test_date"], "type": "CT Scan", "test": record["test_name"], "image": record.get("report_image")})
     for record in treatment_records:
-        all_visits.append({"date": record["treatment_date"], "type": "Treatment", "test": record["treatment_name"]})
-    
+        all_visits.append({"date": record["treatment_date"], "type": "Treatment", "test": record["treatment_name"], "image": record.get("report_image")})
+
     all_visits = sorted(all_visits, key=lambda x: x["date"])
-    
+
+    # Most recent report image per department, for the breakdown chart's hover preview.
+    # all_visits is sorted ascending, so iterating in order and overwriting per type
+    # naturally leaves the latest one.
+    department_latest_image = {}
+    for visit in all_visits:
+        if visit.get("image"):
+            department_latest_image[visit["type"]] = visit["image"]
+
     # Treatment summary
     completed = sum(1 for r in treatment_records if "Completed" in r.get("result", "") or "Successful" in r.get("result", ""))
     in_progress = sum(1 for r in treatment_records if "Progress" in r.get("result", ""))
@@ -601,6 +609,7 @@ async def get_patient_analytics(patient_id: str, _: dict = Depends(get_current_u
         "total_visits": len(all_visits),
         "total_tests": total_tests,
         "departments_visited": departments_visited,
+        "department_latest_image": department_latest_image,
         "visit_timeline": all_visits,
         "treatment_summary": treatment_summary,
         "health_trend": health_trend,
