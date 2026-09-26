@@ -329,4 +329,201 @@ ground truth before any inference result touches real care.
 Waiting on user to confirm wording/placement/whether to keep the
 regulatory caveat before this becomes a v3 build.
 
+---
+
+## 2026-08-28 — New artifact: masters project proposal deck
+
+User is taking a masters project course this semester under Dr. Dipankar
+Dasgupta at University of Memphis, presenting a project plan to him the
+next day, and wants this same codebase to serve double duty. Researched
+(via web search, not memory) the actual program structure before
+suggesting anything: MS Computer Science has a thesis option (COMP 7996)
+and a non-thesis project option (COMP 7980, min. 3 credit hours, capped
+combined with a few other course numbers at 6 hours) — specific
+deliverable format (report length, defense structure) isn't published
+anywhere public, flagged to the user to confirm directly with Dasgupta
+or the CS graduate coordinator rather than guessing.
+
+Also researched Dasgupta himself: William Hill Professor in Cyber
+Security, Director of the Center for Information Assurance, IEEE
+Fellow — research is artificial immune systems, bio-inspired computation,
+and intrusion detection, not healthcare. That mismatch is exactly why
+the two decks needed to stay separate rather than trying to reuse the
+hospital pitch: a business audience and a research advisor need
+different spines entirely.
+
+**Key framing decision:** connected the project's existing guardrail
+work to Dasgupta's own research vocabulary — his foundational idea is
+"self vs. non-self" anomaly detection (immune-system-inspired). Proposed
+framing the AI assistant's safety layer the same way: a "self" answer is
+grounded/correct, a "non-self" answer is hallucinated, cross-patient
+leaked, prompt-injected, or mislabeled — and the masters contribution is
+formalizing that as a taxonomy and building/evaluating detectors. This
+isn't a stretch — it's an honest bridge between what's already been
+built and debugged in this project (the four real failure modes in
+HANDOFF.md §0.4) and his actual field.
+
+**Built:** `presentation/masters_project_proposal.pptx` (7 slides, new
+script `build_masters_deck.js`, same navy/ice-blue/coral visual system
+as the hospital decks for continuity but more content-forward — an
+advisor pitch needs substance over polish). Outline: title → the
+problem (four real observed failures, not hypothetical) → what's
+already built (proof this isn't starting from zero) → the core
+self/non-self framing slide → methodology & evaluation plan → 3-month
+phased timeline → deliverables, closing with an explicit open question
+back to Dasgupta about the report/defense format, since that's the one
+thing that couldn't be confirmed from public sources.
+
+QA: validate.py passed, all 7 slides rendered and inspected (clean),
+markitdown content check clean, slide count confirmed.
+
+Kept deliberately separate from the hospital pitch decks — different
+audience, different job, sharing only the underlying codebase and
+visual identity.
+
+---
+
+## 2026-09-25/26 — v3: real screenshots, security/reliability pillars, industry research
+
+User asked for three things at once: (1) make the hospital deck more
+visually convincing with real pictures instead of only icon illustrations,
+(2) add a section on how the platform is being made secure/reliable/
+flexible/fast, with an explicit HIPAA-collaboration framing, and (3)
+deepen the data-integration story with real research on how small vs.
+large healthcare orgs actually solve this — explicitly named as the
+first priority. Also: no budget/cost slide (reconfirmed), and the closing
+slide should ask the physicians what problems *they're* facing, not push
+a pilot ask.
+
+### Getting real screenshots — the actual story, including a mistake
+
+First attempt: tried to drive the app myself via the Browser pane, then
+via `claude-in-chrome`, to capture and save screenshots directly. Hit a
+real chain of problems:
+- The backend port was squatted by an unrelated Docker process; had to
+  identify that and start the real backend separately.
+- DocAssist was failing every query (503) because Ollama, the configured
+  local model backend, wasn't running — started it.
+- Chrome-automation clicks (`computer` left_click) silently failed to
+  trigger this app's React buttons — real `.click()` via injected JS
+  worked every time, coordinate/ref clicks did not. Root cause not fully
+  diagnosed; worked around it by dispatching clicks through
+  `javascript_tool` instead.
+- The `save_to_disk` option on `claude-in-chrome` screenshots never
+  produced a file findable anywhere on the filesystem, after a real
+  search (Downloads, Caches, Application Support, scratchpad).
+- Fell back to macOS's own `screencapture` as a last resort — **this was
+  a mistake**. A blind full-screen capture grabbed the user's actual
+  foreground Chrome window (a live, mid-draft Gemini conversation
+  entirely unrelated to this task) instead of the automated tab, which
+  apparently isn't composited on-screen at all. Deleted that file
+  immediately and stopped using full-screen capture — it has no way to
+  scope itself to the right window and risks capturing private,
+  unrelated content. Flagged this to the user directly rather than
+  quietly discarding it.
+
+Resolution: user took the screenshots themselves and pasted them in —
+9 real screenshots covering login, welcome, search, unified patient
+record, both halves of analytics, the X-ray department table, and
+DocAssist mid-answer with evidence expanded. Copied all 9 into
+`presentation/assets/screenshots/` with descriptive names (user's
+instruction: "use what you want, keep others in the assets"). Only 3
+were used in the deck; the rest stay there as a reference library for
+future slides.
+
+### Cropping and annotation
+
+Source screenshots included full browser chrome (tabs, bookmarks, macOS
+menu bar, dock) — not usable raw in a pitch deck. Cropped all three
+candidates to the same box (0, 197, 2000, 1160 out of a 2000×1300
+source) via Pillow, verified visually, landed clean with no chrome or
+dock artifacts.
+
+First annotation attempt (arrows drawn diagonally from inside the dense
+text area straight to callout boxes) was a real defect: the connector
+lines cut directly across other readable sentences, exactly the "no
+overlaps" quality bar the user set. Fixed by redesigning the pattern:
+a thin highlight-box border drawn directly on the target text/card
+inside the image (no line touching the image content at all), with the
+connector line living *only* in the margin between the image's edge and
+the callout box. Re-rendered and confirmed clean.
+
+### New content
+
+- **Slide 3** — real screenshot of the unified patient record (proves
+  "one page instead of six logins" isn't a mockup).
+- **Slide 6** — new: how healthcare actually solves integration at
+  different scales, grounded in real published figures (small
+  practice: $30K–150K, weeks; large hospital system: $500K–2M, months
+  to years) rather than invented numbers — from actual web research
+  this session, not memory.
+- **Slide 10** — real annotated screenshot of a live DocAssist answer:
+  one callout on the "Low confidence" flag ("flags what it's unsure
+  about — automatically"), one on the cited evidence card ("cites its
+  sources — every single time"). Deliberately reframes the known
+  alert-fatigue quirk as a visible trust signal rather than hiding it.
+- **Slide 12** — real screenshot of the analytics charts, replacing the
+  old icon-card "what you just saw" slide with actual product UI.
+- **Slide 14** — new "Secure. Reliable. Flexible. Fast." pillar slide.
+  HIPAA line worded exactly per the user's direction: "we'll follow
+  HIPAA guidelines end-to-end, working directly with your compliance
+  team" — collaborative, not a compliance-jargon claim.
+- **Slide 17** — new closing slide: asks the room what's slowing them
+  down and invites suggestions, replacing any pilot/investment ask.
+  No budget slide anywhere in this deck.
+
+Net: 12 slides (v2) → 17 slides (v3). Saved as `pitch_deck_v3.pptx`,
+non-destructive — v1 and v2 untouched on disk.
+
+QA: `validate.py` passed, all 17 slides rendered and inspected
+individually (the 3 real-screenshot slides and all 4 new slides checked
+closely), `markitdown` grep clean for placeholders and for the
+hospital's real name/domain, slide count confirmed.
+
+---
+
+## 2026-09-26 — Sequencing pass: fixed a real story problem on slide 3
+
+Asked directly whether the deck actually reads as a sequential story.
+Honest answer, not just validation: no, not quite — flagged three
+concrete issues (10 slides of setup before the live demo hand-off; trust
+said three separate times across slides 10/13/14; "we unify six systems"
+proven three separate times across slides 3/5/7).
+
+User zeroed in on one of these independently, from the PowerPoint side:
+slide 3 (the real unified-record screenshot) felt unearned right after
+the problem slide — it asserts the solved state before anything explains
+*how*, and it spoils the live demo's reveal eight slides early. Agreed —
+this was the sharpest of the three issues.
+
+**Fix, per explicit direction ("slide count isn't the issue, everything
+landing well is what matters")** — not a cut, a real addition:
+
+- **New slide 3 — "How we actually connect six different systems."**
+  A high-level, 3-step mechanism story that was genuinely missing from
+  the whole deck: same patient has a different ID in every department
+  system → one shared index matches the person → each system's own
+  format gets translated on the spot. Closes with the "built fresh every
+  time you ask — never a stale overnight copy" line, which is the real,
+  already-researched federated-query architecture (see this session's
+  earlier discussion: on-demand query, not batch) finally making it onto
+  a slide instead of just living in conversation.
+- **Old generic 4-icon "pipeline" slide removed** — it covered the same
+  ground as the new mechanism slide (pull data in / match the patient)
+  more vaguely, plus two AI-answering steps already covered properly by
+  the later DocAssist slides. Redundant once the new slide existed.
+  Removing it wasn't about slide count, it was about not saying the same
+  thing twice at different altitudes.
+- **Real screenshot slide moved from position 3 to position 4** — now it
+  lands right after the mechanism is explained, so it reads as "and
+  here's what that actually produces," not an unexplained assertion.
+
+Net slide count: still 17 (one added, one removed) — count was never
+the goal, sequencing was. The other two flagged issues (trust said three
+times; six-systems-unified proven three times) are still open — not
+touched yet, pending user direction.
+
+QA: validate.py passed, both new/moved slides rendered and inspected,
+content QA clean.
+
 *(more entries appended below as the build progresses)*
