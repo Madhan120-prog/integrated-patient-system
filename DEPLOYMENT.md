@@ -33,7 +33,11 @@ anywhere static, including Vercel.
    - `SECRET_KEY` — generate with `python3 -c "import secrets; print(secrets.token_hex(32))"`
    - `CORS_ORIGINS` — leave blank for now; come back and set it once you have the Vercel URL (step 3)
 4. Deploy. Note the resulting URL (something like `https://integrated-patient-system-backend.onrender.com`).
-5. Seed the database once, the same way you would locally: `curl -X POST "https://<your-render-url>/api/init-data?reset=true"`.
+5. Seed the database once. The endpoint needs an admin login, so get a token first, then call it:
+   ```bash
+   TOKEN=$(curl -s -X POST https://<your-render-url>/api/login -H "Content-Type: application/json" -d '{"username":"admin","password":"<admin password from backend/auth.py>"}' | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+   curl -X POST https://<your-render-url>/api/init-data -H "Authorization: Bearer $TOKEN"
+   ```
 
 **Known tradeoff:** Render's free tier doesn't persist disk across restarts/redeploys unless you add a paid persistent disk. That means the six department stores reset to freshly-seeded demo data on every redeploy — fine for a pilot/demo, not something to build on for real data yet.
 
