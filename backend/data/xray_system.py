@@ -7,9 +7,10 @@ Only knows about xray_local_id, never the hospital's canonical patient_id.
 """
 import dbm.dumb as dbmmod
 import json
+import os
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "xray_store"
+DB_PATH = Path(os.environ.get("DATA_DIR") or Path(__file__).parent) / "xray_store"
 
 
 def reset_and_seed(records_by_local_id: dict) -> int:

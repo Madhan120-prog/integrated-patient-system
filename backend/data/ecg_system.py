@@ -7,9 +7,10 @@ exports rather than a live query API.
 Only knows about ecg_local_id, never the hospital's canonical patient_id.
 """
 import csv
+import os
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "ecg_store.csv"
+DB_PATH = Path(os.environ.get("DATA_DIR") or Path(__file__).parent) / "ecg_store.csv"
 FIELDS = ["local_id", "name", "test_name", "test_date", "result", "doctor", "report_image"]
 
 

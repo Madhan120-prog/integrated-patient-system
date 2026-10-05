@@ -22,6 +22,8 @@ from pathlib import Path
 
 CHROMA_DIR = Path(__file__).parent / "data" / "chroma_store"
 COLLECTION_NAME = "patient_records"
+# Off on small hosts: embedding every record needs more RAM than a 512MB instance has.
+ENABLED = os.getenv("RAG_ENABLED", "true").lower() != "false"
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 
 # Cosine distance ranges [0, 2], 0 = identical direction. Chroma's nearest-
@@ -96,6 +98,8 @@ def build_rag_index(records_by_department: dict) -> int:
     """records_by_department: {"MRI": [...], "Blood Profile": [...], ...} —
     already-normalized records from get_all_records() on each gateway, each
     with patient_id attached. Returns the number of records indexed."""
+    if not ENABLED:
+        return 0
     collection = _get_collection()
     model = _get_embedding_model()
 
@@ -137,6 +141,8 @@ def reset_index():
     """Drop and recreate the collection — call before a full reseed so a
     stale index from a previous run's data doesn't linger."""
     global _collection
+    if not ENABLED:
+        return
     import chromadb
     CHROMA_DIR.mkdir(parents=True, exist_ok=True)
     client = chromadb.PersistentClient(path=str(CHROMA_DIR))
@@ -157,6 +163,8 @@ def retrieve_relevant_records(question: str, patient_id: str, top_k: int = 6) ->
     returns its top-K closest vectors even when none of them are actually
     relevant, so this is what lets an off-topic message correctly get back
     "nothing relevant" instead of whatever happened to be closest."""
+    if not ENABLED:
+        return []
     collection = _get_collection()
     model = _get_embedding_model()
     query_embedding = model.encode([question]).tolist()

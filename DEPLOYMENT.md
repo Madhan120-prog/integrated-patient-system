@@ -39,7 +39,9 @@ anywhere static, including Vercel.
    curl -X POST https://<your-render-url>/api/init-data -H "Authorization: Bearer $TOKEN"
    ```
 
-**Known tradeoff:** Render's free tier doesn't persist disk across restarts/redeploys unless you add a paid persistent disk. That means the six department stores reset to freshly-seeded demo data on every redeploy — fine for a pilot/demo, not something to build on for real data yet.
+**Plan and storage:** the blueprint uses Render's Starter plan (about $7/month, always on) with a 1 GB persistent disk mounted at `/var/data`. The six department stores are gitignored and file-based, so without that disk they would be empty after every restart. `DATA_DIR=/var/data` points them at the disk, so the seed survives restarts and redeploys. The free plan does not work for this app: it has no persistent disk, sleeps after 15 minutes idle, and has too little memory (512 MB) to build the semantic-search index.
+
+**Semantic search is off on the hosted copy** (`RAG_ENABLED=false`). Embedding every record needs more RAM than a Starter instance has. DocAssist still answers through its keyword routing; only the synonym fallback (a question like "blood cell count" matching "WBC") is skipped. Turn it on locally (the default) or on a larger plan (2 GB or more) by removing that variable.
 
 ## 3. Frontend on Vercel
 

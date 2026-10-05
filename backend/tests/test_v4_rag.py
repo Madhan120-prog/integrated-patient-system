@@ -208,3 +208,16 @@ def test_build_rag_index_chunks_large_batches(monkeypatch):
     assert len(fake_collection.all_upserted_ids) == 2500
     assert all(size <= 1000 for size in fake_collection.upsert_calls)
     assert len(fake_collection.upsert_calls) > 1
+
+
+def test_rag_disabled_skips_every_entry_point(monkeypatch):
+    """RAG_ENABLED=false (small hosts): no model load, no Chroma touch."""
+    def boom(*a, **k):
+        raise AssertionError("must not run when RAG is disabled")
+    monkeypatch.setattr(rag, "ENABLED", False)
+    monkeypatch.setattr(rag, "_get_collection", boom)
+    monkeypatch.setattr(rag, "_get_embedding_model", boom)
+
+    assert rag.build_rag_index({"MRI": [{"patient_id": "P1"}]}) == 0
+    assert rag.retrieve_relevant_records("blood cell count", "P1") == []
+    rag.reset_index()

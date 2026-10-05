@@ -10,9 +10,10 @@ V3 note: was pickle in V2. Switched to JSON — same file-based pattern,
 no deserialization code-execution risk.
 """
 import json
+import os
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "treatment_store.json"
+DB_PATH = Path(os.environ.get("DATA_DIR") or Path(__file__).parent) / "treatment_store.json"
 
 
 def reset_and_seed(records_by_local_id: dict) -> int:

@@ -9,9 +9,10 @@ Only knows about RIS-local IDs, never the hospital's canonical patient_id. That
 translation happens in backend/mri_gateway.py via the Master Patient Index (MPI).
 """
 import json
+import os
 from pathlib import Path
 
-STORE_DIR = Path(__file__).parent / "mri_store"
+STORE_DIR = Path(os.environ.get("DATA_DIR") or Path(__file__).parent) / "mri_store"
 
 
 def reset_and_seed(records_by_local_id: dict) -> int:

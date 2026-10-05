@@ -7,9 +7,10 @@ Only knows about ct_local_id, never the hospital's canonical patient_id.
 """
 import glob
 import shelve
+import os
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "ct_store"
+DB_PATH = Path(os.environ.get("DATA_DIR") or Path(__file__).parent) / "ct_store"
 
 
 def reset_and_seed(records_by_local_id: dict) -> int:

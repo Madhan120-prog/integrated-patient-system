@@ -9,9 +9,10 @@ hospital's canonical patient_id. That translation happens one layer up, in
 backend/lab_gateway.py, via the Master Patient Index (MPI).
 """
 import sqlite3
+import os
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "sunquest.db"
+DB_PATH = Path(os.environ.get("DATA_DIR") or Path(__file__).parent) / "sunquest.db"
 
 SCHEMA = """
 CREATE TABLE lab_results (
