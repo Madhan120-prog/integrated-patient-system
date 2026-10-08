@@ -1,5 +1,5 @@
 """
-Simulated third-party lab vendor ("Sunquest") — its own SQLite database, not a Mongo
+Simulated third-party lab information system (LIS; internally named "Sunquest") — its own SQLite database, not a Mongo
 collection. Real lab vendors (Sunquest, PathNet) are relational systems, not document
 stores, so this is a genuinely different storage paradigm from the hospital's main
 Mongo database — not just a second collection pretending to be a different vendor.
@@ -8,6 +8,7 @@ This module only knows about vendor-local IDs (sunquest_id) and never sees the
 hospital's canonical patient_id. That translation happens one layer up, in
 backend/lab_gateway.py, via the Master Patient Index (MPI).
 """
+import json
 import sqlite3
 import os
 from pathlib import Path
@@ -22,7 +23,8 @@ CREATE TABLE lab_results (
     test_date TEXT NOT NULL,
     result TEXT NOT NULL,
     doctor TEXT NOT NULL,
-    report_image TEXT
+    report_image TEXT,
+    values_json TEXT
 )
 """
 
@@ -34,13 +36,14 @@ def reset_and_seed(records_by_local_id: dict) -> int:
     conn.execute("DROP TABLE IF EXISTS lab_results")
     conn.execute(SCHEMA)
     rows = [
-        (local_id, r["name"], r["test_name"], r["test_date"], r["result"], r["doctor"], r.get("report_image"))
+        (local_id, r["name"], r["test_name"], r["test_date"], r["result"], r["doctor"], r.get("report_image"),
+         json.dumps(r["values"]) if r.get("values") else None)
         for local_id, records in records_by_local_id.items()
         for r in records
     ]
     conn.executemany(
-        "INSERT INTO lab_results (sunquest_id, patient_name, test_name, test_date, result, doctor, report_image) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO lab_results (sunquest_id, patient_name, test_name, test_date, result, doctor, report_image, values_json) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         rows
     )
     conn.commit()

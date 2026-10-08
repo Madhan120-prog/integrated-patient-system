@@ -8,6 +8,13 @@
     "address": "1245 Poplar Ave, Memphis, TN 38104",
     "phone": "(901) 555-0142",
     "registration_date": "2025-01-15",
+    "mrn": "MRN-204117",
+    "diagnosis": "Non-small cell lung cancer (adenocarcinoma), right upper lobe",
+    "stage": "IIIA (cT2a N2 M0)",
+    "biomarkers": "EGFR/ALK negative",
+    "ecog": 1,
+    "allergies": "No known drug allergies",
+    "regimen": "Pembrolizumab 200 mg IV q3w maintenance (after cisplatin/pemetrexed x4)",
     "scenario": "lung_cancer"
   },
   {
@@ -19,6 +26,13 @@
     "address": "892 Union Ave, Memphis, TN 38103",
     "phone": "(901) 555-0287",
     "registration_date": "2025-02-03",
+    "mrn": "MRN-204118",
+    "diagnosis": "Invasive ductal carcinoma, left breast",
+    "stage": "IIB (pT2 N1 M0)",
+    "biomarkers": "ER+/PR+, HER2-negative",
+    "ecog": 0,
+    "allergies": "Sulfonamides (rash)",
+    "regimen": "Tamoxifen 20 mg daily, adjuvant (after lumpectomy, AC-T, radiation)",
     "scenario": "breast_cancer"
   },
   {
@@ -41,6 +55,13 @@
     "address": "567 Madison Ave, Memphis, TN 38103",
     "phone": "(901) 555-0456",
     "registration_date": "2025-01-28",
+    "mrn": "MRN-204120",
+    "diagnosis": "Adenocarcinoma, ascending colon",
+    "stage": "II (pT3 N0 M0)",
+    "biomarkers": "MSS (pMMR)",
+    "ecog": 1,
+    "allergies": "No known drug allergies",
+    "regimen": "Adjuvant FOLFOX completed (6 cycles); surveillance",
     "scenario": "colorectal_cancer"
   },
   {

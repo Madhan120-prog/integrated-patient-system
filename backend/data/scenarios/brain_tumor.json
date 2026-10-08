@@ -54,13 +54,38 @@
         "test_name": "Complete Blood Count",
         "result": "Lymphopenia — WBC 3.2, ALC 600",
         "week_offset": 12,
-        "notes": "Expected with concurrent temozolomide + radiation"
+        "notes": "Expected with concurrent temozolomide + radiation",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 3.2,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "ALC",
+            "value": 0.6,
+            "unit": "K/µL",
+            "low": 1.0,
+            "high": 4.8
+          }
+        ]
       },
       {
         "test_name": "Complete Blood Count",
         "result": "Thrombocytopenia — Platelets 88,000",
         "week_offset": 22,
-        "notes": "Adjuvant temozolomide cycle 3 — dose reduction needed"
+        "notes": "Adjuvant temozolomide cycle 3 — dose reduction needed",
+        "values": [
+          {
+            "analyte": "PLT",
+            "value": 88,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          }
+        ]
       }
     ],
     "ecg": [

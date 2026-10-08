@@ -38,31 +38,125 @@
         "test_name": "Complete Blood Count",
         "result": "Normal",
         "week_offset": 0,
-        "notes": "Baseline labs"
+        "notes": "Baseline labs",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 6.8,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 13.4,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 262,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          },
+          {
+            "analyte": "ANC",
+            "value": 4.1,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
+          }
+        ]
       },
       {
         "test_name": "Tumor Marker Panel",
         "result": "CA 15-3 mildly elevated (38 U/mL)",
         "week_offset": 1,
-        "notes": "Baseline tumor marker"
+        "notes": "Baseline tumor marker",
+        "values": [
+          {
+            "analyte": "CA 15-3",
+            "value": 38,
+            "unit": "U/mL",
+            "low": 0,
+            "high": 30
+          }
+        ]
       },
       {
         "test_name": "Liver Function Test",
         "result": "Within Range",
         "week_offset": 3,
-        "notes": "Pre-chemo clearance"
+        "notes": "Pre-chemo clearance",
+        "values": [
+          {
+            "analyte": "ALT",
+            "value": 24,
+            "unit": "U/L",
+            "low": 7,
+            "high": 40
+          },
+          {
+            "analyte": "AST",
+            "value": 22,
+            "unit": "U/L",
+            "low": 10,
+            "high": 40
+          }
+        ]
       },
       {
         "test_name": "Complete Blood Count",
         "result": "Mild anemia — Hgb 10.2",
         "week_offset": 18,
-        "notes": "Post-chemo cycle 3 — iron supplementation started"
+        "notes": "Post-chemo cycle 3 — iron supplementation started",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 4.4,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 10.2,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 198,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          },
+          {
+            "analyte": "ANC",
+            "value": 2.3,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
+          }
+        ]
       },
       {
         "test_name": "Tumor Marker Panel",
         "result": "CA 15-3 normalized (22 U/mL)",
         "week_offset": 30,
-        "notes": "Post-treatment follow-up — good response"
+        "notes": "Post-treatment follow-up — good response",
+        "values": [
+          {
+            "analyte": "CA 15-3",
+            "value": 22,
+            "unit": "U/mL",
+            "low": 0,
+            "high": 30
+          }
+        ]
       }
     ],
     "ecg": [

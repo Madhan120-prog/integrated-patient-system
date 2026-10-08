@@ -1,6 +1,9 @@
 # Project Plan — Integrated Patient Data Retrieval System
 
-> Last updated: 2026-10-07
+> Last updated: 2026-10-08
+>
+> **V5 in progress** on `feature/v5-new-version` (local; `main` frozen as V4).
+> Stages, checkpoints and test runs: `V5_PROGRESS.md`.
 >
 > **Current phase (Oct 2026): demo readiness.** App is deployed (Vercel + Render
 > Starter + Atlas; see HANDOFF.md "READ FIRST"). Goal: physician-facing meeting on

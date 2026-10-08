@@ -28,37 +28,161 @@
         "test_name": "Complete Blood Count",
         "result": "Mild iron-deficiency anemia — Hgb 10.8",
         "week_offset": 0,
-        "notes": "Common presentation with colon cancer"
+        "notes": "Common presentation with colon cancer",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 7.2,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 10.8,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 310,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          },
+          {
+            "analyte": "ANC",
+            "value": 4.5,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
+          }
+        ]
       },
       {
         "test_name": "Tumor Marker Panel",
         "result": "CEA elevated (8.2 ng/mL)",
         "week_offset": 0,
-        "notes": "Baseline CEA"
+        "notes": "Baseline CEA",
+        "values": [
+          {
+            "analyte": "CEA",
+            "value": 8.2,
+            "unit": "ng/mL",
+            "low": 0,
+            "high": 5.0
+          }
+        ]
       },
       {
         "test_name": "Liver Function Test",
         "result": "Within Range",
         "week_offset": 1,
-        "notes": "Pre-surgical clearance"
+        "notes": "Pre-surgical clearance",
+        "values": [
+          {
+            "analyte": "ALT",
+            "value": 28,
+            "unit": "U/L",
+            "low": 7,
+            "high": 40
+          },
+          {
+            "analyte": "AST",
+            "value": 25,
+            "unit": "U/L",
+            "low": 10,
+            "high": 40
+          }
+        ]
       },
       {
         "test_name": "Complete Blood Count",
         "result": "Recovering — Hgb 11.8",
         "week_offset": 10,
-        "notes": "Post-surgical recovery + iron supplementation"
+        "notes": "Post-surgical recovery + iron supplementation",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 5.9,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 11.8,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 245,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          },
+          {
+            "analyte": "ANC",
+            "value": 3.4,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
+          }
+        ]
       },
       {
         "test_name": "Tumor Marker Panel",
         "result": "CEA normalized (2.1 ng/mL)",
         "week_offset": 12,
-        "notes": "Post-surgical — good sign"
+        "notes": "Post-surgical — good sign",
+        "values": [
+          {
+            "analyte": "CEA",
+            "value": 2.1,
+            "unit": "ng/mL",
+            "low": 0,
+            "high": 5.0
+          }
+        ]
       },
       {
         "test_name": "Complete Blood Count",
         "result": "Neutropenia — WBC 1.8",
         "week_offset": 18,
-        "notes": "Post-FOLFOX cycle 3 — held next cycle"
+        "notes": "Post-FOLFOX cycle 3 — held next cycle",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 1.8,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 11.2,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 164,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          },
+          {
+            "analyte": "ANC",
+            "value": 0.8,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
+          }
+        ]
       }
     ],
     "xray": [

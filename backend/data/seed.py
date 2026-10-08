@@ -100,6 +100,8 @@ def build_records_for_patient(patient):
                     "result": rec["result"],
                     "doctor": doctor,
                 }
+                if rec.get("values"):
+                    entry["values"] = rec["values"]
                 img = get_image(dept, rec["test_name"])
                 if img:
                     entry["report_image"] = img

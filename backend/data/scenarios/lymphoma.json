@@ -34,7 +34,16 @@
         "test_name": "Complete Blood Count",
         "result": "Lymphocytopenia, ESR elevated (65 mm/hr)",
         "week_offset": 0,
-        "notes": "Initial labs — B symptoms present"
+        "notes": "Initial labs — B symptoms present",
+        "values": [
+          {
+            "analyte": "ESR",
+            "value": 65,
+            "unit": "mm/hr",
+            "low": 0,
+            "high": 20
+          }
+        ]
       },
       {
         "test_name": "Liver Function Test",
@@ -46,19 +55,60 @@
         "test_name": "Complete Blood Count",
         "result": "Neutropenia — WBC 1.5, ANC 800",
         "week_offset": 6,
-        "notes": "Post-ABVD cycle 2 — G-CSF support added"
+        "notes": "Post-ABVD cycle 2 — G-CSF support added",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 1.5,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "ANC",
+            "value": 0.8,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
+          }
+        ]
       },
       {
         "test_name": "Thyroid Panel",
         "result": "Normal — TSH 2.1",
         "week_offset": 30,
-        "notes": "Baseline before potential radiation — thyroid monitoring"
+        "notes": "Baseline before potential radiation — thyroid monitoring",
+        "values": [
+          {
+            "analyte": "TSH",
+            "value": 2.1,
+            "unit": "mIU/L",
+            "low": 0.4,
+            "high": 4.0
+          }
+        ]
       },
       {
         "test_name": "Complete Blood Count",
         "result": "Recovering — WBC 4.2, Hgb 12.1",
         "week_offset": 32,
-        "notes": "Post-treatment recovery"
+        "notes": "Post-treatment recovery",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 4.2,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 12.1,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          }
+        ]
       }
     ],
     "xray": [

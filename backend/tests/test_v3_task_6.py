@@ -20,7 +20,7 @@ def test_trend_falling_critical():
     t = detect_trends(records)
     assert "WBC" in t
     assert t["WBC"]["trend"] == "↓"
-    assert t["WBC"]["flag"] == "CRITICAL"
+    assert t["WBC"]["flag"] == "LARGE CHANGE"  # size of change, not severity (renamed in V5)
     assert t["WBC"]["pct_change"] < -50
 
 
@@ -31,7 +31,7 @@ def test_trend_rising_high():
     ]
     t = detect_trends(records)
     assert t["CEA"]["trend"] == "↑"
-    assert t["CEA"]["flag"] in ("HIGH", "CRITICAL")
+    assert t["CEA"]["flag"] in ("MODERATE CHANGE", "LARGE CHANGE")
 
 
 def test_trend_stable():
@@ -97,7 +97,7 @@ def test_ner_case_insensitive():
 
 def test_ner_empty_records():
     signals = extract_ner_signals([])
-    assert signals == {"drugs": [], "diagnoses": []}
+    assert signals == {"drugs": [], "diagnoses": [], "ruled_out": []}
 
 
 # ── Prompt block formatter ─────────────────────────────────────────────────────

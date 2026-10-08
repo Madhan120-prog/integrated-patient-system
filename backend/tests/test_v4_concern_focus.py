@@ -46,9 +46,10 @@ def test_no_instruction_when_not_concern_focused():
 
 def test_instruction_points_at_flagged_findings_not_a_filter():
     instruction = build_concern_instruction(True)
-    assert "CRITICAL" in instruction
-    assert "HIGH" in instruction
+    assert "OUT-OF-RANGE AT LATEST READING" in instruction
     assert "DETECTED CONDITIONS" in instruction
+    # V5: must tell the model not to invent severity for a keyword hit.
+    assert "do not add labels" in instruction
     # Must never claim to remove/hide data — additive only.
     assert "remove" not in instruction.lower()
     assert "exclude" not in instruction.lower()

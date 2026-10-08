@@ -28,13 +28,31 @@
         "test_name": "Tumor Marker Panel",
         "result": "CEA normal (1.8 ng/mL)",
         "week_offset": 0,
-        "notes": "Surveillance tumor marker"
+        "notes": "Surveillance tumor marker",
+        "values": [
+          {
+            "analyte": "CEA",
+            "value": 1.8,
+            "unit": "ng/mL",
+            "low": 0,
+            "high": 5.0
+          }
+        ]
       },
       {
         "test_name": "Thyroid Panel",
         "result": "Hypothyroid — TSH 8.5 (radiation-induced)",
         "week_offset": 0,
-        "notes": "Late effect of neck radiation"
+        "notes": "Late effect of neck radiation",
+        "values": [
+          {
+            "analyte": "TSH",
+            "value": 8.5,
+            "unit": "mIU/L",
+            "low": 0.4,
+            "high": 4.0
+          }
+        ]
       },
       {
         "test_name": "Complete Blood Count",
@@ -46,7 +64,16 @@
         "test_name": "Tumor Marker Panel",
         "result": "CEA normal (1.5 ng/mL)",
         "week_offset": 26,
-        "notes": "Stable — good sign"
+        "notes": "Stable — good sign",
+        "values": [
+          {
+            "analyte": "CEA",
+            "value": 1.5,
+            "unit": "ng/mL",
+            "low": 0,
+            "high": 5.0
+          }
+        ]
       }
     ],
     "ecg": [

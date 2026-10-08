@@ -79,7 +79,7 @@ Every department is a genuinely different storage technology on purpose — mirr
 | X-Ray      | dbm (key-value)  | PACS key-value index                     |
 | CT Scan    | shelve (objects) | Object storage (S3-like)                 |
 | ECG        | CSV flat file    | MUSE flat-file exports                   |
-| Treatment  | JSON             | HL7 FHIR resources (Epic)                |
+| Treatment  | JSON             | HL7 FHIR resources (oncology EMR)        |
 
 Each department's gateway module is the *only* code that knows how to talk to it — the backend never queries a vendor system directly, and every gateway normalizes its vendor's own format into one shared record shape before anything else sees it.
 

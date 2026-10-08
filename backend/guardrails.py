@@ -20,15 +20,10 @@ _CONFIDENCE_WARNING = (
     "Verify against current clinical guidelines before acting."
 )
 
-_SHORT_RESPONSE_WORDS = 80
-
-
 def check_confidence(response: str) -> str:
-    lower = response.lower()
-    word_count = len(response.split())
-    has_hedge = any(phrase in lower for phrase in _HEDGE_PHRASES)
-    is_short = word_count < _SHORT_RESPONSE_WORDS
-    if has_hedge or is_short:
+    # Length is not a confidence signal: a correct one-line answer used to get
+    # the same badge as a vague one, which taught users to ignore it.
+    if any(phrase in response.lower() for phrase in _HEDGE_PHRASES):
         return response + _CONFIDENCE_WARNING
     return response
 
@@ -37,7 +32,8 @@ def check_confidence(response: str) -> str:
 
 # Matches: "75mg", "200 mg", "1.5 g", "75 mg/m²", "500mg/day", "2.5mcg"
 _DOSAGE_RE = re.compile(
-    r"\b\d+(?:\.\d+)?\s*(?:mg|g|mcg|µg|ug|ml|mL|mmol|units?)(?:/(?:m²|m2|kg|day|hr|hour|dose))?\b",
+    # (?!/) after the optional per-unit: "10.2 g/dL" and "5.2 ng/mL" are lab values, not doses
+    r"\b\d+(?:\.\d+)?\s*(?:mg|g|mcg|µg|ug|ml|mL|mmol|units?)(?:/(?:m²|m2|kg|day|hr|hour|dose))?\b(?!/)",
     re.IGNORECASE,
 )
 
@@ -68,7 +64,9 @@ _CITATION_WARNING = (
 
 
 def check_citations(response: str, trends_available: bool) -> str:
-    """Flag if the response cites specific values but encoder had no trend data."""
+    """Flag if the response cites specific values or dates when no source records
+    were fetched for the question. (The caller passes whether any records were
+    available; the parameter name is kept from when this meant lab trends.)"""
     if not trends_available and _CLAIM_RE.search(response):
         return response + _CITATION_WARNING
     return response
@@ -101,10 +99,44 @@ def check_diagnosis(response: str) -> str:
     return response
 
 
+# ── Range check ────────────────────────────────────────────────────────────────
+
+# Verified live on a small local model: "ANC 2.3 K/µL LOW (range 1.5–8.0)" and
+# "PLT ... 164 K/µL (low)" — both values are inside their range. The record's
+# own reference range decides, so this is checked in code, per line, and only
+# when the line quotes the analyte's latest value (older values may differ).
+_RANGE_CONTRADICTION = {
+    "IN RANGE": re.compile(r"\b(?:low|high|elevated|below|above)\b"),
+    "LOW": re.compile(r"\b(?:high|elevated|above)\b"),
+    "HIGH": re.compile(r"\b(?:low|below)\b"),
+}
+_RANGE_NEGATED = re.compile(r"\b(?:not|no longer|in range|within|normal)\b")
+
+
+def check_ranges(response: str, latest_values: dict) -> str:
+    """latest_values: encoder.summarize_latest(...)["latest_values"]."""
+    wrong = []
+    for line in response.lower().splitlines():
+        for name, v in latest_values.items():
+            value = re.escape(f'{v["value"]:g}')
+            if (re.search(r"\b" + re.escape(name.lower()) + r"\b", line)
+                    and re.search(r"(?<![\d.])" + value + r"(?![\d.])", line)
+                    and _RANGE_CONTRADICTION[v["status"]].search(line)
+                    and not _RANGE_NEGATED.search(line)):
+                item = f'{name} {v["display"]} is {v["status"]} (reference range {v["low"]}–{v["high"]})'
+                if item not in wrong:
+                    wrong.append(item)
+    if wrong:
+        return response + ("\n\n⚠ **Range check** — the answer above describes a value differently "
+                           "from the record: " + "; ".join(wrong) + ".")
+    return response
+
+
 # ── Apply all guardrails in sequence ──────────────────────────────────────────
 
-def apply_guardrails(response: str, trends_available: bool) -> str:
-    """Run all four checks in order. Each may append a warning."""
+def apply_guardrails(response: str, trends_available: bool, latest_values: dict = None) -> str:
+    """Run all checks in order. Each may append a warning."""
+    response = check_ranges(response, latest_values or {})
     response = check_confidence(response)
     response = check_drug_dosage(response)
     response = check_citations(response, trends_available)

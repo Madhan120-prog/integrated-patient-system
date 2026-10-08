@@ -8,7 +8,16 @@
         "test_name": "Tumor Marker Panel",
         "result": "PSA elevated (7.8 ng/mL)",
         "week_offset": 0,
-        "notes": "Routine screening — referred for urology"
+        "notes": "Routine screening — referred for urology",
+        "values": [
+          {
+            "analyte": "PSA",
+            "value": 7.8,
+            "unit": "ng/mL",
+            "low": 0,
+            "high": 4.0
+          }
+        ]
       },
       {
         "test_name": "Complete Blood Count",
@@ -26,7 +35,16 @@
         "test_name": "Tumor Marker Panel",
         "result": "PSA decreased (1.2 ng/mL)",
         "week_offset": 30,
-        "notes": "Post-radiation — excellent response"
+        "notes": "Post-radiation — excellent response",
+        "values": [
+          {
+            "analyte": "PSA",
+            "value": 1.2,
+            "unit": "ng/mL",
+            "low": 0,
+            "high": 4.0
+          }
+        ]
       }
     ],
     "mri": [

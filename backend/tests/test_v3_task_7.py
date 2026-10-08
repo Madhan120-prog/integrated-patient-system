@@ -17,9 +17,10 @@ def test_hedge_phrase_triggers_warning():
     assert "Low confidence" in r
 
 
-def test_short_response_triggers_warning():
+def test_short_response_alone_does_not_trigger_warning():
+    """V5: length is not a confidence signal — a correct short answer stays clean."""
     r = check_confidence("WBC is normal.")
-    assert "Low confidence" in r
+    assert "Low confidence" not in r
 
 
 def test_long_confident_response_unchanged():

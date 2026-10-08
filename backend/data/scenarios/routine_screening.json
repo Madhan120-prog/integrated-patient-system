@@ -14,13 +14,38 @@
         "test_name": "Lipid Profile",
         "result": "Within Range — LDL 110, HDL 55",
         "week_offset": 0,
-        "notes": "Annual screening"
+        "notes": "Annual screening",
+        "values": [
+          {
+            "analyte": "LDL",
+            "value": 110,
+            "unit": "mg/dL",
+            "low": 0,
+            "high": 129
+          },
+          {
+            "analyte": "HDL",
+            "value": 55,
+            "unit": "mg/dL",
+            "low": 40,
+            "high": 100
+          }
+        ]
       },
       {
         "test_name": "Tumor Marker Panel",
         "result": "PSA normal (1.2 ng/mL)",
         "week_offset": 0,
-        "notes": "Routine PSA screening (male patients)"
+        "notes": "Routine PSA screening (male patients)",
+        "values": [
+          {
+            "analyte": "PSA",
+            "value": 1.2,
+            "unit": "ng/mL",
+            "low": 0,
+            "high": 4.0
+          }
+        ]
       }
     ],
     "xray": [

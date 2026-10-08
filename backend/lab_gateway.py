@@ -1,5 +1,5 @@
 """
-Integration gateway to the lab vendor system ("Sunquest").
+Integration gateway to the simulated lab information system (LIS).
 
 Real hospital departments don't query each other's databases directly. A request
 has to go through: look up the patient's ID *in that vendor's own system* via the
@@ -10,6 +10,7 @@ profile records exactly like MRI/X-Ray/etc, unaware they're coming from a
 completely different database underneath.
 """
 import asyncio
+import json
 from data import lab_system
 
 
@@ -22,6 +23,7 @@ def _normalize(row: dict, patient_id: str) -> dict:
         "result": row["result"],
         "doctor": row["doctor"],
         "report_image": row["report_image"],
+        "values": json.loads(row.get("values_json") or "[]"),
     }
 
 

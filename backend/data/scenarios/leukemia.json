@@ -8,25 +8,124 @@
         "test_name": "Complete Blood Count",
         "result": "Abnormal — WBC 45,000, blasts 60%, Hgb 7.8, Platelets 32,000",
         "week_offset": 0,
-        "notes": "Initial presentation — severe pancytopenia with blast crisis"
+        "notes": "Initial presentation — severe pancytopenia with blast crisis",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 45.0,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Blasts",
+            "value": 60,
+            "unit": "%",
+            "low": 0,
+            "high": 5
+          },
+          {
+            "analyte": "Hgb",
+            "value": 7.8,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 32,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          }
+        ]
       },
       {
         "test_name": "Complete Blood Count",
         "result": "Improving — WBC 8,200, blasts 5%, Hgb 9.1, Platelets 85,000",
         "week_offset": 4,
-        "notes": "Day 28 of induction — approaching remission"
+        "notes": "Day 28 of induction — approaching remission",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 8.2,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Blasts",
+            "value": 5,
+            "unit": "%",
+            "low": 0,
+            "high": 5
+          },
+          {
+            "analyte": "Hgb",
+            "value": 9.1,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 85,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          }
+        ]
       },
       {
         "test_name": "Complete Blood Count",
         "result": "Remission — WBC 6,100, no blasts, Hgb 11.5, Platelets 180,000",
         "week_offset": 8,
-        "notes": "Complete remission confirmed"
+        "notes": "Complete remission confirmed",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 6.1,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Blasts",
+            "value": 0,
+            "unit": "%",
+            "low": 0,
+            "high": 5
+          },
+          {
+            "analyte": "Hgb",
+            "value": 11.5,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 180,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          }
+        ]
       },
       {
         "test_name": "Liver Function Test",
         "result": "ALT mildly elevated (52 U/L)",
         "week_offset": 3,
-        "notes": "Methotrexate hepatotoxicity monitoring"
+        "notes": "Methotrexate hepatotoxicity monitoring",
+        "values": [
+          {
+            "analyte": "ALT",
+            "value": 52,
+            "unit": "U/L",
+            "low": 7,
+            "high": 40
+          }
+        ]
       },
       {
         "test_name": "Kidney Function Test",
@@ -38,7 +137,30 @@
         "test_name": "Complete Blood Count",
         "result": "Stable remission — WBC 5,800, Hgb 13.2, Platelets 210,000",
         "week_offset": 24,
-        "notes": "Consolidation phase — counts recovering well"
+        "notes": "Consolidation phase — counts recovering well",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 5.8,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 13.2,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 210,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          }
+        ]
       },
       {
         "test_name": "Complete Blood Count",
