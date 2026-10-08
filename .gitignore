@@ -66,6 +66,12 @@ backend/data/chroma_store/
 *.deb
 *.dylib
 
+# Private pitch/meeting material and notes: never commit (repo is public)
+presentation/
+*.pptx
+*.potx
+private/
+
 # Build caches
 .cache/
 .claude/

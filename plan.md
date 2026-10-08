@@ -1,6 +1,13 @@
 # Project Plan — Integrated Patient Data Retrieval System
 
-> Last updated: 2026-07-15
+> Last updated: 2026-10-07
+>
+> **Current phase (Oct 2026): demo readiness.** App is deployed (Vercel + Render
+> Starter + Atlas; see HANDOFF.md "READ FIRST"). Goal: physician-facing meeting on
+> 2026-10-21. Research + prioritized demo work: local-only `WCC_RESEARCH.md`.
+> Next: rename simulated vendors to match the target hospital's real stack,
+> pre-visit/tumor-board brief with time-saved metric, referral-packet intake, trial
+> matching, rehearsed golden path.
 
 ## Project Context
 

@@ -19,6 +19,34 @@
 
 ---
 
+## READ FIRST: status as of 2026-10-07 (newer than everything below)
+
+**Goal now:** a physician-facing demo meeting on **2026-10-21**. Make the demo more
+attractive and efficient, and show it saves clinicians time. The target-hospital
+research and demo plan live in a local-only file, `WCC_RESEARCH.md` (git-excluded;
+never commit or push it. The repo is public. Same rule as the decks).
+
+**Live deployment (done, working):**
+- Frontend: Vercel, https://integrated-patient-system.vercel.app (project root `frontend`, env `REACT_APP_BACKEND_URL`, `frontend/.npmrc` sets legacy-peer-deps).
+- Backend: Render, https://integrated-patient-system-backend.onrender.com, **Starter plan + 1 GB disk at /var/data**, Blueprint-managed by `backend/render.yaml`. Env: `MONGO_URL`, `DB_NAME`, `GEMINI_API_KEY`, `SECRET_KEY`, `LLM_BACKEND=gemini`, `CORS_ORIGINS` (Vercel URL), `DATA_DIR=/var/data`, `RAG_ENABLED=false`.
+- Database: MongoDB Atlas free M0 (project `integrated-patient-system`, allowlist 0.0.0.0/0). Passwords: letters/digits only, never leave `<` `>` around the password in the URL.
+- Every push to `main` auto-deploys BOTH hosts (Render ~6 min). Keep `main` demo-safe; use feature branches.
+- Cost: Render Starter ~$7/mo + disk ~$0.25/mo. Vercel and Atlas free.
+- Docs: `DEPLOYMENT.md` (setup + seed steps).
+
+**Deployment gotchas learned:**
+- `POST /api/init-data` needs an admin token (login via `/api/login`; demo creds in `backend/auth.py`) and does nothing if profiles already exist. To re-seed: `POST /api/clear-data` first, then `/api/init-data`.
+- Department stores are gitignored file stores. `DATA_DIR` points them at the persistent disk; without the disk they vanish on restart.
+- `RAG_ENABLED=false` on the hosted copy: embedding ~5,000+ records OOMs a 512 MB instance. Keyword routing still works; only the synonym fallback is off. Chroma's ONNX MiniLM gives identical embeddings with less memory (tested, not adopted).
+- `requirements.txt`: keep `sentence-transformers==3.3.1` (pulls transformers 4.x -> huggingface_hub 0.x), `chromadb==1.5.9`, `click==8.1.8`, `huggingface_hub==0.36.2`. Newer huggingface_hub 1.x forces click>=8.4.2, which conflicts with gTTS (click<8.2). `backend/runtime.txt` is ignored by Render (it runs Python 3.14 and works).
+- Render dashboard lags; check the Events tab for truth (OOM kills show there, not in app logs).
+
+**Standing rules:** no Claude/AI co-author trailer in commits; give the user copy-paste git commands instead of committing; the repo is PUBLIC by choice, so private material (`presentation/`, `*.pptx`, `private/`, local research notes) is gitignored and never committed (decks leaked into public history once via commit ancestry; accepted, no history rewrite). Two stray files `backend/data/ecg_store 2.csv` and `treatment_store 2.json` were accidentally pushed (harmless duplicates).
+
+**Key finding for the demo:** the target hospital's real EHR stack differs from the Epic/Cerner assumption in the notes below. Rename the simulated vendor systems accordingly. Details and prioritized feature ideas are in the local `WCC_RESEARCH.md` section 5.
+
+---
+
 ## 0. What Happened Since the V3 Handoff (2026-07-27 → 2026-08-06)
 
 Read this section first — everything below it (§1 onward) is the original
