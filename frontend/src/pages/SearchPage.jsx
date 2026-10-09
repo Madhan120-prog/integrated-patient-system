@@ -13,7 +13,7 @@ const SearchPage = () => {
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchTerm.trim()) {
-      navigate(`/results?term=${encodeURIComponent(searchTerm)}`);
+      navigate(`/chart/${encodeURIComponent(searchTerm.trim())}`);   // V5: search opens the chart; /results still exists
     }
   };
 

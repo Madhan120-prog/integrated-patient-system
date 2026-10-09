@@ -113,3 +113,32 @@ code {
         border-bottom-color: inherit;
     }
 }
+
+/* ── V5 chart workspace ─────────────────────────────────────────────────── */
+/* DocAssist orb: a slowly turning gradient with a soft pulse around it. */
+@keyframes orb-spin { to { transform: rotate(360deg); } }
+@keyframes orb-pulse { 0% { transform: scale(1); opacity: 0.45; } 100% { transform: scale(1.9); opacity: 0; } }
+@keyframes dot-bounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.5; } 40% { transform: translateY(-4px); opacity: 1; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.docassist-orb { position: relative; border-radius: 9999px; isolation: isolate; }
+.docassist-orb::before {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -1;
+    background: conic-gradient(from 0deg, #14b8a6, #38bdf8, #818cf8, #e879f9, #14b8a6);
+    animation: orb-spin 6s linear infinite;
+}
+.docassist-orb::after {
+    content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -2;
+    background: #38bdf8; animation: orb-pulse 2.4s ease-out infinite;
+}
+.typing-dot { animation: dot-bounce 1.2s ease-in-out infinite; }
+.rise-in { animation: rise-in 0.35s ease-out both; }
+
+/* Raised card: soft two-layer shadow that lifts slightly on hover */
+.card-raised { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 8px 24px -12px rgba(15, 23, 42, 0.18); transition: transform 0.2s, box-shadow 0.2s; }
+.card-raised.lift:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06), 0 16px 32px -14px rgba(15, 23, 42, 0.28); }
+
+@media (prefers-reduced-motion: reduce) {
+    .docassist-orb::before, .docassist-orb::after, .typing-dot, .rise-in { animation: none; }
+    .card-raised { transition: none; }
+}

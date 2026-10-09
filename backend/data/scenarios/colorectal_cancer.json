@@ -98,6 +98,57 @@
         ]
       },
       {
+        "test_name": "Tumor Marker Panel",
+        "result": "CEA within range after surgery (3.4 ng/mL)",
+        "week_offset": 6,
+        "notes": "Post-operative marker",
+        "values": [
+          {
+            "analyte": "CEA",
+            "value": 3.4,
+            "unit": "ng/mL",
+            "low": 0,
+            "high": 5.0
+          }
+        ]
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Pre-cycle check before FOLFOX cycle 1: counts adequate",
+        "week_offset": 8,
+        "notes": "Before chemotherapy cycle 1",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 6.8,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 11.5,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 290,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          },
+          {
+            "analyte": "ANC",
+            "value": 4.2,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
+          }
+        ]
+      },
+      {
         "test_name": "Complete Blood Count",
         "result": "Recovering — Hgb 11.8",
         "week_offset": 10,
@@ -145,6 +196,78 @@
             "unit": "ng/mL",
             "low": 0,
             "high": 5.0
+          }
+        ]
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Neutropenia before cycle 3: WBC 2.4, ANC 1.1",
+        "week_offset": 13,
+        "notes": "Cycle 3 delayed one week",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 2.4,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 11.6,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 190,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          },
+          {
+            "analyte": "ANC",
+            "value": 1.1,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
+          }
+        ]
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Counts recovered: WBC 4.1, ANC 1.9",
+        "week_offset": 14,
+        "notes": "Cleared for cycle 3 at reduced dose",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 4.1,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 11.5,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 210,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          },
+          {
+            "analyte": "ANC",
+            "value": 1.9,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
           }
         ]
       },

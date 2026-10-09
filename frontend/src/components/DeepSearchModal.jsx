@@ -845,4 +845,5 @@ const DeepSearchModal = ({ open, onClose }) => {
   );
 };
 
+export { MessageContent };
 export default DeepSearchModal;

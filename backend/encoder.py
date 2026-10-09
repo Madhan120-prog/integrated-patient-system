@@ -106,7 +106,7 @@ def summarize_latest(records: list) -> dict:
         status = _range_status(last["val"], last["low"], last["high"])
         if status:
             latest_values[name] = {"value": last["val"], "display": last["raw"], "status": status,
-                                   "low": last["low"], "high": last["high"]}
+                                   "low": last["low"], "high": last["high"], "date": last["date"]}
         if status in ("LOW", "HIGH"):
             out_of_range.append(f'{name} {last["raw"]} {status} (range {last["low"]}–{last["high"]}) on {last["date"]}')
     return {

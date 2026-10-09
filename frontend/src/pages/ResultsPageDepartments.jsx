@@ -66,6 +66,8 @@ const ResultsPage = () => {
     setReportOpen(true);
   };
 
+  const handleOpenChart = () => navigate(`/chart/${encodeURIComponent(data.profile.patient_id)}`);
+
   const handleViewAnalytics = () => {
     if (data?.profile) {
       navigate(`/analytics?patient_id=${data.profile.patient_id}`);
@@ -127,6 +129,9 @@ const ResultsPage = () => {
             </svg>
             New Search
           </button>
+          <Button onClick={handleOpenChart} variant="outline" data-testid="open-chart-button">
+            Open chart view
+          </Button>
           <Button
             onClick={handleViewAnalytics}
             className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"

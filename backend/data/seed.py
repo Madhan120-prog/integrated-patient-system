@@ -80,6 +80,10 @@ def build_records_for_patient(patient):
         for rec in dept_records:
             date = week_to_date(reg_date, rec["week_offset"])
             doctor = random.choice(DOCTOR_NAMES)
+            # One oncologist directs a patient's treatment. The random draw above
+            # still happens so every other patient's data stays exactly as it was.
+            if dept == "treatment" and patient.get("primary_oncologist"):
+                doctor = patient["primary_oncologist"]
 
             if dept == "treatment":
                 entry = {
@@ -195,9 +199,25 @@ def generate_extra_patients(count, start_id=1013):
         })
     return patients
 
-def build_seed_data(extra_count=0):
+LAST_RECORD_DAYS_AGO = 6
+
+
+def shift_to_recent(patient, today):
+    """Move a curated patient's registration date so the scenario's last record
+    falls a few days before `today`. Same story and spacing, current dates."""
+    records = load_scenario(patient["scenario"])["records"]
+    last_week = max(r["week_offset"] for recs in records.values() for r in recs)
+    start = today - timedelta(weeks=last_week, days=LAST_RECORD_DAYS_AGO)
+    shifted = {**patient, "registration_date": start.strftime("%Y-%m-%d")}
+    if patient.get("vitals"):   # taken at the most recent visit
+        shifted["vitals"] = {**patient["vitals"], "recorded": (start + timedelta(weeks=last_week)).strftime("%Y-%m-%d")}
+    return shifted
+
+
+def build_seed_data(extra_count=0, today=None):
     random.seed(42)
-    patients = load_patients()
+    today = today or datetime.now()
+    patients = [shift_to_recent(p, today) for p in load_patients()]
 
     if extra_count > 0:
         patients.extend(generate_extra_patients(extra_count))

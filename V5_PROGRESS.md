@@ -22,8 +22,8 @@ Rules for every stage:
 
 | Stage | Scope | Status |
 |---|---|---|
-| 1. Data and trust | Structured lab values, oncology profile fields, encoder and negation fixes, confidence badge, vendor naming | Code done, automated checks pass; live AI run pending |
-| 2. Chart workspace | New navigation (search in header, chart shell with tabs), pinned banner, lab flowsheet, timeline, loading and error states | Not started (mockups awaiting approval) |
+| 1. Data and trust | Structured lab values, oncology profile fields, encoder and negation fixes, confidence badge, vendor naming | Done and committed (`55fe9f4`). Live AI re-run after the last fixes deferred until the model decision |
+| 2. Chart workspace | New navigation (search in header, chart shell with tabs), pinned banner, lab flowsheet, timeline, loading and error states | Built; tests and build pass; visual click-through pending |
 | 3. Brief | One-click pre-visit brief from deterministic facts with per-line sources, print view, time-saved panel | Not started |
 | 4. Referral intake | Upload a referral document, structured fields, missing-documents checklist, human confirmation | Not started |
 | 5. Freeze and rehearse | Golden-path script, reset procedure, presentation mode, rehearsals | Not started |
@@ -83,6 +83,195 @@ retrieval upgrade, HL7/FHIR/DICOM interface layer.
   as single numbers under one panel name would be compared. Seed data no longer
   relies on it.
 - Reference ranges are generic adult ranges, not sex- or lab-specific.
+
+## Stage 2 — Chart workspace
+
+### What changed
+- `backend/chart.py` (new): builds the timeline, lab flowsheet and out-of-range
+  list from gateway records. Pure functions; all numbers come from the encoder.
+- `GET /api/chart?term=` (new): profile lookup by ID or name, then all six
+  gateways in parallel, then `build_chart`. Any signed-in role may read it.
+- Hosted-model quota errors now return HTTP 429 with a plain message instead of
+  a generic 500.
+- `frontend/src/pages/ChartPage.jsx` (new) at `/chart/:term`: pinned patient
+  banner, section navigation (Summary, Timeline, Labs, Imaging, Treatment),
+  lab flowsheet with L/H markers and reference ranges, timeline with a source
+  system filter, loading skeleton, not-found and service-down states.
+- `frontend/src/components/AskPanel.jsx` (new): DocAssist inside the chart,
+  scoped to the open patient, with specific messages for a non-physician
+  account, quota reached and service unavailable. Opening a chart spends no AI
+  request.
+- Header: patient search with native autocomplete on every signed-in page.
+- Results page: "Open chart view" button. Existing pages are unchanged.
+
+### Checkpoint 2
+- [x] `pytest tests`: 155 passed (6 new chart tests on real seed data).
+- [x] `CI=true npm run build`: compiled successfully.
+- [x] Endpoint called in-process against the local database: P1002, a name
+      search, a patient without oncology fields, 404 for no match, 401 without a token.
+- [x] Browser check (2026-10-08): signed in as the physician account; header
+      search by name opened the chart; banner, Summary and Labs flowsheet render
+      for P1002 and P1004. Found and fixed: ECOG 0 showed as "Not recorded".
+- [x] The main search page now opens the chart instead of the old results page
+      (the old page still exists at `/results`). Build re-run: compiled.
+- [ ] Owner click-through of all five sections for the three demo patients.
+- Noted: the welcome and search pages still have the V4 look, which is why the
+  change was not obvious at first. Restyling them is not yet scheduled.
+- [ ] Decide whether sign-in should land on search-then-chart instead of the welcome page.
+
+### Stage 2 redesign after owner review (2026-10-08)
+Feedback: the first chart was text-heavy and hard to navigate; the old
+two-page flow felt clearer; more charts, boxes and visuals wanted.
+Decisions (asked as multiple choice): keep the section tabs and put visuals in
+each; clean style with colour for meaning; build all four visuals; DocAssist in
+a drawer opened by a button; Summary is a dashboard; findings computed in code
+with AI only on request; sign-in lands on a clean search screen; report images
+as thumbnails that enlarge.
+
+Built:
+- `chart.py`: `build_findings` (out of range with trend, tumor-marker trend,
+  treatment modified, current therapy, latest imaging, stated absent) and
+  `build_treatments` (category, status, modified flag). No model involved.
+- `components/ChartVisuals.jsx` (new): stat boxes, finding cards, lab trend
+  charts with a shaded reference range on a shared date axis, all-systems lane
+  timeline with selectable points, treatment course steps.
+- `ChartPage.jsx` rewritten: dashboard Summary, Labs (small-multiple charts +
+  flowsheet), Imaging (thumbnail gallery with enlarge dialog), Treatment,
+  Timeline; DocAssist drawer; "Explain with AI" asks one fixed summary question.
+- Colours: a colour-blind-safe categorical set (validated with a script) for
+  source systems and treatment types; one colour for "outside range" with an
+  L/H letter, so low and high are not ranked against each other.
+- `SearchPage.jsx`: a rewrite was rejected by the owner the same day and
+  reverted. The page is the V4 version again, with one line changed so a search
+  opens the chart. Sign-in goes to this page; the welcome page still exists at
+  `/welcome`. Rule going forward: existing V4 pages keep their look unless the
+  owner asks for a change.
+
+Checks: `pytest tests` 159 passed (4 new for findings/treatments);
+`CI=true npm run build` compiled; browser check of Summary stat boxes, tumor
+marker chart, Labs charts and flowsheet, Imaging gallery, Timeline lanes and
+the search screen for P1004. Not yet seen in the browser: key findings,
+treatment course steps and treatment lines on the marker chart (the running
+backend predates them and needs a restart), and the DocAssist drawer in use.
+
+### Second visual pass after owner review (2026-10-08, evening)
+Feedback: wanted richer, more colourful screens with varied components; text
+in the patient header was cut short; no long dashes anywhere; a distinctive
+DocAssist entry point; clean at 100% browser zoom. Reference designs supplied
+(medical dashboard shots) were reviewed for patterns only: soft tinted
+background, raised rounded cards, coloured icon tiles, pill navigation.
+
+Built:
+- Patient header is now a gradient card with initials, full-text field tiles
+  that wrap (nothing truncated) and an ECOG 0 to 4 scale. The old sticky banner
+  is gone; the section navigation and DocAssist card stay in view instead.
+- Stat tiles with coloured icon squares; key findings as flip cards (finding
+  on the front, its basis on the back); "Latest lab values" range gauges;
+  gradient-filled trend charts; treatment course as icon steps on a line;
+  raised record cards with a colour bar per source system.
+- DocAssist: animated gradient orb mark, a dark promo card in the sidebar, a
+  floating button on narrow screens, and a drawer with a gradient header,
+  suggestion cards, chat bubbles and a typing indicator.
+- `chart.py` `_plain()`: long dashes in displayed record text become a colon
+  ("Stable: no new lesions"). Stored records and the old pages are unchanged.
+  DocAssist answers shown in the drawer are tidied the same way.
+- Layout tuned at a 1024 px wide viewport (the owner's screen at 100% zoom).
+- Styles added to `index.css` (orb, flip, raised card, reduced-motion rules).
+  No new dependency.
+
+Checks: `pytest tests` 160 passed; `CI=true npm run build` compiled; browser
+check at 1024 px of the header, tiles, flip card, marker chart, gauges,
+treatment records and the DocAssist drawer for P1001. Long dashes still show
+until the backend is restarted with the new code.
+
+### Visits, medications and recent dates (2026-10-08, late)
+Owner asked for an appointments view (who the patient saw and when, the
+signed-in doctor's own consultations, upcoming appointments) and prescribed
+medications. Decisions by multiple choice: all visits with a "My consultations"
+toggle; upcoming shown as an estimate from the regimen (the owner chose this
+over a new scheduling system; I advised against it, so it is labelled plainly
+as an estimate, never as a booked appointment); shift demo timelines to end
+near today; leave the header search as is.
+
+Built:
+- `data/seed.py`: curated patients' registration dates are moved at seed time
+  so each scenario's last record falls 6 days before the seed date (same
+  spacing). Generated patients are untouched. Demo patients carry
+  `primary_oncologist` ("Dr. Smith", the demo physician account), used as the
+  doctor on their treatment records.
+- `chart.py`: `build_visits` (records grouped by date with the doctors
+  involved), `build_medications` (current from treatment in progress; history
+  per drug with last dose, last date, times given), `estimate_upcoming` (next
+  doses from a "q3w"-style interval on the treatment in progress; returns a
+  note and no dates when there is no interval or no active treatment).
+- Chart page: Medications and Visits sections; the patient header collapses to
+  the identity row on sections other than Summary.
+- Header dropdown separator changed from a long dash to a middle dot.
+
+Checks: `pytest tests` 166 passed (6 new); `CI=true npm run build` compiled;
+browser check that the two new sections render. They show empty until the
+backend is restarted and local data reseeded (dates and doctor changed).
+
+### One-page chart and resizable assistant (2026-10-09)
+Owner preferred the old results page's "everything in one place" with the new
+visuals, and wanted the DocAssist drawer to enlarge leftwards.
+- Chart sections are stacked on one scrolling page. The left menu scrolls to a
+  section and highlights the one in view (IntersectionObserver). Panels that
+  would repeat on the same page were removed (lab reports and treatment record
+  lists; the treatment course and systems timeline now appear once each).
+- DocAssist drawer: drag its left edge, use the widen button, or the arrow keys
+  on the handle. Width is kept between 380 px and 1100 px.
+- "Next expected doses" shows its start date in a readable form.
+- Five richness ideas recorded as stories N-3 to N-7 in the private backlog.
+
+Checks: `pytest tests` 166 passed; `CI=true npm run build` compiled; browser
+check at 1024 px: menu click scrolled to Visits and highlighted it, visits and
+dose estimates showed live data after the owner's reseed, the drawer widened
+to 60% and dragged to 794 px.
+
+### Department names on the chart (2026-10-09)
+The chart's source tags used system names (LIS, RIS/PACS, EMR) while the search
+page uses department names. Owner chose department names everywhere: tags and
+timeline lanes now read MRI Scan, X-Ray, CT Scan, ECG, Blood Test, Treatment
+(six lanes, six colours), and "simulated" is stated once per panel instead of
+on every tag. `pytest tests` 166 passed; build compiled. Also fixed: long
+treatment names overflowing their cards; a clear message when a thumbnail
+fails to load.
+
+Review of the one-page chart at 1024 px (owner felt "something is off"):
+the page is about 14 screens tall; the patient header fills most of the first
+screen; trend charts have only two or three points each so they read as
+straight lines; the same lab numbers appear three times (gauges, charts,
+flowsheet); flip cards hide their content behind a click. Options put to the
+owner; nothing changed yet.
+
+### Five fixes after the page review (2026-10-09)
+Owner approved all five options from the review.
+- A. Richer lab data: the breast, colorectal and lung scenarios gained
+  intermediate blood counts (before each chemotherapy cycle) and tumor-marker
+  readings. Only readings between each analyte's existing first and latest
+  value were added, so what is out of range today, every trend percentage and
+  the AI regression expectations are unchanged. Counts now dip before the
+  cycles that were reduced or delayed.
+- B. Compact patient header: one card with wrapping fact chips. The first
+  findings now sit on the first screen.
+- C. Labs de-duplicated: the grid of small charts is replaced by one "Trend
+  explorer" (pick an analyte, shown against treatment events); the flowsheet
+  gained a sparkline per row. Gauges stay in Summary.
+- D. Key findings show title and basis together; the flip interaction and its
+  CSS were removed.
+- E. Vitals (with body surface area computed by the Mosteller formula), care
+  team and a problem list (profile diagnosis plus conditions the records state
+  as present). Demo patients only; other patients simply do not show the panel.
+
+Checks: `pytest tests` 167 passed (1 new, 2 updated for the extra readings);
+`CI=true npm run build` compiled; browser check at 1024 px of the compact
+header, findings, trend explorer and flowsheet sparklines for P1004. Page
+height went from about 14 screens to under 13 before the new data. The richer
+curves, vitals and care team need a backend restart and local reseed to show.
+
+### Not in this stage
+Documents and Brief sections (Stage 3), print view, role-specific views, dark mode.
 
 ## Test runs
 

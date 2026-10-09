@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from './ui/button';
 import axios from 'axios';
@@ -7,6 +7,26 @@ const Header = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const isLoginPage = location.pathname === '/';
+
+  const [term, setTerm] = useState('');
+  const [patients, setPatients] = useState([]);
+
+  // Names and IDs for the native autocomplete list; refetched after sign-in.
+  useEffect(() => {
+    if (isLoginPage || patients.length) return;
+    axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/patients`)
+      .then((res) => setPatients(res.data.patients || []))
+      .catch(() => {});   // search still works by typing an ID or name
+  }, [isLoginPage, patients.length]);
+
+  const openChart = (e) => {
+    e.preventDefault();
+    const value = term.trim();
+    if (!value) return;
+    // "P1002 · Patricia Williams" (picked from the list) or free text
+    navigate(`/chart/${encodeURIComponent(value.split(' · ')[0])}`);
+    setTerm('');
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('isAuthenticated');
@@ -37,6 +57,21 @@ const Header = () => {
             <p className="text-teal-100 text-xs">Integrated Patient Record System</p>
           </div>
         </div>
+
+        <form onSubmit={openChart} role="search" className="flex-1 max-w-md mx-6 hidden sm:block">
+          <input
+            list="header-patient-list"
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            placeholder="Search patient name or ID"
+            aria-label="Search patient name or ID"
+            data-testid="header-patient-search"
+            className="w-full h-10 px-3 rounded-md text-sm text-slate-900 placeholder-slate-500 bg-white border border-white focus:outline-none focus:ring-2 focus:ring-teal-200"
+          />
+          <datalist id="header-patient-list">
+            {patients.map((p) => <option key={p.patient_id} value={`${p.patient_id} · ${p.name}`} />)}
+          </datalist>
+        </form>
 
         {/* Logout Button */}
         <Button

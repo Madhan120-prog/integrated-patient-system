@@ -15,6 +15,29 @@
     "ecog": 1,
     "allergies": "No known drug allergies",
     "regimen": "Pembrolizumab 200 mg IV q3w maintenance (after cisplatin/pemetrexed x4)",
+    "primary_oncologist": "Dr. Smith",
+    "vitals": {
+      "height_cm": 174,
+      "weight_kg": 78,
+      "bp": "128/78",
+      "pulse": 76,
+      "temp_c": 36.7,
+      "spo2": 96
+    },
+    "care_team": [
+      {
+        "role": "Medical oncologist",
+        "name": "Dr. Smith"
+      },
+      {
+        "role": "Pulmonologist",
+        "name": "Dr. Kim"
+      },
+      {
+        "role": "Nurse navigator",
+        "name": "Nurse Johnson"
+      }
+    ],
     "scenario": "lung_cancer"
   },
   {
@@ -33,6 +56,33 @@
     "ecog": 0,
     "allergies": "Sulfonamides (rash)",
     "regimen": "Tamoxifen 20 mg daily, adjuvant (after lumpectomy, AC-T, radiation)",
+    "primary_oncologist": "Dr. Smith",
+    "vitals": {
+      "height_cm": 163,
+      "weight_kg": 66,
+      "bp": "118/74",
+      "pulse": 72,
+      "temp_c": 36.6,
+      "spo2": 98
+    },
+    "care_team": [
+      {
+        "role": "Medical oncologist",
+        "name": "Dr. Smith"
+      },
+      {
+        "role": "Breast surgeon",
+        "name": "Dr. Okafor"
+      },
+      {
+        "role": "Radiation oncologist",
+        "name": "Dr. Patel"
+      },
+      {
+        "role": "Nurse navigator",
+        "name": "Nurse Johnson"
+      }
+    ],
     "scenario": "breast_cancer"
   },
   {
@@ -62,6 +112,29 @@
     "ecog": 1,
     "allergies": "No known drug allergies",
     "regimen": "Adjuvant FOLFOX completed (6 cycles); surveillance",
+    "primary_oncologist": "Dr. Smith",
+    "vitals": {
+      "height_cm": 170,
+      "weight_kg": 72,
+      "bp": "134/82",
+      "pulse": 70,
+      "temp_c": 36.8,
+      "spo2": 97
+    },
+    "care_team": [
+      {
+        "role": "Medical oncologist",
+        "name": "Dr. Smith"
+      },
+      {
+        "role": "Colorectal surgeon",
+        "name": "Dr. Hernandez"
+      },
+      {
+        "role": "Nurse navigator",
+        "name": "Nurse Johnson"
+      }
+    ],
     "scenario": "colorectal_cancer"
   },
   {

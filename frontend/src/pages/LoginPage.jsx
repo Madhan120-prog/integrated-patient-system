@@ -18,7 +18,7 @@ const LoginPage = () => {
   useEffect(() => {
     const isAuthenticated = localStorage.getItem('isAuthenticated');
     if (isAuthenticated === 'true') {
-      navigate('/welcome');
+      navigate('/search');
     }
   }, [navigate]);
 
@@ -38,7 +38,7 @@ const LoginPage = () => {
         localStorage.setItem('token', response.data.token);
         axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.token}`;
         toast.success('Login successful!');
-        navigate('/welcome');
+        navigate('/search');
       }
     } catch (error) {
       console.error('Login error:', error);

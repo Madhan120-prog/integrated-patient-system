@@ -45,9 +45,13 @@ db = client[os.environ['DB_NAME']]
 
 # LLM configuration — swap backend via LLM_BACKEND env var, no code change needed.
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
-GEMINI_MODEL = "gemini-3-flash-preview"
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")  # switch hosted model without a code change
 gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 LLM_BACKEND = os.environ.get("LLM_BACKEND", "gemini")  # gemini | ollama | azure
+
+
+AI_QUOTA_MESSAGE = ("The AI model's request quota is used up for now. "
+                    "Patient records, labs and the timeline are unaffected.")
 
 
 async def _gemini_generate(prompt: str, system_message: str) -> str:
@@ -62,6 +66,10 @@ async def _gemini_generate(prompt: str, system_message: str) -> str:
     try:
         result = await gemini_client.aio.models.generate_content(**kwargs)
         return result.text
+    except genai_errors.ClientError as e:
+        if getattr(e, "code", None) == 429:
+            raise HTTPException(status_code=429, detail=AI_QUOTA_MESSAGE)
+        raise
     except genai_errors.ServerError:
         await asyncio.sleep(1)
         try:
@@ -355,6 +363,13 @@ import ecg_gateway
 import treatment_gateway
 import rag
 import multi_agent
+from chart import build_chart
+
+# Display name -> gateway. The only way any route reaches a department system.
+DEPARTMENT_GATEWAYS = {
+    "Blood Profile": lab_gateway, "MRI": mri_gateway, "X-Ray": xray_gateway,
+    "CT Scan": ct_gateway, "ECG": ecg_gateway, "Treatment": treatment_gateway,
+}
 
 async def populate_sample_data():
     """Populate all department collections with curated oncology patient data"""
@@ -519,6 +534,20 @@ async def search_patient(term: str = Query(..., description="Patient ID or Name 
         "blood_profile_records": blood_profile_records,
         "ct_scan_records": ct_scan_records
     }
+
+@api_router.get("/chart")
+async def get_chart(term: str = Query(..., description="Patient ID or name"), _: dict = Depends(get_current_user)):
+    """One patient's chart: profile, unified timeline, lab flowsheet, out-of-range
+    values. Records come from the six department systems through their gateways
+    (MPI lookup each); everything derived is computed in chart.py / encoder.py."""
+    profile = await db.profiles.find_one(
+        {"$or": [{"patient_id": term}, {"name": {"$regex": re.escape(term), "$options": "i"}}]}, {"_id": 0})
+    if not profile:
+        raise HTTPException(status_code=404, detail="No patient found with that ID or name")
+    depts = list(DEPARTMENT_GATEWAYS)
+    results = await asyncio.gather(*(DEPARTMENT_GATEWAYS[d].get_records_for_patient(db, profile["patient_id"]) for d in depts))
+    return build_chart(profile, dict(zip(depts, results)))
+
 
 @api_router.get("/analytics/{patient_id}")
 async def get_patient_analytics(patient_id: str, _: dict = Depends(get_current_user)):

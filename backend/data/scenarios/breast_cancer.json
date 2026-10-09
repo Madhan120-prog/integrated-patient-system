@@ -109,6 +109,129 @@
       },
       {
         "test_name": "Complete Blood Count",
+        "result": "Pre-cycle check before AC-T cycle 1: counts adequate",
+        "week_offset": 10,
+        "notes": "Before chemotherapy cycle 1",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 5.9,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 12.6,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 240,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          },
+          {
+            "analyte": "ANC",
+            "value": 3.4,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
+          }
+        ]
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "CA 15-3 slightly above range (31 U/mL)",
+        "week_offset": 12,
+        "notes": "After surgery, during chemotherapy",
+        "values": [
+          {
+            "analyte": "CA 15-3",
+            "value": 31,
+            "unit": "U/mL",
+            "low": 0,
+            "high": 30
+          }
+        ]
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Counts lower after cycle 1: WBC 3.9, ANC 1.6",
+        "week_offset": 13,
+        "notes": "Before chemotherapy cycle 2",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 3.9,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 11.4,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 185,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          },
+          {
+            "analyte": "ANC",
+            "value": 1.6,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
+          }
+        ]
+      },
+      {
+        "test_name": "Complete Blood Count",
+        "result": "Partial recovery: WBC 4.6, Hgb 10.9",
+        "week_offset": 16,
+        "notes": "Between cycles",
+        "values": [
+          {
+            "analyte": "WBC",
+            "value": 4.6,
+            "unit": "K/µL",
+            "low": 4.0,
+            "high": 11.0
+          },
+          {
+            "analyte": "Hgb",
+            "value": 10.9,
+            "unit": "g/dL",
+            "low": 12.0,
+            "high": 17.5
+          },
+          {
+            "analyte": "PLT",
+            "value": 205,
+            "unit": "K/µL",
+            "low": 150,
+            "high": 400
+          },
+          {
+            "analyte": "ANC",
+            "value": 2.5,
+            "unit": "K/µL",
+            "low": 1.5,
+            "high": 8.0
+          }
+        ]
+      },
+      {
+        "test_name": "Complete Blood Count",
         "result": "Mild anemia — Hgb 10.2",
         "week_offset": 18,
         "notes": "Post-chemo cycle 3 — iron supplementation started",
@@ -140,6 +263,21 @@
             "unit": "K/µL",
             "low": 1.5,
             "high": 8.0
+          }
+        ]
+      },
+      {
+        "test_name": "Tumor Marker Panel",
+        "result": "CA 15-3 within range (26 U/mL)",
+        "week_offset": 20,
+        "notes": "After chemotherapy",
+        "values": [
+          {
+            "analyte": "CA 15-3",
+            "value": 26,
+            "unit": "U/mL",
+            "low": 0,
+            "high": 30
           }
         ]
       },
