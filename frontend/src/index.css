@@ -134,11 +134,37 @@ code {
 .typing-dot { animation: dot-bounce 1.2s ease-in-out infinite; }
 .rise-in { animation: rise-in 0.35s ease-out both; }
 
+/* Calendar tile on a visit: lifts and tilts toward the pointer, and a "View" strip slides up */
+.cal-tile {
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 20px -12px rgba(15, 23, 42, 0.25);
+    transform: perspective(600px) translateY(0) rotateX(0) scale(1);
+    transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s;
+    cursor: pointer;
+}
+.cal-tile .cal-peek { transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
+.cal-tile:hover, .cal-tile:focus-visible {
+    transform: perspective(600px) translateY(-6px) rotateX(8deg) scale(1.06);
+    box-shadow: 0 4px 8px rgba(15, 23, 42, 0.08), 0 22px 36px -14px rgba(13, 148, 136, 0.55);
+    border-color: #14b8a6; outline: none;
+}
+.cal-tile:hover .cal-peek, .cal-tile:focus-visible .cal-peek { transform: translateY(0); }
+.cal-tile:active { transform: perspective(600px) translateY(-1px) scale(0.97); transition-duration: 0.08s; }
+
+/* Microphone while listening, and the equaliser shown while DocAssist speaks */
+@keyframes voice-bar { 0%, 100% { height: 25%; } 50% { height: 100%; } }
+.voice-bar { height: 25%; animation: voice-bar 0.7s ease-in-out infinite; }
+.mic-live::before, .mic-live::after {
+    content: ""; position: absolute; inset: 0; border-radius: 9999px; background: #e11d48; z-index: 0;
+    animation: orb-pulse 1.6s ease-out infinite;
+}
+.mic-live::after { animation-delay: 0.8s; }
+
 /* Raised card: soft two-layer shadow that lifts slightly on hover */
 .card-raised { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05), 0 8px 24px -12px rgba(15, 23, 42, 0.18); transition: transform 0.2s, box-shadow 0.2s; }
 .card-raised.lift:hover { transform: translateY(-2px); box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06), 0 16px 32px -14px rgba(15, 23, 42, 0.28); }
 
 @media (prefers-reduced-motion: reduce) {
     .docassist-orb::before, .docassist-orb::after, .typing-dot, .rise-in { animation: none; }
-    .card-raised { transition: none; }
+    .card-raised, .cal-tile, .cal-tile .cal-peek { transition: none; }
+    .voice-bar, .mic-live::before, .mic-live::after { animation: none; }
 }

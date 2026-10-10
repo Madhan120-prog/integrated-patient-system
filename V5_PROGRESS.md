@@ -270,6 +270,137 @@ header, findings, trend explorer and flowsheet sparklines for P1004. Page
 height went from about 14 screens to under 13 before the new data. The richer
 curves, vitals and care team need a backend restart and local reseed to show.
 
+### DocAssist: show a study, ask before analyzing, scope to a section (2026-10-09)
+Owner wanted DocAssist to go beyond what the page already shows: pull up a
+scan and offer to analyze it, accept a scan dragged from the Imaging section,
+and answer questions about one chosen section. Built as one mechanism in the
+drawer, so there is one conversation and no second assistant:
+- Typed request such as "pull up the latest chest x-ray": recognised in the
+  frontend, answered from the chart (image, date, written report) with the
+  question "Would you like me to analyze this image?". No model call until the
+  doctor says yes.
+- Drag a card from Imaging into the drawer, or use "Ask DocAssist about this"
+  in the enlarged view: same offer card.
+- Attach or drop a file (PNG, JPEG, WebP, PDF up to 10 MB): same offer card,
+  analyzed through the existing `/analyze-document` route.
+- "Ask about labs / imaging / treatment / medications" on each section heading
+  sets a scope chip; questions then use only that section's department systems
+  (`scope` on `/deep-query`, replacing keyword routing for that question).
+- `POST /api/analyze-study` (new, physician only, rate limited, audited): looks
+  the study up through its department gateway, downloads the image that record
+  holds, and asks the vision model to describe it against the written report.
+  The reply carries the report text and a note that the image is illustrative
+  and the written report takes precedence. The route never accepts a URL.
+
+Checks: `pytest tests` 169 passed (2 new). In-process run on the local model:
+study analysis returned in 7 s and agreed with the report; 403 for a nurse;
+404 for an unknown study; a scoped question fetched only the four imaging
+departments. Found and fixed: the image host rejected a generic request
+identity (HTTP 429). Browser: the "pull up" request showed the X-ray with the
+offer card; pressing yes returned "Not Found" because the owner's running
+backend predates the route (a clearer message now covers that case).
+
+### Section merges, collapsing, drag fix and attach menu (2026-10-09, later)
+Agreed with the owner after discussing each point:
+- Timeline folded into Visits (they showed the same records twice): dose
+  estimates, the departments-over-time lanes, then visits by day with a
+  department filter and the "My consultations" switch. The separate "Every
+  record" list is gone.
+- Medications folded into Treatment: current medications first, then the
+  course steps with a table (date, treatment, status, doctor, medicines) as in
+  the old results page, then the per-drug history. `build_treatments` now
+  carries the doctor.
+- Every section heading opens and closes its section (arrow down when closed,
+  up when open). Section level only; everything starts open; the menu has
+  "Collapse all / Expand all"; a menu click opens a closed section.
+- Drag into DocAssist: the card is now a draggable element (not a button), its
+  image is not separately draggable, and the drawer opens one tick after the
+  drag starts (changing the page inside dragstart cancelled the drag).
+- Attach menu on the paperclip: "Photo or scan" and "File". Voice recordings
+  are deferred until after the pre-visit brief (owner agreed to decide then).
+- The chart menu is down to five items: Summary, Labs, Imaging, Treatment, Visits.
+
+Checks: `pytest tests` 169 passed; `CI=true npm run build` compiled. Browser at
+1024 px: merged Treatment and Visits sections render with live data; the
+Treatment heading collapsed and reopened its section and the menu switched to
+"Expand all"; page height about 10.7 screens with one section closed; the
+attach menu opens. Drag: a real drag gesture started and opened the drawer;
+the drop handler, exercised with a scripted drop event, produced the offer
+card. The complete drag-and-drop gesture by hand is still to be confirmed by
+the owner (the automated gesture released before the drawer had slid in).
+The doctor column in the treatment table needs a backend restart to fill.
+
+### Visit-day pop-up and visit recordings (2026-10-09, evening)
+Owner decisions: leave Treatment as it is; make the visit date open a pop-up of
+everything done that day (from existing data, no new system); build recording
+transcription now on the hosted model regardless of quota, with speaker
+labelling that fixes each voice for the whole conversation.
+- Visit day: each visit's date block is a button ("Open day"). The pop-up
+  lists that date's records by department with doctor, result, medicines, lab
+  values with range flags, image thumbnails and vitals when taken that day. It
+  states that the systems hold dates, not times.
+- `POST /api/transcribe-recording` (physician only, audited): audio goes to the
+  hosted model with a two-pass prompt: identify voices first and keep one id
+  per voice for the whole recording, then decide each voice's role once
+  (Doctor, Patient, Other, Unclear). `parse_transcript` validates the JSON,
+  maps voice ids to role labels and rejects output it cannot trust (HTTP 502).
+- `POST /api/ask-transcript`: answers from the transcript only, on the
+  configured backend (the local model here).
+- Drawer: "Recording" in the attach menu with an info button, an offer card
+  ("Would you like me to transcribe this recording?"), a transcript view with
+  time stamps and speaker pills, a summary, and an "Asking about the
+  recording" chip that routes follow-up questions to the transcript.
+- A synthetic two-voice recording was generated with the project's
+  text-to-speech and saved under `private/` (not committed).
+
+Checks: `pytest tests` 172 passed (3 new). Live in-process run: the synthetic
+recording was transcribed in 14 s with all 10 turns labelled correctly,
+including two patient turns that contain questions; a follow-up question was
+answered correctly from the transcript in 18 s on the local model (it did not
+quote time stamps as asked). Browser: the visit-day pop-up opened with live
+data. The recording flow has not been clicked through in the browser, and the
+owner's running backend needs a restart to have the new routes.
+
+Later the same evening: the Medication history panel was removed from the
+Treatment section at the owner's request (it repeated the treatment table,
+regrouped by drug). The backend still returns `medications.history`; only
+`medications.current` is shown. Build compiled.
+
+### Landing page restyle and calendar tiles (2026-10-09, night)
+- Landing page (`SearchPage.jsx`), this time at the owner's request: same
+  contents (search, DocAssist entry, the six "Available Profiles" department
+  tiles with their original icons and colours), restyled to match the chart.
+  Adds a welcome line, three small stats (patients, department systems, role)
+  and four patient shortcuts. Search still opens the chart.
+- Visit dates: the "Open day" link is gone. The calendar tile itself is the
+  control: it lifts, tilts and a "View" strip slides up on hover or keyboard
+  focus, then opens the day pop-up. Also fixed the tile's broken border (an
+  inline element was wrapping block content).
+Checks: `CI=true npm run build` compiled; browser at 1024 px: landing page,
+tile hover state and the day pop-up for P1001.
+
+### Visit log: a seventh simulated system (2026-10-10)
+Owner wanted the visit-day pop-up to show what happened that day from arrival
+to departure, in order, without clock times, tried first on P1001.
+- `data/visit_system.py` + `visit_gateway.py`: a front-desk and nursing visit
+  log in its own JSON store, reached through a new MPI field
+  (`visit_local_id`). It stores only its own fields (date, steps).
+- `data/scenarios/lung_cancer.json` gained `visit_log`: for each week with
+  records, the ordered steps (check-in, vitals, blood draw, study, consultation,
+  pre-medication, infusion, observation, check-out). Each step that produced a
+  record links to it. A build-time check confirmed every record is linked once
+  and every link points at a record of that week.
+- Seeded only for patients flagged `visit_log` (P1001). Others keep the
+  by-department pop-up.
+- `chart.build_visit_log` returns `{date: [steps]}`; the pop-up renders a
+  numbered sequence with each step's linked record, lab values and thumbnail.
+- Also: the treatment table now runs newest first, so every vertical list on
+  the chart is newest first and every left-to-right chart is oldest to newest.
+
+Checks: `pytest tests` 174 passed (2 new); `CI=true npm run build` compiled.
+Not yet seen on screen: the sequence needs a backend restart and a reseed.
+Consultation steps exist only in the visit log; no other system records them.
+
 ### Not in this stage
 Documents and Brief sections (Stage 3), print view, role-specific views, dark mode.
 
@@ -313,6 +444,30 @@ ranges, invents detail when given no data, and takes roughly 30 s or more per
 answer. Consequence for the plan: deterministic output (flowsheet, brief built
 from code) carries the demo; free-text Q&A needs either the hosted model on a
 paid tier or the guardrails above plus a narrow, rehearsed question list.
+
+## Voice in DocAssist and one assistant everywhere (2026-10-09)
+- Dictation: a microphone beside the question box uses the browser's speech
+  recognition (Chrome, Edge). Words fill the box as they are spoken; nothing is
+  sent until the doctor presses Send. Clear messages when the microphone is
+  blocked or the browser has no speech recognition.
+- Voice replies: a switch in the DocAssist header, off by default, with a Stop
+  button while speaking. Speech starts only after the answer has passed the
+  guardrails and is on screen. The answer is cleaned to spoken form (units read
+  as words, symbols dropped, at most 12 sentences) and sent to `/api/tts` one
+  sentence at a time, fetching the next while the current one plays. Appended
+  safety warnings are not read out; one sentence points to them on screen.
+  Speech stops on a new question, a patient change, or closing the panel.
+- The landing page's "Open DocAssist" now opens the same assistant as the chart
+  drawer (`DocAssistDialog`: patient step, then `AskPanel`). The old modal is no
+  longer opened from anywhere; its file stays because `MessageContent` is
+  imported from it. Not carried over: the automatic "what is concerning" check
+  that ran when the old modal opened.
+- Checkpoint: `CI=true npm run build` compiled; `pytest` 174 passed; spoken-form
+  self-check passed; `/api/tts` measured at 0.5 to 0.65 s per sentence locally.
+  Not yet clicked through in a browser (microphone and audio need a logged-in
+  session with microphone permission).
+- Open: voice quality. The current engine is gTTS; a neural voice is to be
+  trialled and compared.
 
 ## Open items noticed during Stage 1
 - Demo timelines are dated 2025 and labs stop months before the last imaging,

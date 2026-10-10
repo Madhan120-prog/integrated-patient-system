@@ -199,6 +199,21 @@ def generate_extra_patients(count, start_id=1013):
         })
     return patients
 
+def build_visit_log(patient):
+    """One entry per visit day from the scenario's `visit_log`: ordered steps,
+    each optionally linked to the department records made at that step."""
+    oncologist = patient.get("primary_oncologist", "the oncologist")
+    fill = lambda text: text.replace("{oncologist}", oncologist)
+    return [
+        {
+            "patient_id": patient["patient_id"],
+            "visit_date": week_to_date(patient["registration_date"], day["week_offset"]),
+            "steps": [{**step, "step": fill(step["step"]), "by": fill(step["by"])} for step in day["steps"]],
+        }
+        for day in load_scenario(patient["scenario"]).get("visit_log", [])
+    ]
+
+
 LAST_RECORD_DAYS_AGO = 6
 
 
@@ -230,11 +245,12 @@ def build_seed_data(extra_count=0, today=None):
         "blood_profile_records": [],
         "ct_scan_records": [],
         "treatment_records": [],
+        "visit_logs": [],  # ordered steps per visit day, for patients flagged visit_log
         "mpi": []  # canonical patient_id -> each vendor system's own local ID
     }
 
     for i, patient in enumerate(patients):
-        profile = {k: v for k, v in patient.items() if k != "scenario"}
+        profile = {k: v for k, v in patient.items() if k not in ("scenario", "visit_log")}
         all_records["profiles"].append(profile)
         all_records["mpi"].append({
             "patient_id": patient["patient_id"],
@@ -243,8 +259,11 @@ def build_seed_data(extra_count=0, today=None):
             "xray_local_id": f"XR-{200000 + i}",
             "ct_local_id": f"CT-{300000 + i}",
             "ecg_local_id": f"ECG-{400000 + i}",
-            "treatment_local_id": f"TX-{500000 + i}"
+            "treatment_local_id": f"TX-{500000 + i}",
+            "visit_local_id": f"VL-{600000 + i}"
         })
+        if patient.get("visit_log"):
+            all_records["visit_logs"].extend(build_visit_log(patient))
 
         patient_records = build_records_for_patient(patient)
         for coll, recs in patient_records.items():

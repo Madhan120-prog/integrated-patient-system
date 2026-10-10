@@ -1,14 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
-  Activity, ArrowUpRight, CalendarClock, CalendarDays, Database, HeartPulse, Maximize2, Minimize2, Ruler, Thermometer, Weight, Wind, FlaskConical, LayoutDashboard, Pill, ScanLine, Stethoscope, Syringe,
+  Activity, ArrowUpRight, CalendarClock, CalendarDays, ChevronDown, ChevronUp, ChevronsDownUp, ChevronsUpDown, Database, HeartPulse, Maximize2, Minimize2, Ruler, Thermometer, Weight, Wind, FlaskConical, LayoutDashboard, Pill, ScanLine, Stethoscope, Syringe,
   TriangleAlert, Users, X,
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
-import AskPanel from '../components/AskPanel';
+import AskPanel, { SECTION_SCOPE } from '../components/AskPanel';
 import {
   StatTile, FindingCard, RangeGauge, Sparkline, LabTrendChart, SystemsTimeline, TreatmentTimeline, DocAssistOrb,
   SYSTEM_COLORS, RANGE_LETTER, RANGE_WORD, formatDate,
@@ -21,9 +21,7 @@ const SECTIONS = [
   { id: 'Labs', Icon: FlaskConical },
   { id: 'Imaging', Icon: ScanLine },
   { id: 'Treatment', Icon: Syringe },
-  { id: 'Medications', Icon: Pill },
   { id: 'Visits', Icon: CalendarDays },
-  { id: 'Timeline', Icon: Activity },
 ];
 const IMAGE_DEPARTMENTS = ['MRI', 'CT Scan', 'X-Ray', 'ECG'];
 const SUMMARY_QUESTION = "Summarize this patient's current status in a few bullet points.";
@@ -111,26 +109,6 @@ const SystemTag = ({ system }) => (
   </span>
 );
 
-const RecordList = ({ items }) =>
-  items.length === 0 ? <Empty>No records in this view.</Empty> : (
-    <ol className="space-y-2">
-      {items.map((item, i) => (
-        <li key={i} className="rounded-xl border border-slate-200 bg-white px-4 py-3 flex gap-4 text-sm">
-          <span className="w-1 rounded-full shrink-0" style={{ background: SYSTEM_COLORS[item.system] }} aria-hidden="true" />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span className="font-semibold text-slate-900">{item.title}</span>
-              <SystemTag system={item.system} />
-              <time className="text-xs text-slate-500 ml-auto tabular-nums">{formatDate(item.date)}</time>
-            </div>
-            <p className="text-slate-700 mt-1">{item.result}</p>
-            {item.medicines && item.medicines !== 'N/A' && <p className="text-slate-500 text-xs mt-1">{item.medicines}</p>}
-          </div>
-        </li>
-      ))}
-    </ol>
-  );
-
 const Flowsheet = ({ flowsheet }) =>
   flowsheet.rows.length === 0 ? <Empty>No numeric lab values on file for this patient.</Empty> : (
     <div className="overflow-x-auto rounded-xl border border-slate-200">
@@ -174,16 +152,22 @@ const Flowsheet = ({ flowsheet }) =>
 const Thumb = ({ src }) => {
   const [failed, setFailed] = useState(false);
   return src && !failed
-    ? <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+    ? <img src={src} alt="" loading="lazy" draggable={false} onError={() => setFailed(true)} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
     : <span className="text-xs text-slate-400">{src ? 'Image could not be loaded' : 'No image attached'}</span>;
 };
 
-const ImageGallery = ({ items, onOpen }) =>
+const ImageGallery = ({ items, onOpen, onDragStudy }) =>
   items.length === 0 ? <Empty>No imaging or tracings on file.</Empty> : (
     <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4" data-testid="image-gallery">
       {items.map((item, i) => (
         <li key={i}>
-          <button onClick={() => onOpen(item)} className="group card-raised lift w-full text-left rounded-2xl border border-slate-200 bg-white overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700">
+          {/* A div, not a button: some browsers will not start a drag from a button. Opening the
+              drawer is deferred a tick, because changing the page inside dragstart cancels the drag. */}
+          <div role="button" tabIndex={0} draggable onClick={() => onOpen(item)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(item); } }}
+            onDragStart={(e) => { e.dataTransfer.setData('application/x-study', JSON.stringify(item)); e.dataTransfer.effectAllowed = 'copy'; setTimeout(onDragStudy, 0); }}
+            title="Select to enlarge, or drag into DocAssist"
+            className="group card-raised lift w-full text-left cursor-grab active:cursor-grabbing rounded-2xl border border-slate-200 bg-white overflow-hidden focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700">
             <div className="h-40 bg-slate-900 flex items-center justify-center overflow-hidden">
               <Thumb src={item.image} />
             </div>
@@ -194,22 +178,35 @@ const ImageGallery = ({ items, onOpen }) =>
               </div>
               <p className="text-sm text-slate-700 mt-1">{item.result}</p>
             </div>
-          </button>
+          </div>
         </li>
       ))}
     </ul>
   );
 
-// A calendar-style date block: month on top, day large, year below.
-const DateBlock = ({ date, tone = 'slate' }) => {
+// A calendar tile: month on top, day large, year below. Static for estimates;
+// as a button (onOpen) it lifts, tilts and reveals a "View" strip on hover or focus.
+const DateBlock = ({ date, tone = 'slate', onOpen }) => {
   const d = new Date(`${date}T00:00:00`);
-  const head = tone === 'teal' ? 'bg-teal-700' : 'bg-slate-700';
+  const head = tone === 'teal' ? 'from-teal-600 to-teal-700' : onOpen ? 'from-teal-600 to-cyan-600' : 'from-slate-600 to-slate-700';
+  const face = (
+    <>
+      <span className={`block text-[11px] font-semibold tracking-wide text-white py-1 bg-gradient-to-r ${head}`}>{d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()}</span>
+      <span className="block text-2xl font-semibold text-slate-900 leading-none pt-2">{d.getDate()}</span>
+      <span className="block text-[11px] text-slate-500 pt-0.5 pb-2">{d.getFullYear()}</span>
+    </>
+  );
+  if (!onOpen) {
+    return <span className="block w-16 shrink-0 rounded-2xl overflow-hidden border border-slate-200 bg-white text-center card-raised" aria-label={formatDate(date)}>{face}</span>;
+  }
   return (
-    <span className="w-14 shrink-0 rounded-xl overflow-hidden border border-slate-200 bg-white text-center card-raised" aria-label={formatDate(date)}>
-      <span className={`block text-[11px] font-medium text-white py-0.5 ${head}`}>{d.toLocaleDateString('en-US', { month: 'short' })}</span>
-      <span className="block text-lg font-semibold text-slate-900 leading-tight pt-0.5">{d.getDate()}</span>
-      <span className="block text-[11px] text-slate-500 pb-1">{d.getFullYear()}</span>
-    </span>
+    <button onClick={() => onOpen(date)} aria-label={`Open the visit of ${formatDate(date)}`} data-testid={`open-day-${date}`}
+      className="cal-tile relative block w-16 shrink-0 self-start rounded-2xl overflow-hidden border border-slate-200 bg-white text-center">
+      {face}
+      <span className="cal-peek absolute inset-x-0 bottom-0 flex items-center justify-center gap-1 text-[11px] font-semibold text-white bg-slate-900 py-1" aria-hidden="true">
+        View<ArrowUpRight className="w-3 h-3" />
+      </span>
+    </button>
   );
 };
 
@@ -222,12 +219,12 @@ const DoctorChip = ({ name, isViewer }) => (
   </span>
 );
 
-const VisitList = ({ visits, viewer }) =>
+const VisitList = ({ visits, viewer, onOpenDay }) =>
   visits.length === 0 ? <Empty>No visits in this view.</Empty> : (
     <ol className="space-y-3" data-testid="visit-list">
       {visits.map((v) => (
         <li key={v.date} className="flex gap-4 rounded-2xl border border-slate-200 bg-white p-4">
-          <DateBlock date={v.date} />
+          <DateBlock date={v.date} onOpen={onOpenDay} />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap gap-1.5">
               {v.doctors.map((d) => <DoctorChip key={d} name={d} isViewer={d === viewer} />)}
@@ -247,18 +244,34 @@ const VisitList = ({ visits, viewer }) =>
     </ol>
   );
 
-// One page, many sections: each has an anchor the sidebar scrolls to and watches.
+// One page, many sections. Each has an anchor the sidebar scrolls to, and a
+// heading that opens and closes it: arrow down when closed, arrow up when open.
+const SectionContext = createContext({ collapsed: new Set(), toggle: () => {}, askAbout: () => {} });
+
 const Section = ({ id, children }) => {
+  const { collapsed, toggle, askAbout } = useContext(SectionContext);
   const { Icon } = SECTIONS.find((sec) => sec.id === id);
+  const closed = collapsed.has(id);
   return (
-    <section id={`section-${id}`} data-section={id} aria-label={id} className="scroll-mt-5 space-y-5">
-      {id !== 'Summary' && (
-        <h2 className="flex items-center gap-2.5 text-lg font-semibold text-slate-900 pt-3">
+    <section id={`section-${id}`} data-section={id} aria-label={id} className="scroll-mt-5">
+      <h2 className="flex items-center gap-3 pt-3">
+        <button onClick={() => toggle(id)} aria-expanded={!closed} aria-controls={`section-body-${id}`} data-testid={`toggle-${id}`}
+          className="group flex items-center gap-2.5 text-lg font-semibold text-slate-900 rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-700">
           <span className="w-8 h-8 rounded-xl bg-teal-700 text-white flex items-center justify-center"><Icon className="w-4 h-4" aria-hidden="true" /></span>
           {id}
-        </h2>
-      )}
-      {children}
+          <span className="w-7 h-7 rounded-full bg-white border border-slate-200 text-slate-600 flex items-center justify-center group-hover:border-slate-400 card-raised">
+            {closed ? <ChevronDown className="w-4 h-4" aria-hidden="true" /> : <ChevronUp className="w-4 h-4" aria-hidden="true" />}
+          </span>
+          <span className="sr-only">{closed ? 'Show section' : 'Hide section'}</span>
+        </button>
+        {SECTION_SCOPE[id] && !closed && (
+          <button onClick={() => askAbout(id)} data-testid={`ask-about-${id}`}
+            className="ml-auto inline-flex items-center gap-2 text-sm font-medium rounded-full pl-1.5 pr-3.5 py-1 bg-white border border-slate-200 text-slate-800 hover:border-slate-400 card-raised">
+            <DocAssistOrb size={22} />Ask about {id.toLowerCase()}
+          </button>
+        )}
+      </h2>
+      <div id={`section-body-${id}`} hidden={closed} className="space-y-5 mt-4">{children}</div>
     </section>
   );
 };
@@ -286,6 +299,9 @@ const ChartPage = () => {
   const [mineOnly, setMineOnly] = useState(false);
   const [askWidth, setAskWidth] = useState(432);
   const [analyte, setAnalyte] = useState(null);
+  const [dayOpen, setDayOpen] = useState(null);
+  const [collapsed, setCollapsed] = useState(() => new Set());
+  const toggle = (id) => setCollapsed((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const viewer = JSON.parse(localStorage.getItem('user') || '{}').name;
 
   const load = useCallback(async () => {
@@ -301,7 +317,7 @@ const ChartPage = () => {
     }
   }, [term]);
 
-  useEffect(() => { setSection('Summary'); setSystemFilter(null); setAskOpen(false); window.scrollTo(0, 0); load(); }, [load]);
+  useEffect(() => { setSection('Summary'); setSystemFilter(null); setAskOpen(false); setCollapsed(new Set()); window.scrollTo(0, 0); load(); }, [load]);
   // Highlight the section currently near the top of the window.
   useEffect(() => {
     if (!chart) return undefined;
@@ -312,7 +328,10 @@ const ChartPage = () => {
     document.querySelectorAll('[data-section]').forEach((el) => observer.observe(el));
     return () => observer.disconnect();
   }, [chart]);
-  const goTo = (id) => document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const goTo = (id) => {   // a menu click opens the section if it was closed, then scrolls to it
+    setCollapsed((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    requestAnimationFrame(() => document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+  };
   // DocAssist drawer width: drag its left edge, or use the widen button.
   const resizeTo = (px) => setAskWidth(Math.round(Math.max(380, Math.min(px, window.innerWidth - 80, 1100))));
   const startResize = (e) => {
@@ -345,9 +364,12 @@ const ChartPage = () => {
   // Defaults keep the page usable against a backend that predates these fields.
   const { profile, findings = [], treatments = [], tumor_markers: markerNames = ['CEA', 'CA 15-3', 'PSA'],
     vitals = null, care_team: careTeam = [], problems = [],
-    visits = [], medications = { current: [], history: [] }, upcoming = { items: [], note: '' },
+    visit_log: visitLog = {}, visits = [], medications = { current: [], history: [] }, upcoming = { items: [], note: '' },
     timeline, flowsheet, out_of_range: outOfRange, sources } = chart;
   const myVisits = visits.filter((v) => v.doctors.includes(viewer));
+  const shownVisits = (mineOnly ? myVisits : visits)
+    .map((v) => (systemFilter ? { ...v, items: v.items.filter((i) => i.system === systemFilter) } : v))
+    .filter((v) => v.items.length > 0);
   const systems = [...new Set(timeline.map((i) => i.system))];
   const totalRecords = sources.reduce((n, s) => n + s.records, 0);
   const stamps = timeline.map((i) => ts(i.date));
@@ -361,6 +383,8 @@ const ChartPage = () => {
   const lastImaging = images.find((i) => i.department !== 'ECG');
   const current = [...treatments].reverse().find((t) => t.status === 'In progress');
   const explain = () => { setAskOpen(true); setAskRequest({ id: Date.now(), text: SUMMARY_QUESTION }); };
+  const askAbout = (id) => { setAskOpen(true); setAskRequest({ id: Date.now(), scope: id }); };
+  const askAboutStudy = (study) => { setViewing(null); setAskOpen(true); setAskRequest({ id: Date.now(), study }); };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-teal-50/40 to-sky-50" data-testid="chart-page">
@@ -378,7 +402,12 @@ const ChartPage = () => {
                 <Icon className="w-4 h-4" aria-hidden="true" />{id}
               </button>
             ))}
-            <button onClick={() => navigate('/search')} className="flex items-center gap-2.5 text-left text-sm px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 whitespace-nowrap lg:mt-1 lg:border-t lg:border-slate-100 lg:rounded-t-none lg:pt-3">
+            <button onClick={() => setCollapsed(collapsed.size ? new Set() : new Set(SECTIONS.map((sec) => sec.id)))} data-testid="toggle-all"
+              className="flex items-center gap-2.5 text-left text-sm px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 whitespace-nowrap lg:mt-1 lg:border-t lg:border-slate-100 lg:rounded-t-none lg:pt-3">
+              {collapsed.size ? <ChevronsUpDown className="w-4 h-4" aria-hidden="true" /> : <ChevronsDownUp className="w-4 h-4" aria-hidden="true" />}
+              {collapsed.size ? 'Expand all' : 'Collapse all'}
+            </button>
+            <button onClick={() => navigate('/search')} className="flex items-center gap-2.5 text-left text-sm px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 whitespace-nowrap">
               <Users className="w-4 h-4" aria-hidden="true" />Other patients
             </button>
           </nav>
@@ -395,6 +424,7 @@ const ChartPage = () => {
           </div>
         </aside>
 
+        <SectionContext.Provider value={{ collapsed, toggle, askAbout }}>
         <main className="space-y-5 min-w-0">
           <PatientHero profile={profile} flagCount={outOfRange.length} />
 
@@ -522,18 +552,12 @@ const ChartPage = () => {
           </Section>
 
           <Section id="Imaging">
-            <Panel title="Imaging and tracings" note="MRI, CT, X-ray and ECG. Select one to enlarge.">
-              <ImageGallery items={images} onOpen={setViewing} />
+            <Panel title="Imaging and tracings" note="MRI, CT, X-ray and ECG. Select one to enlarge, or drag it into DocAssist.">
+              <ImageGallery items={images} onOpen={setViewing} onDragStudy={() => setAskOpen(true)} />
             </Panel>
           </Section>
 
           <Section id="Treatment">
-              <Panel title="Treatment course" note={`${treatments.length} entries from the Treatment system`}>
-                <TreatmentTimeline treatments={treatments} />
-              </Panel>
-          </Section>
-
-          <Section id="Medications">
               <Panel title="Current medications" note="From treatment still in progress">
                 {medications.current.length === 0 ? <Empty>No medication is recorded as in progress.</Empty> : (
                   <ul className="grid sm:grid-cols-2 gap-4" data-testid="current-medications">
@@ -550,27 +574,35 @@ const ChartPage = () => {
                   </ul>
                 )}
               </Panel>
-              <Panel title="Medication history" note="Every drug written on a treatment record, most recent first">
-                {medications.history.length === 0 ? <Empty>No medications on record.</Empty> : (
-                  <div className="overflow-x-auto rounded-xl border border-slate-200">
-                    <table className="w-full text-sm" data-testid="medication-history">
+              <Panel title="Treatment course" note={`${treatments.length} entries from the Treatment system`}>
+                <TreatmentTimeline treatments={treatments} />
+                {treatments.length > 0 && (
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 mt-4">
+                    <table className="w-full text-sm" data-testid="treatment-records">
+                      <caption className="sr-only">Treatment records: date, treatment, status, doctor and medicines given</caption>
                       <thead>
                         <tr className="text-left text-xs text-slate-600 bg-slate-50">
-                          <th scope="col" className="py-2.5 px-4 font-medium">Medication</th>
-                          <th scope="col" className="py-2.5 px-3 font-medium">Last dose</th>
-                          <th scope="col" className="py-2.5 px-3 font-medium">Last given</th>
-                          <th scope="col" className="py-2.5 px-3 font-medium text-right">Times given</th>
-                          <th scope="col" className="py-2.5 px-4 font-medium">Given for</th>
+                          <th scope="col" className="py-2.5 px-4 font-medium">Date</th>
+                          <th scope="col" className="py-2.5 px-3 font-medium">Treatment</th>
+                          <th scope="col" className="py-2.5 px-3 font-medium">Status</th>
+                          <th scope="col" className="py-2.5 px-3 font-medium">Doctor</th>
+                          <th scope="col" className="py-2.5 px-4 font-medium">Medicines</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {medications.history.map((m) => (
-                          <tr key={m.name} className="border-t border-slate-100 hover:bg-slate-50/60">
-                            <th scope="row" className="py-2.5 px-4 text-left font-semibold text-slate-900">{m.name}</th>
-                            <td className="py-2.5 px-3 text-slate-700">{m.last_dose}</td>
-                            <td className="py-2.5 px-3 text-slate-700 whitespace-nowrap">{formatDate(m.last_given)}</td>
-                            <td className="py-2.5 px-3 text-right tabular-nums">{m.times_given}</td>
-                            <td className="py-2.5 px-4 text-slate-600">{m.last_for}</td>
+                        {/* Lists run newest first everywhere on the chart; the step strip above reads left to right in time. */}
+                        {[...treatments].reverse().map((t, i) => (
+                          <tr key={i} className="border-t border-slate-100 align-top hover:bg-slate-50/60">
+                            <td className="py-2.5 px-4 whitespace-nowrap text-slate-700">{formatDate(t.date)}</td>
+                            <th scope="row" className="py-2.5 px-3 text-left font-semibold text-slate-900">
+                              {t.name}<span className="block text-xs font-normal text-slate-500">{t.category}</span>
+                            </th>
+                            <td className="py-2.5 px-3">
+                              <span className={`inline-block text-xs px-2 py-0.5 rounded-full ${t.status === 'In progress' ? 'bg-sky-100 text-sky-900' : 'bg-emerald-100 text-emerald-900'}`}>{t.status}</span>
+                              {t.modified && <span className="block text-xs text-rose-800 mt-1">{t.result}</span>}
+                            </td>
+                            <td className="py-2.5 px-3 whitespace-nowrap text-slate-700">{t.doctor}</td>
+                            <td className="py-2.5 px-4 text-slate-700">{t.medicines && t.medicines !== 'N/A' ? t.medicines : 'None recorded'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -602,7 +634,10 @@ const ChartPage = () => {
                   <TriangleAlert className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" aria-hidden="true" />{upcoming.note}
                 </p>
               </Panel>
-              <Panel title="Visits" note="Each date with records is one visit"
+              <Panel title="All departments over time" note={`${sources.length} department systems (simulated), ${totalRecords} records. Select a point to read that record.`}>
+                <SystemsTimeline timeline={timeline} domain={domain} />
+              </Panel>
+              <Panel title="Visits" note="Each date with records is one visit. Select a date to see that day."
                 action={(
                   <div className="inline-flex rounded-full bg-slate-100 p-1" role="group" aria-label="Which visits to show">
                     {[[false, `All visits (${visits.length})`], [true, `My consultations (${myVisits.length})`]].map(([mine, label]) => (
@@ -613,31 +648,20 @@ const ChartPage = () => {
                     ))}
                   </div>
                 )}>
-                <VisitList visits={mineOnly ? myVisits : visits} viewer={viewer} />
-              </Panel>
-          </Section>
-
-          <Section id="Timeline">
-              <Panel title="All systems over time" note={`${sources.length} department systems (simulated), ${totalRecords} records. Select a point to read that record.`}>
-                <SystemsTimeline timeline={timeline} domain={domain} />
-              </Panel>
-              <Panel title="Every record" note="Newest first">
-                <div className="flex flex-wrap gap-2 mb-4" role="group" aria-label="Filter by source system">
-                  {[null, ...systems].map((s) => (
-                    <button
-                      key={s || 'all'}
-                      onClick={() => setSystemFilter(s)}
-                      aria-pressed={systemFilter === s}
-                      className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${systemFilter === s ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}
-                    >
-                      {s || 'All systems'}
+                <div className="flex flex-wrap gap-2 mb-4" role="group" aria-label="Filter by department">
+                  {[null, ...systems].map((sys) => (
+                    <button key={sys || 'all'} onClick={() => setSystemFilter(sys)} aria-pressed={systemFilter === sys}
+                      className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border transition-colors ${systemFilter === sys ? 'bg-teal-700 text-white border-teal-700' : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'}`}>
+                      {sys && <span className="w-2 h-2 rounded-full" style={{ background: SYSTEM_COLORS[sys] }} aria-hidden="true" />}
+                      {sys || 'All departments'}
                     </button>
                   ))}
                 </div>
-                <RecordList items={systemFilter ? timeline.filter((i) => i.system === systemFilter) : timeline} />
+                <VisitList visits={shownVisits} viewer={viewer} onOpenDay={setDayOpen} />
               </Panel>
           </Section>
         </main>
+        </SectionContext.Provider>
       </div>
 
       {/* Floating DocAssist button on narrow screens, where the sidebar card is hidden */}
@@ -676,8 +700,124 @@ const ChartPage = () => {
         <button onClick={() => setAskOpen(false)} aria-label="Close DocAssist" className="absolute top-4 right-4 z-10 p-1.5 rounded-full text-white/80 hover:bg-white/15">
           <X className="w-4 h-4" />
         </button>
-        <AskPanel patientId={profile.patient_id} patientName={profile.name} request={askRequest} />
+        <AskPanel patientId={profile.patient_id} patientName={profile.name} images={images} request={askRequest} />
       </aside>
+
+      {/* One visit day: everything the department systems recorded for that date */}
+      <Dialog open={!!dayOpen} onOpenChange={(open) => !open && setDayOpen(null)}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto" data-testid="visit-day">
+          {dayOpen && (() => {
+            const order = ['Blood Profile', 'MRI', 'CT Scan', 'X-Ray', 'ECG', 'Treatment'];
+            const items = timeline.filter((i) => i.date === dayOpen).sort((a, b) => order.indexOf(a.department) - order.indexOf(b.department));
+            const labValues = flowsheet.rows.filter((r) => r.cells[dayOpen]).map((r) => ({ ...r.cells[dayOpen], analyte: r.analyte, unit: r.unit }));
+            const doctors = [...new Set(items.map((i) => i.doctor).filter(Boolean))];
+            const steps = visitLog[dayOpen];   // ordered events from the visit log system, where it has this day
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-lg">Visit on {formatDate(dayOpen)}</DialogTitle>
+                </DialogHeader>
+                <p className="text-sm text-slate-600">{profile.name} · {steps ? `${steps.length} steps · ` : ''}{items.length} record{items.length > 1 ? 's' : ''} from {new Set(items.map((i) => i.system)).size} department{new Set(items.map((i) => i.system)).size > 1 ? 's' : ''}</p>
+                <div className="flex flex-wrap gap-1.5">{doctors.map((d) => <DoctorChip key={d} name={d} isViewer={d === viewer} />)}</div>
+                {steps ? (
+                  <ol className="relative" data-testid="visit-sequence">
+                    <span className="absolute left-4 top-4 bottom-4 w-0.5 bg-slate-200" aria-hidden="true" />
+                    {steps.map((step, n) => {
+                      const linked = step.links.map((l) => items.find((i) => i.department === l.department && i.title === l.title)).filter(Boolean);
+                      const isLab = linked.some((i) => i.department === 'Blood Profile');
+                      return (
+                        <li key={n} className="relative pl-12 pb-4 last:pb-0 rise-in" style={{ animationDelay: `${n * 60}ms` }}>
+                          <span className={`absolute left-0 top-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ring-4 ring-white ${linked.length ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600'}`}>{n + 1}</span>
+                          <p className="text-sm font-semibold text-slate-900 pt-1">{step.step}{step.by && !step.step.includes(step.by) && <span className="font-normal text-slate-500"> · {step.by}</span>}</p>
+                          {step.detail && <p className="text-sm text-slate-600">{step.detail}</p>}
+                          {step.step === 'Vitals recorded' && vitals && vitals.recorded === dayOpen && (
+                            <p className="text-sm text-slate-600">BP {vitals.bp} mmHg, pulse {vitals.pulse} bpm, temperature {vitals.temp_c} °C, oxygen saturation {vitals.spo2}%, weight {vitals.weight_kg} kg</p>
+                          )}
+                          {linked.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {linked.map((item) => (
+                                    <div key={item.department + item.title} className="rounded-2xl border border-slate-200 bg-white p-4 flex gap-4">
+                                      <span className="w-1 rounded-full shrink-0" style={{ background: SYSTEM_COLORS[item.system] }} aria-hidden="true" />
+                                      <div className="min-w-0 flex-1 text-sm">
+                                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                          <span className="font-semibold text-slate-900">{item.title}</span>
+                                          <SystemTag system={item.system} />
+                                          <span className="text-xs text-slate-500 ml-auto">{item.doctor}</span>
+                                        </div>
+                                        <p className="text-slate-700 mt-1">{item.result}</p>
+                                        {item.medicines && item.medicines !== 'N/A' && <p className="text-slate-600 mt-1"><span className="text-xs text-slate-500">Medicines given: </span>{item.medicines}</p>}
+                                        {item.image && IMAGE_DEPARTMENTS.includes(item.department) && (
+                                          <button onClick={() => { setDayOpen(null); setViewing(item); }} className="mt-2 block w-40 h-24 rounded-lg overflow-hidden bg-slate-900" aria-label={`Enlarge ${item.title}`}>
+                                            <Thumb src={item.image} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                              ))}
+                              {isLab && labValues.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {labValues.map((v) => (
+                                    <span key={v.analyte} className={`text-xs px-2 py-0.5 rounded-full ${v.status === 'IN RANGE' ? 'bg-slate-100 text-slate-800' : 'bg-rose-100 text-rose-900'}`}>
+                                      {v.analyte} {v.value} {v.unit}{v.status !== 'IN RANGE' ? ` ${RANGE_LETTER[v.status]}` : ''}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ol>
+                ) : (
+                  <>
+                <ol className="space-y-3">
+                    {items.map((item, i) => (
+                      <li key={i} className="rounded-2xl border border-slate-200 p-4 flex gap-4">
+                        <span className="w-1 rounded-full shrink-0" style={{ background: SYSTEM_COLORS[item.system] }} aria-hidden="true" />
+                        <div className="min-w-0 flex-1 text-sm">
+                          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className="font-semibold text-slate-900">{item.title}</span>
+                            <SystemTag system={item.system} />
+                            <span className="text-xs text-slate-500 ml-auto">{item.doctor}</span>
+                          </div>
+                          <p className="text-slate-700 mt-1">{item.result}</p>
+                          {item.medicines && item.medicines !== 'N/A' && <p className="text-slate-600 mt-1"><span className="text-xs text-slate-500">Medicines given: </span>{item.medicines}</p>}
+                          {item.image && IMAGE_DEPARTMENTS.includes(item.department) && (
+                            <button onClick={() => { setDayOpen(null); setViewing(item); }} className="mt-2 block w-40 h-24 rounded-lg overflow-hidden bg-slate-900" aria-label={`Enlarge ${item.title}`}>
+                              <Thumb src={item.image} />
+                            </button>
+                          )}
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                  {labValues.length > 0 && (
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-1.5">Lab values measured that day</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {labValues.map((v) => (
+                          <span key={v.analyte} className={`text-xs px-2 py-0.5 rounded-full ${v.status === 'IN RANGE' ? 'bg-slate-100 text-slate-800' : 'bg-rose-100 text-rose-900'}`}>
+                            {v.analyte} {v.value} {v.unit}{v.status !== 'IN RANGE' ? ` ${RANGE_LETTER[v.status]}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  </>
+                )}
+                {!steps && vitals && vitals.recorded === dayOpen && (
+                  <p className="text-sm text-slate-700">Vitals that day: BP {vitals.bp} mmHg, pulse {vitals.pulse} bpm, temperature {vitals.temp_c} °C, oxygen saturation {vitals.spo2}%, weight {vitals.weight_kg} kg.</p>
+                )}
+                <p className="text-xs text-slate-500">
+                  {steps ? 'Order of events from the visit log (simulated). It records the sequence of the day, not clock times.'
+                    : 'The department systems record the date of each item, not the time of day, so the order shown is by department.'}
+                </p>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!viewing} onOpenChange={(open) => !open && setViewing(null)}>
         <DialogContent className="max-w-4xl">
@@ -696,6 +836,10 @@ const ChartPage = () => {
                   <p className="text-slate-900">{viewing.result}</p>
                   <p className="text-slate-500">Reported by {viewing.doctor}</p>
                   <p className="text-xs text-slate-500">Illustrative image for synthetic data.</p>
+                  <button onClick={() => askAboutStudy(viewing)} data-testid="ask-about-study"
+                    className="inline-flex items-center gap-2 text-sm font-medium rounded-full pl-1.5 pr-4 py-1.5 bg-slate-900 text-white hover:bg-slate-800">
+                    <DocAssistOrb size={24} />Ask DocAssist about this
+                  </button>
                 </div>
               </div>
             </>

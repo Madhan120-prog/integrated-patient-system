@@ -38,6 +38,7 @@
         "name": "Nurse Johnson"
       }
     ],
+    "visit_log": true,
     "scenario": "lung_cancer"
   },
   {

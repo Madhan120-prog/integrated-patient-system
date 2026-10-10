@@ -334,5 +334,525 @@
         "medicines": "Pembrolizumab 200mg IV q3w"
       }
     ]
-  }
+  },
+  "visit_log": [
+    {
+      "week_offset": 0,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Complete Blood Count"
+            ]
+          ]
+        },
+        {
+          "step": "Resting ECG performed",
+          "by": "Cardiology",
+          "links": [
+            [
+              "ecg",
+              "Resting ECG"
+            ]
+          ]
+        },
+        {
+          "step": "Chest X-Ray performed",
+          "by": "Radiology",
+          "links": [
+            [
+              "xray",
+              "Chest X-Ray"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Imaging findings discussed; further scans ordered."
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 1,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Tumor Marker Panel"
+            ]
+          ]
+        },
+        {
+          "step": "Chest CT Scan performed",
+          "by": "Radiology",
+          "links": [
+            [
+              "ct_scan",
+              "Chest CT Scan"
+            ]
+          ]
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 2,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Abdominal CT Scan performed",
+          "by": "Radiology",
+          "links": [
+            [
+              "ct_scan",
+              "Abdominal CT Scan"
+            ]
+          ]
+        },
+        {
+          "step": "Brain MRI performed",
+          "by": "Radiology",
+          "links": [
+            [
+              "mri",
+              "Brain MRI"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Staging scans reviewed; treatment plan discussed."
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 3,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Complete Blood Count"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Counts checked before the first cycle."
+        },
+        {
+          "step": "Pre-medication given",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Infusion given",
+          "by": "Infusion nursing",
+          "links": [
+            [
+              "treatment",
+              "Chemotherapy — Cisplatin/Pemetrexed Cycle 1"
+            ]
+          ]
+        },
+        {
+          "step": "Observed after the infusion",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 5,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Complete Blood Count"
+            ]
+          ]
+        },
+        {
+          "step": "Results reviewed by the nurse",
+          "by": "Nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 6,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Liver Function Test"
+            ],
+            [
+              "blood_profile",
+              "Kidney Function Test"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Dose for this cycle reviewed."
+        },
+        {
+          "step": "Pre-medication given",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Infusion given",
+          "by": "Infusion nursing",
+          "links": [
+            [
+              "treatment",
+              "Chemotherapy — Cisplatin/Pemetrexed Cycle 2"
+            ]
+          ]
+        },
+        {
+          "step": "Observed after the infusion",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 8,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Complete Blood Count"
+            ]
+          ]
+        },
+        {
+          "step": "Results reviewed by the nurse",
+          "by": "Nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 9,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Tumor Marker Panel"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Progress reviewed before the cycle."
+        },
+        {
+          "step": "Pre-medication given",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Infusion given",
+          "by": "Infusion nursing",
+          "links": [
+            [
+              "treatment",
+              "Chemotherapy — Cisplatin/Pemetrexed Cycle 3"
+            ]
+          ]
+        },
+        {
+          "step": "Observed after the infusion",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 12,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Progress reviewed before the cycle."
+        },
+        {
+          "step": "Pre-medication given",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Infusion given",
+          "by": "Infusion nursing",
+          "links": [
+            [
+              "treatment",
+              "Chemotherapy — Cisplatin/Pemetrexed Cycle 4"
+            ]
+          ]
+        },
+        {
+          "step": "Observed after the infusion",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 14,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Tumor Marker Panel"
+            ]
+          ]
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 16,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Maintenance therapy discussed."
+        },
+        {
+          "step": "Infusion given",
+          "by": "Infusion nursing",
+          "links": [
+            [
+              "treatment",
+              "Immunotherapy — Pembrolizumab maintenance"
+            ]
+          ]
+        },
+        {
+          "step": "Observed after the infusion",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 20,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Tumor Marker Panel"
+            ]
+          ]
+        },
+        {
+          "step": "Chest CT Scan performed",
+          "by": "Radiology",
+          "links": [
+            [
+              "ct_scan",
+              "Chest CT Scan"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Scan and marker results reviewed."
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 24,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Chest X-Ray performed",
+          "by": "Radiology",
+          "links": [
+            [
+              "xray",
+              "Chest X-Ray"
+            ]
+          ]
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 40,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Chest X-Ray performed",
+          "by": "Radiology",
+          "links": [
+            [
+              "xray",
+              "Chest X-Ray"
+            ]
+          ]
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    }
+  ]
 }

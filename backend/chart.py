@@ -96,6 +96,7 @@ def build_treatments(treatment_records: list) -> list:
             "status": "In progress" if "progress" in result.lower() else "Scheduled" if "scheduled" in result.lower() else "Completed",
             "result": _plain(result),
             "medicines": r.get("medicines"),
+            "doctor": r.get("doctor", ""),
             "modified": bool(_MODIFIED_RE.search(result)),
         })
     return items
@@ -228,7 +229,27 @@ def build_problems(profile: dict, records_by_dept: dict) -> list:
     return problems + [{"label": d.capitalize(), "source": "Stated in a record"} for d in stated]
 
 
-def build_chart(profile: dict, records_by_dept: dict, today: date = None) -> dict:
+_LINK_DEPARTMENT = {"blood_profile": "Blood Profile", "mri": "MRI", "xray": "X-Ray", "ct_scan": "CT Scan",
+                    "ecg": "ECG", "treatment": "Treatment"}
+
+
+def build_visit_log(visit_logs: list) -> dict:
+    """{date: [step]} from the visit log system. Each step is what happened next
+    that day; `links` name the department records made at that step, using the
+    same department and title the timeline carries, so the screen can join them."""
+    return {
+        day["visit_date"]: [
+            {
+                "step": step["step"], "by": step.get("by", ""), "detail": step.get("detail", ""),
+                "links": [{"department": _LINK_DEPARTMENT[d], "title": _plain(name)} for d, name in step.get("links", [])],
+            }
+            for step in day["steps"]
+        ]
+        for day in visit_logs or []
+    }
+
+
+def build_chart(profile: dict, records_by_dept: dict, today: date = None, visit_logs: list = None) -> dict:
     labs = records_by_dept.get("Blood Profile", [])
     latest_values = summarize_latest(labs)["latest_values"]
     treatments = build_treatments(records_by_dept.get("Treatment", []))
@@ -239,6 +260,7 @@ def build_chart(profile: dict, records_by_dept: dict, today: date = None) -> dic
         "care_team": profile.get("care_team", []),
         "problems": build_problems(profile, records_by_dept),
         "visits": build_visits(timeline),
+        "visit_log": build_visit_log(visit_logs),
         "medications": build_medications(treatments),
         "upcoming": estimate_upcoming(treatments, today or date.today()),
         "findings": build_findings(records_by_dept, latest_values, detect_trends(labs), treatments),

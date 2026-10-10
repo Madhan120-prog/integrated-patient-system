@@ -22,7 +22,8 @@ COLLECTION = {"Blood Profile": "blood_profile_records", "MRI": "mri_records", "X
 def chart_for(pid):
     profile = next(p for p in SEED["profiles"] if p["patient_id"] == pid)
     records = {dept: [r for r in SEED[coll] if r["patient_id"] == pid] for dept, coll in COLLECTION.items()}
-    return build_chart(profile, records, today=TODAY), records
+    logs = [v for v in SEED["visit_logs"] if v["patient_id"] == pid]
+    return build_chart(profile, records, today=TODAY, visit_logs=logs), records
 
 
 def test_timeline_holds_every_record_once_newest_first_with_a_labelled_source():
@@ -90,6 +91,7 @@ def test_treatments_are_in_order_given_with_category_status_and_modification_fla
     tx = chart_for("P1004")[0]["treatments"]
     assert [t["date"] for t in tx] == sorted(t["date"] for t in tx)
     assert (tx[0]["category"], tx[0]["name"], tx[0]["status"]) == ("Surgery", "Right hemicolectomy", "Completed")
+    assert all(t["doctor"] == "Dr. Smith" and t["medicines"] for t in tx)     # one row answers "what, how much, by whom"
     delayed = [t for t in tx if t["modified"]]
     assert len(delayed) == 1 and "FOLFOX Cycle 3" in delayed[0]["name"]          # "dose delayed 1 week for neutropenia"
     lung = chart_for("P1001")[0]["treatments"]
@@ -211,3 +213,102 @@ def test_vitals_care_team_and_problems_for_demo_patients_and_absent_for_others()
     assert "Metastasis" not in labels                             # stated as absent, so not a problem
     plain = chart_for("P1008")[0]
     assert plain["vitals"] is None and plain["care_team"] == [] and isinstance(plain["problems"], list)
+
+
+# ── DocAssist on the chart: section scope and study analysis ─────────────────
+
+def test_deep_query_accepts_a_section_scope_and_defaults_to_none():
+    import server
+    assert server.DeepQueryRequest(patient_id="P1", question="q").scope == []
+    assert server.DeepQueryRequest(patient_id="P1", question="q", scope=["MRI", "CT Scan"]).scope == ["MRI", "CT Scan"]
+    assert set(server.DEPARTMENT_GATEWAYS) == set(server.DEPT_KEYWORDS)     # every scope name maps to a gateway
+
+
+def test_study_analysis_is_physician_only_and_its_prompt_carries_the_report_not_the_url():
+    import server
+    route = next(r for r in server.app.routes if getattr(r, "path", "") == "/api/analyze-study")
+    assert "POST" in route.methods
+    assert any(d.call is server.require_physician for d in route.dependant.dependencies)
+    record = next(r for r in SEED["ct_scan_records"] if r["patient_id"] == "P1002")
+    prompt = server.study_analysis_prompt(record)
+    assert record["result"] in prompt and record["test_name"] in prompt
+    assert "http" not in prompt and record["report_image"] not in prompt
+    assert "Do not diagnose" in prompt and "Against the report:" in prompt
+
+
+# ── Visit recordings ─────────────────────────────────────────────────────────
+
+def test_transcript_turns_voice_ids_into_stable_role_labels():
+    import json, server
+    raw = "```json\n" + json.dumps({
+        "voices": [{"id": "V1", "role": "Doctor", "basis": "asks the clinical questions"},
+                   {"id": "V2", "role": "Patient", "basis": "describes symptoms"},
+                   {"id": "V3", "role": "Other", "basis": "daughter"}, {"id": "V4", "role": "Other", "basis": "nurse"},
+                   {"id": "V5", "role": "Robot", "basis": ""}],
+        "segments": [{"start": "00:00", "voice": "V1", "text": " How have you been since the last cycle? "},
+                     {"start": "00:05", "voice": "V2", "text": "Tired. Can I ask, is that normal?"},   # a patient asking is still the patient
+                     {"start": "00:11", "voice": "V1", "text": "Yes."}, {"start": "00:13", "voice": "V3", "text": "She naps a lot."},
+                     {"start": "00:16", "voice": "V4", "text": "Vitals are done."}, {"start": "00:18", "voice": "V5", "text": "..."},
+                     {"start": "00:20", "voice": "V2", "text": "   "}],
+        "summary": ["Fatigue discussed"] * 9}) + "\n```"
+    t = server.parse_transcript(raw)
+    assert [seg["speaker"] for seg in t["segments"]] == ["Doctor", "Patient", "Doctor", "Other 1", "Other 2", "Unclear"]
+    assert t["segments"][0]["text"] == "How have you been since the last cycle?"      # trimmed; the empty segment is dropped
+    assert len(t["summary"]) == 5 and "labelled by AI" in t["note"]
+    assert {sp["label"] for sp in t["speakers"]} == {"Doctor", "Patient", "Other 1", "Other 2", "Unclear"}
+
+
+def test_transcript_rejects_output_it_cannot_trust():
+    import pytest, server
+    from fastapi import HTTPException
+    for bad in ("not json", "{}", '{"voices": [{"id": "V1", "role": "Doctor"}], "segments": [{"voice": "V9", "text": "hi"}]}',
+                '{"voices": [], "segments": []}'):
+        with pytest.raises(HTTPException) as err:
+            server.parse_transcript(bad)
+        assert err.value.status_code == 502
+
+
+def test_recording_routes_are_physician_only_and_the_prompt_fixes_voice_before_role():
+    import server
+    for path in ("/api/transcribe-recording", "/api/ask-transcript"):
+        route = next(r for r in server.app.routes if getattr(r, "path", "") == path)
+        assert any(d.call is server.require_physician for d in route.dependant.dependencies), path
+    prompt = server.TRANSCRIBE_PROMPT
+    assert prompt.index("Pass 1, voices") < prompt.index("Pass 2, roles")
+    assert "keeps its id for the entire recording" in prompt and "ONCE per voice" in prompt
+    assert "A\npatient asking a question is still the patient" in prompt or "patient asking a question is still the patient" in prompt
+
+
+# ── Visit log: the seventh system, ordered steps per visit day ───────────────
+
+def test_visit_log_covers_every_visit_day_and_links_every_record_exactly_once():
+    import re
+    chart, _ = chart_for("P1001")
+    log = chart["visit_log"]
+    assert set(log) == {v["date"] for v in chart["visits"]}          # one sequence per visit day
+    for day, steps in log.items():
+        assert steps[0]["step"] == "Checked in at the front desk" and steps[-1]["step"] == "Checked out"
+        linked = [(l["department"], l["title"]) for s in steps for l in s["links"]]
+        on_chart = [(i["department"], i["title"]) for i in chart["timeline"] if i["date"] == day]
+        assert sorted(linked) == sorted(on_chart), day                # nothing missing, nothing invented
+        assert not re.search(r"\b\d{1,2}:\d{2}\b", str(steps)), day   # order only, no clock times
+    feb = next(steps for steps in log.values() if any("Cycle 2" in l["title"] for s in steps for l in s["links"]))
+    assert [s["step"] for s in feb] == ["Checked in at the front desk", "Vitals recorded", "Blood sample drawn",
+                                        "Consultation with Dr. Smith", "Pre-medication given", "Infusion given",
+                                        "Observed after the infusion", "Checked out"]
+    assert len(next(s for s in feb if s["step"] == "Blood sample drawn")["links"]) == 2     # liver and kidney panels
+
+
+def test_visit_log_exists_only_where_seeded_and_is_reached_through_the_mpi(tmp_path, monkeypatch):
+    from data import visit_system
+    assert {v["patient_id"] for v in SEED["visit_logs"]} == {"P1001"}
+    assert chart_for("P1002")[0]["visit_log"] == {} and chart_for("P1010")[0]["visit_log"] == {}   # same scenario, not flagged
+    assert all(m["visit_local_id"].startswith("VL-") for m in SEED["mpi"])
+    assert "visit_log" not in next(p for p in SEED["profiles"] if p["patient_id"] == "P1001")
+    monkeypatch.setattr(visit_system, "DB_PATH", tmp_path / "visits.json")
+    assert visit_system.query_by_local_id("VL-600000") == []                                  # no store yet
+    assert visit_system.reset_and_seed({"VL-600000": SEED["visit_logs"]}) == len(SEED["visit_logs"])
+    stored = visit_system.query_by_local_id("VL-600000")
+    assert set(stored[0]) == {"visit_date", "steps"}                                          # no canonical patient_id in the store
+    visit_system.clear()
+    assert visit_system.query_by_local_id("VL-600000") == []
