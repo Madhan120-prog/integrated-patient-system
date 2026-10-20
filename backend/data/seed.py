@@ -214,6 +214,34 @@ def build_visit_log(patient):
     ]
 
 
+RADIATION_COURSES = {"lung": (60, 30), "breast": (50, 25)}   # prescription Gy, fractions
+# Real public CT and outlines to build a course on, when present (downloaded, never committed).
+PUBLIC_DICOM = Path(__file__).parent / "public_dicom"
+PUBLIC_SOURCES = {"P1001": "NSCLC-Radiomics/LUNG1-005"}
+
+
+def build_radiation_case(patient, treatment_records, mpi_row, today):
+    """Dates and identity for one synthetic radiation course. Treatment ends on the
+    date of the patient's radiation record; planning comes a week or two before."""
+    dose, fractions = RADIATION_COURSES[patient["radiation"]]
+    end = next(datetime.strptime(r["treatment_date"], "%Y-%m-%d").date()
+               for r in treatment_records if r["treatment_name"].startswith("Radiation"))
+    from data.dicom_synth import fraction_dates
+    days = fraction_dates(end, fractions)
+    start = datetime.strptime(days[0], "%Y-%m-%d").date()
+    team = {m["role"]: m["name"] for m in patient.get("care_team", [])}
+    return {
+        "patient_id": patient["patient_id"], "pacs_local_id": mpi_row["pacs_local_id"], "ro_local_id": mpi_row["ro_local_id"],
+        "site": patient["radiation"], "name": patient["name"], "sex": patient["gender"][0],
+        "birth_year": today.year - patient["age"], "physician": team.get("Radiation oncologist", patient.get("primary_oncologist", "")),
+        "dose": dose, "fractions": fractions,
+        "ct_date": (start - timedelta(days=14)).isoformat(), "plan_date": (start - timedelta(days=5)).isoformat(),
+        "fraction_dates": days,
+        **({"public_source": str(PUBLIC_DICOM / PUBLIC_SOURCES[patient["patient_id"]])}
+           if patient["patient_id"] in PUBLIC_SOURCES and (PUBLIC_DICOM / PUBLIC_SOURCES[patient["patient_id"]] / "RTSTRUCT").exists() else {}),
+    }
+
+
 LAST_RECORD_DAYS_AGO = 6
 
 
@@ -246,11 +274,12 @@ def build_seed_data(extra_count=0, today=None):
         "ct_scan_records": [],
         "treatment_records": [],
         "visit_logs": [],  # ordered steps per visit day, for patients flagged visit_log
+        "radiation_cases": [],  # one synthetic DICOM RT course per patient flagged radiation
         "mpi": []  # canonical patient_id -> each vendor system's own local ID
     }
 
     for i, patient in enumerate(patients):
-        profile = {k: v for k, v in patient.items() if k not in ("scenario", "visit_log")}
+        profile = {k: v for k, v in patient.items() if k not in ("scenario", "visit_log", "radiation")}
         all_records["profiles"].append(profile)
         all_records["mpi"].append({
             "patient_id": patient["patient_id"],
@@ -260,7 +289,9 @@ def build_seed_data(extra_count=0, today=None):
             "ct_local_id": f"CT-{300000 + i}",
             "ecg_local_id": f"ECG-{400000 + i}",
             "treatment_local_id": f"TX-{500000 + i}",
-            "visit_local_id": f"VL-{600000 + i}"
+            "visit_local_id": f"VL-{600000 + i}",
+            "pacs_local_id": f"PACS-{700000 + i}",
+            "ro_local_id": f"RO-{800000 + i}",
         })
         if patient.get("visit_log"):
             all_records["visit_logs"].extend(build_visit_log(patient))
@@ -268,6 +299,9 @@ def build_seed_data(extra_count=0, today=None):
         patient_records = build_records_for_patient(patient)
         for coll, recs in patient_records.items():
             all_records[coll].extend(recs)
+        if patient.get("radiation"):
+            all_records["radiation_cases"].append(
+                build_radiation_case(patient, patient_records["treatment_records"], all_records["mpi"][-1], today))
 
     return all_records
 

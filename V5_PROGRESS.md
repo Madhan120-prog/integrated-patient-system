@@ -469,12 +469,111 @@ paid tier or the guardrails above plus a narrow, rehearsed question list.
 - Open: voice quality. The current engine is gTTS; a neural voice is to be
   trialled and compared.
 
+## Doctor's notes and source labels (2026-10-09)
+- My notes (moved the same day at the owner's request): opened from a card
+  under DocAssist in the sidebar as a floating window with no backdrop. It can
+  be dragged by its header, resized from any edge or corner, and stays in place
+  while the chart scrolls; size and position are remembered in the browser.
+  One notepad per physician per patient. It
+  saves by itself shortly after typing stops and shows when it was last saved.
+  Stored in the portal's own database (`clinician_notes`), never written to a
+  department system and never sent to the model. Routes `GET` and
+  `PUT /api/notes/{patient_id}`, physician only, 20,000 character limit.
+- Data from: under each section heading, a chip per department system that fed
+  it, with how that system stores its data, the patient's own id in that system
+  (read from the MPI) and the record count. `build_chart` takes the MPI row;
+  `sources` gained `store` and `local_id`, and `visit_source` was added.
+- Checkpoint: `pytest` 175 passed (one new test); `CI=true npm run build`
+  compiled. The notes routes have not been exercised against a running server
+  (the backend needs a restart to load them) and nothing was clicked through in
+  a browser.
+
+## Trust fixes and the brief's data (2026-10-09)
+- Audit log now records the model that actually answered (`active_model_name`),
+  instead of always naming the hosted model.
+- Prompts no longer name a placeholder hospital.
+- Stage 3 groundwork: `build_brief` in `chart.py` computes what changed since
+  the signed-in doctor last saw the patient (or since the previous visit when
+  the doctor has none): new records, lab values that moved, values that were
+  out of range and have not been measured again, current therapy and the next
+  estimated dose. No model is involved. Returned as `brief` on `/api/chart`.
+- Checkpoint: `pytest` 177 passed (two new tests). The brief has no screen yet;
+  the layout is awaiting approval.
+
+## Remaining to-dos closed (2026-10-13)
+- Visit-day sequences added for the curated breast and colorectal patients
+  (P1002, P1004), generated from each scenario's records so every record is
+  linked exactly once on its day. The test now covers all three patients.
+- Lung scenario made consistent with its stage: thoracic radiation concurrent
+  with chemotherapy, then durvalumab consolidation every 4 weeks, in place of
+  the maintenance drug used for metastatic disease. Regimen line, care team,
+  visit log, drug list and tests updated. Synthetic data; a clinician should
+  still read it before it is shown.
+- "How this chart was assembled": a pop-up from the Sources tile listing each
+  system, its storage, the patient's id in it and its record count.
+- Sidebar launchers for DocAssist and notes reduced to one line each so the
+  sidebar fits a laptop screen at 100% zoom.
+- Checkpoint: `pytest` 177 passed; `CI=true npm run build` compiled. A reseed
+  is needed to see the data changes. Not run: the live question regression
+  (needs the reseeded backend) and any browser click-through by the assistant.
+- Still open: density pass for 100% zoom, neural voice trial, brief screen,
+  referral intake.
+
+## Radiation oncology and DICOM, part 1: systems and plan review (2026-10-19)
+- Two more simulated systems, reached through the MPI like the rest:
+  a picture archive (`data/pacs_system.py`, DICOM image files per local id) and
+  a radiation oncology system (`data/radiation_system.py`, DICOM RT plan,
+  structure set and dose per local id, plus a JSON-lines delivery log).
+  Gateways: `pacs_gateway.py`, `radiation_gateway.py`. MPI ids `pacs_local_id`,
+  `ro_local_id` for every patient.
+- `data/dicom_synth.py` writes synthetic, standard DICOM: a 24-slice planning CT
+  (a mathematical phantom, not a scan), RT Structure Set, RT Plan, RT Dose.
+  Two courses: P1001 lung 60 Gy in 30 fractions (VMAT), P1002 left breast 50 Gy
+  in 25 fractions (tangents). Delivery dates end on each patient's radiation
+  record; the breast record now states 50 Gy in 25 fractions.
+- `radiation.py` reads any standard DICOM RT: outlines rasterised onto the dose
+  grid, cumulative dose-volume curves, dose metrics, example constraint checks
+  computed in code, CT slices rendered with outlines and dose, and a
+  de-identified header summary (identifying fields hidden, dates cut to year).
+- Routes: `GET /api/radiation/{patient_id}`, `GET /api/radiation/{patient_id}/slice/{index}`.
+- New dependency `pydicom==3.0.2` (numpy and Pillow were already pinned).
+- Checkpoint: `pytest` 187 passed (10 new); live routes checked after reseed.
+
+## Radiation oncology and DICOM, part 2: the Radiation section (2026-10-19)
+- New chart section "Radiation" (shown only when the patient has a course):
+  prescription, technique, constraint checks and delivery tiles; a planning CT
+  viewer (slice slider, lung, soft-tissue and bone windows, outlines and dose
+  toggles, opens on the slice where the target is largest); dose-volume
+  histogram with structures that can be hidden; plan checks table with "met",
+  "met, close to limit" (within 10%) and "review"; one square per fraction.
+- The two new systems appear in "Data from" and in "How this chart was assembled".
+- DocAssist: "Ask about radiation" and radiation keywords add a computed plan
+  review block to the prompt (`radiation.for_prompt`).
+- Checkpoint: build compiled; `pytest` 187 passed; headless browser check of
+  P1001 and P1002, section hidden for P1004, no console errors.
+
+## Radiation oncology and DICOM, part 3: real public CT (2026-10-19)
+- Downloaded six NSCLC-Radiomics patients (CT and RTSTRUCT, 348 MB) from TCIA's
+  public API into `backend/data/public_dicom/` (gitignored, with a MANIFEST of
+  licence CC BY-NC 3.0 and DOI 10.7937/K9/TCIA.2015.PF0M9REI).
+- P1001's course uses LUNG1-005 (right lung tumour; GTV, both lungs, heart,
+  oesophagus, cord outlined by a radiation oncologist). The CT and outlines are
+  the published files; the plan and dose are illustrative, computed on that
+  anatomy (PTV derived as GTV + 7 mm, cord spared) and labelled on screen.
+  Without the download the phantom is used, so a fresh checkout still works.
+- `radiation.py` now maps real structure names to one vocabulary, derives
+  missing PTV and combined lungs, places dose on any grid, and reports
+  treatment breaks. The delivery strip was replaced by one exceptions line.
+- Checkpoint: `pytest` 189 passed (one test needs the download and skips without
+  it); build compiled; live check after reseed: all six checks met.
+- Planning CT viewer: scroll steps through slices, pinch or Ctrl/Cmd + scroll
+  zooms at the cursor (up to 6x), drag pans, double-click or 0 resets, arrow
+  keys step. When zoomed the server sends a 1024 px slice; the dose wash is now
+  bilinear instead of nearest-point, so it stays smooth.
+
 ## Open items noticed during Stage 1
 - Demo timelines are dated 2025 and labs stop months before the last imaging,
   so "since last visit" will look stale. Decide in Stage 3 whether to shift
   registration dates or add recent results.
-- The lung scenario pairs a stage III work-up with a regimen normally used for
-  stage IV disease. Needs a clinical-coherence review before it is shown.
 - Medication detection is a keyword list (now includes 5-FU, leucovorin,
   filgrastim). The brief must read medications from treatment records, not NER.
-- Prompts still say "XYZ Hospital".

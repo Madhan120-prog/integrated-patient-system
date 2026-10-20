@@ -26,6 +26,9 @@ export const SYSTEM_COLORS = {
   'CT Scan': '#eda100',
   'X-Ray': '#e87ba4',
   ECG: '#008300',
+  'Visit Log': '#7c5cd6',
+  'Radiation oncology': '#0e7490',
+  'Picture archive': '#475569',
 };
 const TREATMENT = {
   Surgery: { color: '#2a78d6', Icon: Scissors },

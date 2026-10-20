@@ -356,5 +356,472 @@
         "medicines": "Oxaliplatin 85mg/m², 5-FU 2400mg/m²"
       }
     ]
-  }
+  },
+  "visit_log": [
+    {
+      "week_offset": 0,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Complete Blood Count"
+            ],
+            [
+              "blood_profile",
+              "Tumor Marker Panel"
+            ]
+          ]
+        },
+        {
+          "step": "Abdominal CT Scan performed",
+          "by": "Radiology",
+          "links": [
+            [
+              "ct_scan",
+              "Abdominal CT Scan"
+            ]
+          ]
+        },
+        {
+          "step": "Chest CT Scan performed",
+          "by": "Radiology",
+          "links": [
+            [
+              "ct_scan",
+              "Chest CT Scan"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Results and next steps discussed."
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 1,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Liver Function Test"
+            ]
+          ]
+        },
+        {
+          "step": "Resting ECG performed",
+          "by": "Cardiology",
+          "links": [
+            [
+              "ecg",
+              "Resting ECG"
+            ]
+          ]
+        },
+        {
+          "step": "Chest X-Ray performed",
+          "by": "Radiology",
+          "links": [
+            [
+              "xray",
+              "Chest X-Ray"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Results and next steps discussed."
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 3,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Admitted to the surgical unit",
+          "by": "Surgical nursing"
+        },
+        {
+          "step": "Surgery performed",
+          "by": "Surgical team",
+          "links": [
+            [
+              "treatment",
+              "Surgery — Right hemicolectomy"
+            ]
+          ]
+        },
+        {
+          "step": "Recovered on the ward",
+          "by": "Surgical nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 6,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Tumor Marker Panel"
+            ]
+          ]
+        },
+        {
+          "step": "Results reviewed by the nurse",
+          "by": "Nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 8,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Complete Blood Count"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Counts and side effects reviewed before the cycle."
+        },
+        {
+          "step": "Pre-medication given",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Infusion given",
+          "by": "Infusion nursing",
+          "links": [
+            [
+              "treatment",
+              "Chemotherapy — FOLFOX Cycle 1"
+            ]
+          ]
+        },
+        {
+          "step": "Observed after the infusion",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 10,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Complete Blood Count"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Counts and side effects reviewed before the cycle."
+        },
+        {
+          "step": "Pre-medication given",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Infusion given",
+          "by": "Infusion nursing",
+          "links": [
+            [
+              "treatment",
+              "Chemotherapy — FOLFOX Cycle 2"
+            ]
+          ]
+        },
+        {
+          "step": "Observed after the infusion",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 12,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Tumor Marker Panel"
+            ]
+          ]
+        },
+        {
+          "step": "Results reviewed by the nurse",
+          "by": "Nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 13,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Complete Blood Count"
+            ]
+          ]
+        },
+        {
+          "step": "Results reviewed by the nurse",
+          "by": "Nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 14,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Complete Blood Count"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Counts and side effects reviewed before the cycle."
+        },
+        {
+          "step": "Pre-medication given",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Infusion given",
+          "by": "Infusion nursing",
+          "links": [
+            [
+              "treatment",
+              "Chemotherapy — FOLFOX Cycle 3"
+            ]
+          ]
+        },
+        {
+          "step": "Observed after the infusion",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 18,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Blood sample drawn",
+          "by": "Lab",
+          "links": [
+            [
+              "blood_profile",
+              "Complete Blood Count"
+            ]
+          ]
+        },
+        {
+          "step": "Results reviewed by the nurse",
+          "by": "Nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 22,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Vitals recorded",
+          "by": "Nursing"
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Counts and side effects reviewed before the cycle."
+        },
+        {
+          "step": "Pre-medication given",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Infusion given",
+          "by": "Infusion nursing",
+          "links": [
+            [
+              "treatment",
+              "Chemotherapy — FOLFOX Cycles 4-6"
+            ]
+          ]
+        },
+        {
+          "step": "Observed after the infusion",
+          "by": "Infusion nursing"
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    },
+    {
+      "week_offset": 24,
+      "steps": [
+        {
+          "step": "Checked in at the front desk",
+          "by": "Front desk"
+        },
+        {
+          "step": "Abdominal CT Scan performed",
+          "by": "Radiology",
+          "links": [
+            [
+              "ct_scan",
+              "Abdominal CT Scan"
+            ]
+          ]
+        },
+        {
+          "step": "Consultation with {oncologist}",
+          "by": "{oncologist}",
+          "detail": "Results and next steps discussed."
+        },
+        {
+          "step": "Checked out",
+          "by": "Front desk"
+        }
+      ]
+    }
+  ]
 }

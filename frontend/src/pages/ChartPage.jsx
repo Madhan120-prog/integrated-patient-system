@@ -1,14 +1,15 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
-  Activity, ArrowUpRight, CalendarClock, CalendarDays, ChevronDown, ChevronUp, ChevronsDownUp, ChevronsUpDown, Database, HeartPulse, Maximize2, Minimize2, Ruler, Thermometer, Weight, Wind, FlaskConical, LayoutDashboard, Pill, ScanLine, Stethoscope, Syringe,
+  Activity, ArrowUpRight, Radiation, Check, NotebookPen, CalendarClock, CalendarDays, ChevronDown, ChevronUp, ChevronsDownUp, ChevronsUpDown, Database, HeartPulse, Maximize2, Minimize2, Ruler, Thermometer, Weight, Wind, FlaskConical, LayoutDashboard, Pill, ScanLine, Stethoscope, Syringe,
   TriangleAlert, Users, X,
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import AskPanel, { SECTION_SCOPE } from '../components/AskPanel';
+import RadiationPlan from '../components/RadiationPlan';
 import {
   StatTile, FindingCard, RangeGauge, Sparkline, LabTrendChart, SystemsTimeline, TreatmentTimeline, DocAssistOrb,
   SYSTEM_COLORS, RANGE_LETTER, RANGE_WORD, formatDate,
@@ -21,9 +22,12 @@ const SECTIONS = [
   { id: 'Labs', Icon: FlaskConical },
   { id: 'Imaging', Icon: ScanLine },
   { id: 'Treatment', Icon: Syringe },
+  { id: 'Radiation', Icon: Radiation },
   { id: 'Visits', Icon: CalendarDays },
 ];
 const IMAGE_DEPARTMENTS = ['MRI', 'CT Scan', 'X-Ray', 'ECG'];
+// Which department systems feed each section (Visits draws on all of them plus the visit log).
+const SECTION_SOURCES = { ...SECTION_SCOPE, Radiation: ['Radiation oncology', 'Picture archive'], Visits: ['Blood Profile', 'MRI', 'X-Ray', 'CT Scan', 'ECG', 'Treatment', 'Visit Log'] };
 const SUMMARY_QUESTION = "Summarize this patient's current status in a few bullet points.";
 
 const shortDate = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
@@ -246,10 +250,140 @@ const VisitList = ({ visits, viewer, onOpenDay }) =>
 
 // One page, many sections. Each has an anchor the sidebar scrolls to, and a
 // heading that opens and closes it: arrow down when closed, arrow up when open.
-const SectionContext = createContext({ collapsed: new Set(), toggle: () => {}, askAbout: () => {} });
+const SectionContext = createContext({ collapsed: new Set(), toggle: () => {}, askAbout: () => {}, sources: [] });
+
+// Under each section heading: which department system the data came from, how
+// that system stores it, and this patient's own id inside it (from the MPI).
+const SourceChips = ({ sources }) => (
+  <ul className="flex flex-wrap items-center gap-2 mt-3" data-testid="section-sources" aria-label="Where this data comes from">
+    <li className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500"><Database className="w-3.5 h-3.5" aria-hidden="true" />Data from</li>
+    {sources.map((s) => (
+      <li key={s.system} className="inline-flex items-center gap-2 text-xs rounded-full bg-white border border-slate-200 pl-2 pr-3 py-1 text-slate-600">
+        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: SYSTEM_COLORS[s.system] || '#64748b' }} aria-hidden="true" />
+        <span className="font-semibold text-slate-900">{s.system} system</span>
+        <span>{s.store}</span>
+        {s.local_id && <span className="font-mono text-slate-500">ID {s.local_id}</span>}
+        <span>{s.label || `${s.records} ${s.records === 1 ? 'record' : 'records'}`}</span>
+      </li>
+    ))}
+  </ul>
+);
+
+// The doctor's own notepad for this patient: a small window that floats over the
+// chart, can be dragged by its header and resized from any edge or corner, and
+// stays put while the page scrolls. Saves by itself a moment after typing stops.
+const NOTE_MIN = { w: 260, h: 200 };
+const NOTE_EDGES = {
+  n: 'top-0 left-3 right-3 h-1.5 cursor-ns-resize', s: 'bottom-0 left-3 right-3 h-1.5 cursor-ns-resize',
+  e: 'right-0 top-3 bottom-3 w-1.5 cursor-ew-resize', w: 'left-0 top-3 bottom-3 w-1.5 cursor-ew-resize',
+  nw: 'top-0 left-0 w-3 h-3 cursor-nwse-resize', se: 'bottom-0 right-0 w-3 h-3 cursor-nwse-resize',
+  ne: 'top-0 right-0 w-3 h-3 cursor-nesw-resize', sw: 'bottom-0 left-0 w-3 h-3 cursor-nesw-resize',
+};
+const clamp = (n, low, high) => Math.max(low, Math.min(n, high));
+const storedNoteRect = () => {
+  try { const r = JSON.parse(localStorage.getItem('notes-window')); if (r && r.w && r.h) return r; } catch { /* first use, or storage blocked */ }
+  return { x: window.innerWidth - 424, y: window.innerHeight - 384, w: 400, h: 360 };
+};
+
+const NotesWindow = ({ patientId, patientName, open, onClose }) => {
+  const [text, setText] = useState('');
+  const [status, setStatus] = useState('loading');   // loading | unavailable | saved | dirty | saving | error
+  const [savedAt, setSavedAt] = useState(null);
+  const [rect, setRect] = useState(storedNoteRect);
+  const box = useRef(null);
+
+  useEffect(() => {
+    let live = true;
+    axios.get(`${API}/notes/${patientId}`)
+      .then((res) => { if (live) { setText(res.data.text); setSavedAt(res.data.updated_at); setStatus('saved'); } })
+      .catch(() => live && setStatus('unavailable'));
+    return () => { live = false; };
+  }, [patientId]);
+
+  useEffect(() => {
+    if (status !== 'dirty') return undefined;
+    const timer = setTimeout(() => {
+      setStatus('saving');
+      axios.put(`${API}/notes/${patientId}`, { text })
+        .then((res) => { setSavedAt(res.data.updated_at); setStatus((s) => (s === 'saving' ? 'saved' : s)); })
+        .catch(() => setStatus('error'));
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [text, status, patientId]);
+
+  useEffect(() => { try { localStorage.setItem('notes-window', JSON.stringify(rect)); } catch { /* size is a convenience only */ } }, [rect]);
+  useEffect(() => { if (open) box.current?.focus(); }, [open]);
+
+  // One gesture for both: 'drag' moves the window, an edge name (n, se, …) resizes from that side.
+  const gesture = (edge) => (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const from = { px: e.clientX, py: e.clientY, ...rect };
+    const move = (ev) => {
+      const dx = ev.clientX - from.px;
+      const dy = ev.clientY - from.py;
+      let { x, y, w, h } = from;
+      if (edge === 'drag') {
+        x = clamp(x + dx, 0, window.innerWidth - w);
+        y = clamp(y + dy, 0, window.innerHeight - 48);
+      } else {
+        if (edge.includes('e')) w = clamp(w + dx, NOTE_MIN.w, window.innerWidth - x);
+        if (edge.includes('s')) h = clamp(h + dy, NOTE_MIN.h, window.innerHeight - y);
+        if (edge.includes('w')) { const d = clamp(dx, -x, w - NOTE_MIN.w); x += d; w -= d; }
+        if (edge.includes('n')) { const d = clamp(dy, -y, h - NOTE_MIN.h); y += d; h -= d; }
+      }
+      setRect({ x, y, w, h });
+    };
+    const done = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', done); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', done);
+  };
+
+  const state = {
+    loading: 'Opening…',
+    unavailable: 'Could not open. Reload to try again.',
+    dirty: 'Saving…',
+    saving: 'Saving…',
+    error: 'Not saved.',
+    saved: savedAt ? `Saved ${new Date(savedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'Nothing written yet',
+  }[status];
+
+  return (
+    <div role="dialog" aria-label={`My notes on ${patientName}`} data-testid="notes-window"
+      onKeyDown={(e) => e.key === 'Escape' && onClose()}
+      className={`fixed z-50 flex-col rounded-2xl bg-amber-50 border border-amber-300 shadow-2xl overflow-hidden ${open ? 'flex' : 'hidden'}`}
+      style={{ left: clamp(rect.x, 0, Math.max(0, window.innerWidth - 80)), top: clamp(rect.y, 0, Math.max(0, window.innerHeight - 48)),
+        width: Math.min(rect.w, window.innerWidth), height: Math.min(rect.h, window.innerHeight) }}>
+      <header onPointerDown={gesture('drag')} title="Drag to move"
+        className="flex items-center gap-2 pl-4 pr-2 py-2 bg-amber-200/80 border-b border-amber-300 cursor-move select-none touch-none">
+        <NotebookPen className="w-4 h-4 text-amber-800 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-amber-950">My notes<span className="font-normal text-amber-900"> · {patientName}</span></span>
+        <button onPointerDown={(e) => e.stopPropagation()} onClick={onClose} aria-label="Close notes" className="p-1.5 rounded-full text-amber-900 hover:bg-amber-300/70">
+          <X className="w-4 h-4" />
+        </button>
+      </header>
+      <textarea ref={box} value={text} onChange={(e) => { setText(e.target.value); setStatus('dirty'); }} maxLength={20000}
+        disabled={status === 'loading' || status === 'unavailable'} aria-label="My notes on this patient" data-testid="notes-box"
+        placeholder="Anything to remember: what to ask, what the family said, what to check before the next cycle…"
+        className="note-paper flex-1 min-h-0 w-full resize-none bg-transparent px-4 text-sm text-slate-900 placeholder-slate-500 focus:outline-none disabled:opacity-60" />
+      <footer className="flex items-center justify-between gap-3 px-4 py-1.5 border-t border-amber-200 text-xs">
+        <span role="status" className={`inline-flex items-center gap-1.5 font-medium ${status === 'error' || status === 'unavailable' ? 'text-red-800' : 'text-amber-900'}`} data-testid="notes-status">
+          {status === 'saved' && savedAt && <Check className="w-3.5 h-3.5 text-emerald-700" aria-hidden="true" />}
+          {state}
+          {status === 'error' && <button onClick={() => setStatus('dirty')} className="underline font-semibold">Try again</button>}
+        </span>
+        <span className="text-amber-800">Only you see this</span>
+      </footer>
+      {Object.entries(NOTE_EDGES).map(([edge, place]) => (
+        <span key={edge} onPointerDown={gesture(edge)} className={`absolute touch-none ${place}`} aria-hidden="true" />
+      ))}
+    </div>
+  );
+};
 
 const Section = ({ id, children }) => {
-  const { collapsed, toggle, askAbout } = useContext(SectionContext);
+  const { collapsed, toggle, askAbout, sources } = useContext(SectionContext);
+  const from = sources.filter((s) => (SECTION_SOURCES[id] || []).includes(s.department || s.system));
   const { Icon } = SECTIONS.find((sec) => sec.id === id);
   const closed = collapsed.has(id);
   return (
@@ -271,6 +405,7 @@ const Section = ({ id, children }) => {
           </button>
         )}
       </h2>
+      {from.length > 0 && !closed && <SourceChips sources={from} />}
       <div id={`section-body-${id}`} hidden={closed} className="space-y-5 mt-4">{children}</div>
     </section>
   );
@@ -290,6 +425,7 @@ const ChartPage = () => {
   const { term } = useParams();
   const navigate = useNavigate();
   const [chart, setChart] = useState(null);
+  const [rt, setRt] = useState(null);   // radiation plan review, when the patient has a course
   const [error, setError] = useState(null);
   const [section, setSection] = useState('Summary');
   const [systemFilter, setSystemFilter] = useState(null);
@@ -297,6 +433,8 @@ const ChartPage = () => {
   const [askOpen, setAskOpen] = useState(false);
   const [askRequest, setAskRequest] = useState(null);
   const [mineOnly, setMineOnly] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [assemblyOpen, setAssemblyOpen] = useState(false);
   const [askWidth, setAskWidth] = useState(432);
   const [analyte, setAnalyte] = useState(null);
   const [dayOpen, setDayOpen] = useState(null);
@@ -310,6 +448,8 @@ const ChartPage = () => {
     try {
       const res = await axios.get(`${API}/chart`, { params: { term } });
       setChart(res.data);
+      setRt(null);
+      axios.get(`${API}/radiation/${res.data.profile.patient_id}`).then((r) => setRt(r.data)).catch(() => setRt({ available: false }));
     } catch (e) {
       setError(e.response?.status === 404
         ? { title: 'No patient found', body: `Nothing matches “${term}”. Check the ID or name and search again.` }
@@ -327,7 +467,7 @@ const ChartPage = () => {
     );
     document.querySelectorAll('[data-section]').forEach((el) => observer.observe(el));
     return () => observer.disconnect();
-  }, [chart]);
+  }, [chart, rt]);
   const goTo = (id) => {   // a menu click opens the section if it was closed, then scrolls to it
     setCollapsed((prev) => { const next = new Set(prev); next.delete(id); return next; });
     requestAnimationFrame(() => document.getElementById(`section-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
@@ -365,7 +505,10 @@ const ChartPage = () => {
   const { profile, findings = [], treatments = [], tumor_markers: markerNames = ['CEA', 'CA 15-3', 'PSA'],
     vitals = null, care_team: careTeam = [], problems = [],
     visit_log: visitLog = {}, visits = [], medications = { current: [], history: [] }, upcoming = { items: [], note: '' },
-    timeline, flowsheet, out_of_range: outOfRange, sources } = chart;
+    timeline, flowsheet, out_of_range: outOfRange, sources, visit_source: visitSource } = chart;
+  const allSources = [...sources, ...(visitSource?.records ? [visitSource] : []), ...(rt?.available ? rt.sources : [])];
+  const visibleSections = SECTIONS.filter((s) => s.id !== 'Radiation' || rt?.available);
+  const isPhysician = JSON.parse(localStorage.getItem('user') || '{}').role === 'PHYSICIAN';
   const myVisits = visits.filter((v) => v.doctors.includes(viewer));
   const shownVisits = (mineOnly ? myVisits : visits)
     .map((v) => (systemFilter ? { ...v, items: v.items.filter((i) => i.system === systemFilter) } : v))
@@ -389,9 +532,9 @@ const ChartPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-teal-50/40 to-sky-50" data-testid="chart-page">
       <div className="max-w-[1320px] mx-auto px-4 py-5 grid grid-cols-1 lg:grid-cols-[13rem_minmax(0,1fr)] gap-5 items-start">
-        <aside className="lg:sticky lg:top-5 space-y-4">
+        <aside className="lg:sticky lg:top-5 space-y-3 lg:max-h-[calc(100vh-2.5rem)] lg:overflow-y-auto lg:p-1 lg:-m-1">
           <nav aria-label="Chart sections" className="card-raised bg-white border border-slate-200/70 rounded-2xl p-2 flex lg:flex-col gap-1 overflow-x-auto">
-            {SECTIONS.map(({ id, Icon }) => (
+            {visibleSections.map(({ id, Icon }) => (
               <button
                 key={id}
                 onClick={() => goTo(id)}
@@ -402,7 +545,7 @@ const ChartPage = () => {
                 <Icon className="w-4 h-4" aria-hidden="true" />{id}
               </button>
             ))}
-            <button onClick={() => setCollapsed(collapsed.size ? new Set() : new Set(SECTIONS.map((sec) => sec.id)))} data-testid="toggle-all"
+            <button onClick={() => setCollapsed(collapsed.size ? new Set() : new Set(visibleSections.map((sec) => sec.id)))} data-testid="toggle-all"
               className="flex items-center gap-2.5 text-left text-sm px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 whitespace-nowrap lg:mt-1 lg:border-t lg:border-slate-100 lg:rounded-t-none lg:pt-3">
               {collapsed.size ? <ChevronsUpDown className="w-4 h-4" aria-hidden="true" /> : <ChevronsDownUp className="w-4 h-4" aria-hidden="true" />}
               {collapsed.size ? 'Expand all' : 'Collapse all'}
@@ -410,21 +553,36 @@ const ChartPage = () => {
             <button onClick={() => navigate('/search')} className="flex items-center gap-2.5 text-left text-sm px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 whitespace-nowrap">
               <Users className="w-4 h-4" aria-hidden="true" />Other patients
             </button>
+            {isPhysician && (
+              <button onClick={() => setNotesOpen(!notesOpen)} className="lg:hidden flex items-center gap-2.5 text-left text-sm px-3 py-2.5 rounded-xl text-amber-800 hover:bg-amber-50 whitespace-nowrap">
+                <NotebookPen className="w-4 h-4" aria-hidden="true" />My notes
+              </button>
+            )}
           </nav>
 
-          <div className="hidden lg:block card-raised rounded-2xl bg-slate-900 text-white p-4 relative overflow-hidden">
-            <span className="absolute -top-8 -right-8 w-28 h-28 rounded-full bg-teal-400/20" aria-hidden="true" />
-            <DocAssistOrb size={44} />
-            <p className="text-sm font-semibold mt-3">DocAssist</p>
-            <p className="text-xs text-slate-300 mt-1 leading-relaxed">Ask about this patient in plain language. Answers cite the records they used.</p>
-            <button onClick={() => setAskOpen(true)} data-testid="open-docassist"
-              className="mt-3 w-full inline-flex items-center justify-center gap-1.5 text-sm font-medium rounded-xl bg-white text-slate-900 px-3 py-2 hover:bg-teal-50">
-              Ask a question<ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+          {/* One-line launchers, so the whole sidebar fits a laptop screen at 100% zoom */}
+          <button onClick={() => setAskOpen(true)} data-testid="open-docassist"
+            className="hidden lg:flex w-full items-center gap-3 card-raised rounded-2xl bg-slate-900 text-white pl-3 pr-4 py-2.5 text-left hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
+            <DocAssistOrb size={36} />
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">Ask DocAssist</span>
+              <span className="block text-xs text-slate-300 truncate">Answers cite the records</span>
+            </span>
+            <ArrowUpRight className="w-4 h-4 shrink-0" aria-hidden="true" />
+          </button>
+          {isPhysician && (
+            <button onClick={() => setNotesOpen(!notesOpen)} aria-expanded={notesOpen} data-testid="open-notes"
+              className="hidden lg:flex w-full items-center gap-3 card-raised rounded-2xl bg-amber-50 border border-amber-200 pl-3 pr-4 py-2.5 text-left hover:bg-amber-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600">
+              <span className="w-9 h-9 rounded-xl bg-amber-200 text-amber-900 flex items-center justify-center shrink-0"><NotebookPen className="w-4 h-4" aria-hidden="true" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold text-slate-900">My notes</span>
+                <span className="block text-xs text-slate-600 truncate">{notesOpen ? 'Open. Select to close' : 'Write as you read'}</span>
+              </span>
             </button>
-          </div>
+          )}
         </aside>
 
-        <SectionContext.Provider value={{ collapsed, toggle, askAbout }}>
+        <SectionContext.Provider value={{ collapsed, toggle, askAbout, sources: allSources }}>
         <main className="space-y-5 min-w-0">
           <PatientHero profile={profile} flagCount={outOfRange.length} />
 
@@ -448,6 +606,9 @@ const ChartPage = () => {
                     {sources.map((s) => <span key={s.department} style={{ flex: s.records, background: SYSTEM_COLORS[s.system] }} />)}
                   </div>
                   <p className="mt-1.5">One chart from separate department systems (simulated).</p>
+                  <button onClick={() => setAssemblyOpen(true)} data-testid="open-assembly" className="mt-1 text-sm font-semibold text-emerald-800 underline underline-offset-2 hover:text-emerald-950">
+                    How this chart was assembled
+                  </button>
                 </StatTile>
               </div>
 
@@ -612,6 +773,12 @@ const ChartPage = () => {
               </Panel>
           </Section>
 
+          {rt?.available && (
+            <Section id="Radiation">
+              <RadiationPlan patientId={profile.patient_id} data={rt} />
+            </Section>
+          )}
+
           <Section id="Visits">
               <Panel title="Next expected doses" note="Estimated from the treatment schedule">
                 {upcoming.items.length > 0 && (
@@ -702,6 +869,41 @@ const ChartPage = () => {
         </button>
         <AskPanel patientId={profile.patient_id} patientName={profile.name} images={images} request={askRequest} />
       </aside>
+
+      {isPhysician && <NotesWindow key={profile.patient_id} patientId={profile.patient_id} patientName={profile.name} open={notesOpen} onClose={() => setNotesOpen(false)} />}
+
+      {/* The federation in one picture: one patient id, a different id in every system */}
+      <Dialog open={assemblyOpen} onOpenChange={setAssemblyOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="assembly">
+          <DialogHeader><DialogTitle>How this chart was assembled</DialogTitle></DialogHeader>
+          <p className="text-sm text-slate-600">
+            No system below knows this patient as {profile.patient_id}. Each keeps its own id and its own kind of storage.
+            The Master Patient Index translates, and each system is asked through its own gateway.
+          </p>
+          <div className="rounded-2xl bg-slate-900 text-white px-4 py-3 flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl bg-teal-500/20 text-teal-300 flex items-center justify-center shrink-0"><Users className="w-5 h-5" aria-hidden="true" /></span>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-300">Master Patient Index</p>
+              <p className="text-sm font-semibold">{profile.name} <span className="font-mono font-normal text-teal-300">{profile.patient_id}</span></p>
+            </div>
+            <span className="ml-auto text-xs text-slate-300 text-right">{allSources.length} systems<br />{totalRecords} clinical records</span>
+          </div>
+          <ol className="relative ml-5 border-l-2 border-dashed border-slate-300 space-y-2 py-1">
+            {allSources.map((s, n) => (
+              <li key={s.system} className="rise-in relative pl-5" style={{ animationDelay: `${n * 70}ms` }}>
+                <span className="absolute -left-[7px] top-1/2 -translate-y-1/2 w-3 h-3 rounded-full ring-2 ring-white" style={{ background: SYSTEM_COLORS[s.system] || '#64748b' }} aria-hidden="true" />
+                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                  <span className="text-sm font-semibold text-slate-900 w-28">{s.system}</span>
+                  <span className="text-xs text-slate-600 flex-1 min-w-[9rem]">{s.store}</span>
+                  <span className="font-mono text-xs text-slate-700 bg-slate-100 rounded px-1.5 py-0.5">{s.local_id || 'id not in MPI'}</span>
+                  <span className="text-xs text-slate-600 w-28 text-right">{s.label || `${s.records} ${s.records === 1 ? 'record' : 'records'}`}</span>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <p className="text-xs text-slate-500">Simulated systems with synthetic data. Nothing is copied into one database: the chart is put together each time it is opened.</p>
+        </DialogContent>
+      </Dialog>
 
       {/* One visit day: everything the department systems recorded for that date */}
       <Dialog open={!!dayOpen} onOpenChange={(open) => !open && setDayOpen(null)}>

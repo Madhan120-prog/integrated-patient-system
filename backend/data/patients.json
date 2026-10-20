@@ -14,7 +14,7 @@
     "biomarkers": "EGFR/ALK negative",
     "ecog": 1,
     "allergies": "No known drug allergies",
-    "regimen": "Pembrolizumab 200 mg IV q3w maintenance (after cisplatin/pemetrexed x4)",
+    "regimen": "Durvalumab 1500 mg IV q4w consolidation (after cisplatin/pemetrexed with concurrent radiation)",
     "primary_oncologist": "Dr. Smith",
     "vitals": {
       "height_cm": 174,
@@ -30,6 +30,10 @@
         "name": "Dr. Smith"
       },
       {
+        "role": "Radiation oncologist",
+        "name": "Dr. Okafor"
+      },
+      {
         "role": "Pulmonologist",
         "name": "Dr. Kim"
       },
@@ -39,6 +43,7 @@
       }
     ],
     "visit_log": true,
+    "radiation": "lung",
     "scenario": "lung_cancer"
   },
   {
@@ -84,6 +89,8 @@
         "name": "Nurse Johnson"
       }
     ],
+    "visit_log": true,
+    "radiation": "breast",
     "scenario": "breast_cancer"
   },
   {
@@ -136,6 +143,7 @@
         "name": "Nurse Johnson"
       }
     ],
+    "visit_log": true,
     "scenario": "colorectal_cancer"
   },
   {

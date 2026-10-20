@@ -122,7 +122,7 @@ _DRUG_LIST = [
     "cisplatin", "carboplatin", "oxaliplatin", "paclitaxel", "docetaxel",
     "gemcitabine", "capecitabine", "fluorouracil", "doxorubicin", "cyclophosphamide",
     "methotrexate", "vincristine", "etoposide", "irinotecan", "bevacizumab",
-    "trastuzumab", "pembrolizumab", "nivolumab", "atezolizumab", "erlotinib",
+    "trastuzumab", "pembrolizumab", "durvalumab", "nivolumab", "atezolizumab", "erlotinib",
     "gefitinib", "osimertinib", "imatinib", "dasatinib", "rituximab", "pemetrexed",
     "tamoxifen", "letrozole", "anastrozole", "prednisone", "dexamethasone",
     "5-fu", "leucovorin", "filgrastim",

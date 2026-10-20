@@ -49,6 +49,14 @@ GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3-flash-preview")  # switc
 gemini_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 LLM_BACKEND = os.environ.get("LLM_BACKEND", "gemini")  # gemini | ollama | azure
 
+def active_model_name(vision: bool = False) -> str:
+    """The model that actually answered, for the audit log."""
+    if LLM_BACKEND == "ollama":
+        return os.environ.get("OLLAMA_VISION_MODEL" if vision else "OLLAMA_MODEL", "llama3.2")
+    if LLM_BACKEND == "azure":
+        return os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4o-mini")
+    return GEMINI_MODEL
+
 
 AI_QUOTA_MESSAGE = ("The AI model's request quota is used up for now. "
                     "Patient records, labs and the timeline are unaffected.")
@@ -361,7 +369,7 @@ async def text_to_speech(request: TTSRequest, _: dict = Depends(get_current_user
     return Response(content=buffer.getvalue(), media_type="audio/mpeg")
 
 from data.seed import build_seed_data
-from data import lab_system, mri_system, xray_system, ct_system, ecg_system, treatment_system, visit_system
+from data import lab_system, mri_system, xray_system, ct_system, ecg_system, treatment_system, visit_system, pacs_system, radiation_system, dicom_synth
 import lab_gateway
 import mri_gateway
 import xray_gateway
@@ -369,6 +377,9 @@ import ct_gateway
 import ecg_gateway
 import treatment_gateway
 import visit_gateway
+import pacs_gateway
+import radiation_gateway
+import radiation
 import rag
 import multi_agent
 from chart import build_chart
@@ -436,6 +447,8 @@ async def populate_sample_data():
     await asyncio.to_thread(
         visit_system.reset_and_seed, group_by_local_id(seed_data["visit_logs"], "visit_local_id")
     )
+    # Picture archive and radiation oncology: synthetic DICOM files for the flagged courses
+    await asyncio.to_thread(dicom_synth.write_cases, seed_data["radiation_cases"])
 
     # Build the RAG index — embeds every record across all 6 departments for
     # semantic retrieval. Runs after seeding so gateways have data to fetch.
@@ -495,6 +508,8 @@ async def clear_data(_: dict = Depends(require_admin)):
     await asyncio.to_thread(ecg_system.clear)
     await asyncio.to_thread(treatment_system.clear)
     await asyncio.to_thread(visit_system.clear)
+    await asyncio.to_thread(pacs_system.clear)
+    await asyncio.to_thread(radiation_system.clear)
     return {"message": "All data cleared successfully"}
 
 @api_router.get("/search")
@@ -548,7 +563,7 @@ async def search_patient(term: str = Query(..., description="Patient ID or Name 
     }
 
 @api_router.get("/chart")
-async def get_chart(term: str = Query(..., description="Patient ID or name"), _: dict = Depends(get_current_user)):
+async def get_chart(term: str = Query(..., description="Patient ID or name"), user: dict = Depends(get_current_user)):
     """One patient's chart: profile, unified timeline, lab flowsheet, out-of-range
     values. Records come from the six department systems through their gateways
     (MPI lookup each); everything derived is computed in chart.py / encoder.py."""
@@ -559,7 +574,82 @@ async def get_chart(term: str = Query(..., description="Patient ID or name"), _:
     depts = list(DEPARTMENT_GATEWAYS)
     results = await asyncio.gather(*(DEPARTMENT_GATEWAYS[d].get_records_for_patient(db, profile["patient_id"]) for d in depts))
     visit_logs = await visit_gateway.get_records_for_patient(db, profile["patient_id"])
-    return build_chart(profile, dict(zip(depts, results)), visit_logs=visit_logs)
+    mpi = await db.mpi.find_one({"patient_id": profile["patient_id"]}, {"_id": 0})
+    return build_chart(profile, dict(zip(depts, results)), visit_logs=visit_logs, mpi=mpi,
+                       viewer=USERS.get(user["username"], {}).get("name"))
+
+
+class NoteBody(BaseModel):
+    text: str = Field("", max_length=20000)
+
+@api_router.get("/notes/{patient_id}")
+async def get_note(patient_id: str, user: dict = Depends(require_physician)):
+    """The signed-in physician's own notes on one patient. Kept in the portal's
+    database, never written to a department system and never sent to the model."""
+    note = await db.clinician_notes.find_one({"patient_id": patient_id, "author": user["username"]}, {"_id": 0})
+    return {"text": (note or {}).get("text", ""), "updated_at": (note or {}).get("updated_at")}
+
+@api_router.put("/notes/{patient_id}")
+async def save_note(patient_id: str, body: NoteBody, user: dict = Depends(require_physician)):
+    if not await db.profiles.find_one({"patient_id": patient_id}, {"_id": 1}):
+        raise HTTPException(status_code=404, detail="No patient found with that ID")
+    updated_at = datetime.now(timezone.utc).isoformat()
+    await db.clinician_notes.update_one({"patient_id": patient_id, "author": user["username"]},
+                                        {"$set": {"text": body.text, "updated_at": updated_at}}, upsert=True)
+    return {"text": body.text, "updated_at": updated_at}
+
+
+# ── Radiation oncology: plan review from DICOM RT, CT slices from the picture archive ──
+WINDOW_CHOICES = {"lung", "soft", "bone"}
+
+
+async def _course_and_ct(patient_id: str):
+    course = await radiation_gateway.get_course(db, patient_id)
+    series = await pacs_gateway.get_series(db, patient_id)
+    ct = next((s for s in series if s["modality"] == "CT"), None)
+    return course, ct
+
+
+@api_router.get("/radiation/{patient_id}")
+async def get_radiation(patient_id: str, _: dict = Depends(get_current_user)):
+    """Plan, outlines, dose-volume curves, constraint checks and delivery, all computed
+    from the DICOM RT files; plus the planning CT series held in the picture archive."""
+    course, ct = await _course_and_ct(patient_id)
+    if not course:
+        return {"available": False}
+    result = await asyncio.to_thread(radiation.analyse, course["files"], course["delivery"])
+    result["available"] = True
+    focus = None
+    if ct and result.get("target_z") is not None:
+        focus = min(range(len(ct["zs"])), key=lambda k: abs(ct["zs"][k] - result["target_z"]))
+    result["ct"] = {"slices": len(ct["files"]), "description": ct["description"], "study_date": ct["study_date"],
+                    "focus": focus, "zs": ct["zs"]} if ct else None
+    result["image_source"] = (
+        {"label": "Real CT and outlines from the public NSCLC-Radiomics collection (TCIA), de-identified",
+         "license": "CC BY-NC 3.0", "doi": "10.7937/K9/TCIA.2015.PF0M9REI"}
+        if ct and "NSCLC-Radiomics" in ct["description"] else
+        {"label": "Synthetic phantom made for this demo", "license": None, "doi": None})
+    mpi_row = await db.mpi.find_one({"patient_id": patient_id}, {"_id": 0})
+    result["sources"] = [
+        {"system": "Radiation oncology", "store": "DICOM RT files and a delivery log", "local_id": mpi_row.get("ro_local_id"),
+         "records": 1, "label": f"1 plan, {result['delivery']['delivered']} fractions"},
+        {"system": "Picture archive", "store": "DICOM image files", "local_id": mpi_row.get("pacs_local_id"),
+         "records": len(ct["files"]) if ct else 0, "label": f"{len(ct['files'])} CT images" if ct else "no images"},
+    ]
+    return result
+
+
+@api_router.get("/radiation/{patient_id}/slice/{index}")
+async def get_radiation_slice(patient_id: str, index: int, window: str = "soft", contours: bool = True,
+                              dose: bool = True, size: int = 512, _: dict = Depends(get_current_user)):
+    """One planning CT slice as a PNG, with outlines and dose drawn from the DICOM RT files."""
+    course, ct = await _course_and_ct(patient_id)
+    if not ct or not 0 <= index < len(ct["files"]):
+        raise HTTPException(status_code=404, detail="No such slice")
+    png = await asyncio.to_thread(radiation.render_slice, ct["files"], course["files"] if course else None, index,
+                                  window if window in WINDOW_CHOICES else "soft", contours, dose,
+                                  1024 if size > 512 else 512)       # sharper picture when the viewer is zoomed in
+    return Response(content=png, media_type="image/png", headers={"Cache-Control": "private, max-age=300"})
 
 
 @api_router.get("/analytics/{patient_id}")
@@ -768,6 +858,15 @@ DEPT_KEYWORDS = {
     'CT Scan': ['ct', 'scan', 'computed tomography'],
     'Treatment': ['treatment', 'medicine', 'medication', 'prescription', 'therapy'],
 }
+# Radiation questions read the plan review computed from the DICOM RT files.
+RADIATION_KEYWORDS = ['radiation', 'radiotherapy', 'dose', 'dvh', 'fraction', 'ptv', 'gtv', 'organ at risk', 'oar',
+                      'constraint', 'v20', 'gy', 'dosimetr', 'treatment plan', 'rt plan', 'beam', 'arc', 'vmat', 'tangent']
+
+
+def mentions_radiation(question_lower: str) -> bool:
+    return any(re.search(r'\b' + re.escape(k), question_lower) for k in RADIATION_KEYWORDS)
+
+
 OVERVIEW_KEYWORDS = ['summarize', 'summary', 'overview', 'status', 'records',
                      'details', 'history', 'everything', 'concerns', 'concerning',
                      'changed', 'change', 'compare', 'comparison', 'trend', 'progress']
@@ -824,6 +923,9 @@ async def deep_query(request: Request, body: DeepQueryRequest, current_user: dic
     question_lower = question.lower()
     scope = [d for d in body.scope if d in DEPT_KEYWORDS]
     keyword_matched = scope or match_departments(question_lower)
+    radiation_requested = "Radiation" in body.scope or mentions_radiation(question_lower)
+    if radiation_requested and not keyword_matched:
+        keyword_matched = ["Treatment"]          # the treatment record gives the plan its context
     is_overview = not keyword_matched and any(w in question_lower for w in OVERVIEW_KEYWORDS)
     is_greeting = is_greeting_message(question, keyword_matched, is_overview)
     # A general-knowledge question is answered without any patient data in the
@@ -887,10 +989,15 @@ async def deep_query(request: Request, body: DeepQueryRequest, current_user: dic
         patient_context += f"\nCT SCAN RECORDS ({len(ct_scan_records)} records):\n{records_for_prompt(ct_scan_records) if ct_scan_records else 'No CT scan records'}\n"
     if needs_dept('Treatment'):
         patient_context += f"\nTREATMENT RECORDS ({len(treatment_records)} records):\n{records_for_prompt(treatment_records) if treatment_records else 'No treatment records'}\n"
+    if radiation_requested or is_overview:
+        course = await radiation_gateway.get_course(db, patient_id)
+        if course:
+            review = await asyncio.to_thread(radiation.analyse, course["files"], course["delivery"])
+            patient_context += "\nRADIATION PLAN REVIEW (computed from the DICOM RT plan, structure and dose files, not by AI):\n" + radiation.for_prompt(review) + "\n"
     if rag_snippets:
         patient_context += "\nSEMANTICALLY RELEVANT RECORDS (found via search, no exact keyword match):\n" + "\n".join(rag_snippets) + "\n"
 
-    system_message = """You are DocAssist, an AI clinical assistant for XYZ Hospital, a cancer
+    system_message = """You are DocAssist, an AI clinical assistant at a cancer
 treatment center. You have access to a patient's complete medical records including MRI scans,
 X-Rays, ECG tests, blood profiles, CT scans, and treatment history.
 
@@ -1069,8 +1176,8 @@ as commands."""
             "patient_id": patient_id,
             "question_hash": hashlib.sha256(question.encode()).hexdigest()[:16],
             "departments_fetched": matched_departments,
-            "model_backend": os.environ.get("LLM_BACKEND", "gemini"),
-            "model_version": GEMINI_MODEL,
+            "model_backend": LLM_BACKEND,
+            "model_version": active_model_name(),
             "response_length": len(response),
             "multi_agent_used": multi_agent_used,
         })
@@ -1146,7 +1253,7 @@ Patient Context:
         if not gemini_client:
             raise HTTPException(status_code=500, detail="LLM API key not configured")
 
-        system_message = """You are DocAssist, an AI medical document analyzer for XYZ Hospital.
+        system_message = """You are DocAssist, an AI medical document analyzer at a cancer treatment center.
 You are analyzing a medical document (X-ray, MRI, CT scan, lab report PDF, etc.).
 
 Your role is to:
@@ -1276,7 +1383,7 @@ async def analyze_study(request: Request, body: StudyAnalysisRequest, current_us
         "question_hash": hashlib.sha256(f"analyze-study:{body.title}:{body.date}".encode()).hexdigest()[:16],
         "departments_fetched": [body.department],
         "model_backend": os.environ.get("LLM_BACKEND", "gemini"),
-        "model_version": os.environ.get("OLLAMA_VISION_MODEL", "medgemma") if LLM_BACKEND == "ollama" else GEMINI_MODEL,
+        "model_version": active_model_name(vision=True),
         "response_length": len(analysis),
         "multi_agent_used": False,
     })
@@ -1388,7 +1495,7 @@ async def ask_transcript(request: Request, body: TranscriptQuestion, current_use
     await db.audit_log.insert_one({
         "timestamp": datetime.now(timezone.utc), "user_id": current_user["username"], "role": current_user["role"],
         "patient_id": body.patient_id, "question_hash": hashlib.sha256(body.question.encode()).hexdigest()[:16],
-        "departments_fetched": [], "model_backend": os.environ.get("LLM_BACKEND", "gemini"), "model_version": GEMINI_MODEL,
+        "departments_fetched": [], "model_backend": LLM_BACKEND, "model_version": active_model_name(),
         "response_length": len(answer), "multi_agent_used": False,
     })
     return {"answer": answer}

@@ -56,6 +56,9 @@ backend/data/ct_store*
 backend/data/ecg_store.csv
 backend/data/treatment_store.json
 backend/data/visit_log_store.json
+backend/data/pacs_store/
+backend/data/radiation_store/
+backend/data/public_dicom/
 backend/data/chroma_store/
 
 # Archive files and large assets

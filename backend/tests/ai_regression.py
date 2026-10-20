@@ -52,7 +52,7 @@ CASES = [
     ("P1001", "What is the CEA trend?", ["12.5", "5.2", "58.4"], []),
     ("P1001", "Are there any brain metastases?", [r"\bno\b"], [CLAIMS_PRESENT]),
     ("P1001", "What's concerning?", [r"0\.9|2\.1"], [CLAIMS_PRESENT, INVENTED_SEVERITY]),
-    ("P1001", "What is the current treatment?", ["pembrolizumab"], []),
+    ("P1001", "What is the current treatment?", ["durvalumab"], []),
     ("P1001", "What is neutropenia?", [], [r"james", r"mitchell"]),
     ("P1001", "What is the latest CEA value? Answer in one line.", ["5.2"], [r"low confidence"]),
 ]

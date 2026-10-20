@@ -19,6 +19,7 @@ export const SECTION_SCOPE = {
   Labs: ['Blood Profile'],
   Imaging: ['MRI', 'CT Scan', 'X-Ray', 'ECG'],
   Treatment: ['Treatment'],
+  Radiation: ['Radiation'],
 };
 
 // "Pull up the latest chest x-ray" is a request to show a study, not a question

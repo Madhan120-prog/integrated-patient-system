@@ -70,6 +70,18 @@ def test_sources_count_only_systems_that_hold_records():
     assert all(s["system"] == SOURCE_SYSTEMS[s["department"]] and s["records"] > 0 for s in chart["sources"])
 
 
+def test_each_source_names_its_store_and_the_patients_id_in_that_system():
+    profile = next(p for p in SEED["profiles"] if p["patient_id"] == "P1001")
+    records = {dept: [r for r in SEED[coll] if r["patient_id"] == "P1001"] for dept, coll in COLLECTION.items()}
+    mpi = next(m for m in SEED["mpi"] if m["patient_id"] == "P1001")
+    chart = build_chart(profile, records, today=TODAY, mpi=mpi)
+    lab = next(s for s in chart["sources"] if s["department"] == "Blood Profile")
+    assert lab["store"] == "SQLite database" and lab["local_id"] == mpi["sunquest_lab_id"]
+    assert all(s["store"] and s["local_id"] for s in chart["sources"])
+    assert chart["visit_source"]["local_id"] == mpi["visit_local_id"]
+    assert chart_for("P1001")[0]["sources"][0]["local_id"] is None      # no MPI row passed: label still renders
+
+
 def test_chart_works_for_a_patient_without_oncology_fields_or_structured_labs():
     chart, _ = chart_for("P1008")
     assert "diagnosis" not in chart["profile"] and chart["profile"]["name"]
@@ -107,7 +119,7 @@ def test_findings_cover_out_of_range_marker_trend_modification_therapy_imaging_a
         "ANC 0.9 K/µL is below range", "CEA 5.2 ng/mL is above range", "WBC 2.1 K/µL is below range"}
     assert by_kind["marker_trend"][0]["title"] == "CEA down 58.4%" and "above range" in by_kind["marker_trend"][0]["detail"]
     assert "dose reduced due to neutropenia" in by_kind["treatment_modified"][0]["detail"]
-    assert by_kind["current_therapy"][0]["title"] == "Current: Pembrolizumab maintenance"
+    assert by_kind["current_therapy"][0]["title"] == "Current: Durvalumab consolidation"
     assert by_kind["latest_imaging"][0]["title"] == "Latest imaging: Chest X-Ray"   # 2025-10-22, the newest study
     assert by_kind["stated_absent"][0]["detail"] == "Metastasis"
     assert all(f["tone"] in ("attention", "info", "clear") and f["title"] and f["detail"] for f in findings)
@@ -176,8 +188,8 @@ def test_visits_group_records_by_date_with_the_doctors_involved():
 
 def test_medications_split_current_from_history_as_written_on_the_record():
     meds = chart_for("P1001")[0]["medications"]
-    assert meds["current"] == [{"name": "Pembrolizumab", "dose": "200mg IV q3w", "since": meds["current"][0]["since"],
-                                "for": "Immunotherapy: Pembrolizumab maintenance"}]
+    assert meds["current"] == [{"name": "Durvalumab", "dose": "1500mg IV q4w", "since": meds["current"][0]["since"],
+                                "for": "Immunotherapy: Durvalumab consolidation"}]
     history = {m["name"]: m for m in meds["history"]}
     assert history["Cisplatin"]["times_given"] == 4 and history["Cisplatin"]["last_dose"] == "75mg/m²"
     assert history["Filgrastim"]["times_given"] == 1
@@ -188,11 +200,11 @@ def test_medications_split_current_from_history_as_written_on_the_record():
 
 
 def test_upcoming_doses_are_estimated_from_the_interval_and_say_so():
-    up = chart_for("P1001")[0]["upcoming"]                           # pembrolizumab q3w, in progress
+    up = chart_for("P1001")[0]["upcoming"]                           # durvalumab q4w, in progress
     start = date.fromisoformat(chart_for("P1001")[0]["medications"]["current"][0]["since"])
     first, second = (date.fromisoformat(i["date"]) for i in up["items"])
-    assert first >= TODAY and (first - start).days % 21 == 0 and (first - TODAY).days < 21
-    assert (second - first).days == 21
+    assert first >= TODAY and (first - start).days % 28 == 0 and (first - TODAY).days < 28
+    assert (second - first).days == 28
     assert "Not a booked appointment" in up["note"] and "Estimated" in up["note"]
     daily = chart_for("P1002")[0]["upcoming"]                        # tamoxifen daily: nothing to estimate
     assert daily["items"] == [] and "no dosing interval" in daily["note"]
@@ -283,15 +295,17 @@ def test_recording_routes_are_physician_only_and_the_prompt_fixes_voice_before_r
 
 def test_visit_log_covers_every_visit_day_and_links_every_record_exactly_once():
     import re
-    chart, _ = chart_for("P1001")
-    log = chart["visit_log"]
-    assert set(log) == {v["date"] for v in chart["visits"]}          # one sequence per visit day
-    for day, steps in log.items():
-        assert steps[0]["step"] == "Checked in at the front desk" and steps[-1]["step"] == "Checked out"
-        linked = [(l["department"], l["title"]) for s in steps for l in s["links"]]
-        on_chart = [(i["department"], i["title"]) for i in chart["timeline"] if i["date"] == day]
-        assert sorted(linked) == sorted(on_chart), day                # nothing missing, nothing invented
-        assert not re.search(r"\b\d{1,2}:\d{2}\b", str(steps)), day   # order only, no clock times
+    for pid in ("P1001", "P1002", "P1004"):
+        chart, _ = chart_for(pid)
+        log = chart["visit_log"]
+        assert set(log) == {v["date"] for v in chart["visits"]}, pid     # one sequence per visit day
+        for day, steps in log.items():
+            assert steps[0]["step"] == "Checked in at the front desk" and steps[-1]["step"] == "Checked out"
+            linked = [(l["department"], l["title"]) for s in steps for l in s["links"]]
+            on_chart = [(i["department"], i["title"]) for i in chart["timeline"] if i["date"] == day]
+            assert sorted(linked) == sorted(on_chart), (pid, day)         # nothing missing, nothing invented
+            assert not re.search(r"\b\d{1,2}:\d{2}\b", str(steps)), day   # order only, no clock times
+    log = chart_for("P1001")[0]["visit_log"]
     feb = next(steps for steps in log.values() if any("Cycle 2" in l["title"] for s in steps for l in s["links"]))
     assert [s["step"] for s in feb] == ["Checked in at the front desk", "Vitals recorded", "Blood sample drawn",
                                         "Consultation with Dr. Smith", "Pre-medication given", "Infusion given",
@@ -301,8 +315,8 @@ def test_visit_log_covers_every_visit_day_and_links_every_record_exactly_once():
 
 def test_visit_log_exists_only_where_seeded_and_is_reached_through_the_mpi(tmp_path, monkeypatch):
     from data import visit_system
-    assert {v["patient_id"] for v in SEED["visit_logs"]} == {"P1001"}
-    assert chart_for("P1002")[0]["visit_log"] == {} and chart_for("P1010")[0]["visit_log"] == {}   # same scenario, not flagged
+    assert {v["patient_id"] for v in SEED["visit_logs"]} == {"P1001", "P1002", "P1004"}
+    assert chart_for("P1002")[0]["visit_log"] and chart_for("P1010")[0]["visit_log"] == {}        # same scenario, not flagged
     assert all(m["visit_local_id"].startswith("VL-") for m in SEED["mpi"])
     assert "visit_log" not in next(p for p in SEED["profiles"] if p["patient_id"] == "P1001")
     monkeypatch.setattr(visit_system, "DB_PATH", tmp_path / "visits.json")
@@ -312,3 +326,27 @@ def test_visit_log_exists_only_where_seeded_and_is_reached_through_the_mpi(tmp_p
     assert set(stored[0]) == {"visit_date", "steps"}                                          # no canonical patient_id in the store
     visit_system.clear()
     assert visit_system.query_by_local_id("VL-600000") == []
+
+
+def test_brief_is_anchored_on_the_viewers_last_consultation():
+    profile = next(p for p in SEED["profiles"] if p["patient_id"] == "P1001")
+    records = {dept: [r for r in SEED[coll] if r["patient_id"] == "P1001"] for dept, coll in COLLECTION.items()}
+    chart = build_chart(profile, records, today=TODAY, viewer="Dr. Smith")
+    brief = chart["brief"]
+    mine = max(v["date"] for v in chart["visits"] if "Dr. Smith" in v["doctors"])
+    assert brief["since"] == mine and brief["basis"] == "your last consultation"
+    assert brief["new"] and all(i["date"] > mine for i in brief["new"])
+    assert len(brief["new"]) == sum(1 for i in chart["timeline"] if i["date"] > mine)
+    cea = next(c for c in brief["changes"] if c["analyte"] == "CEA")
+    assert cea["from"]["date"] <= mine < cea["to"]["date"] and cea["to"]["value"] == 5.2
+    # Counts were low at the last blood count and nobody has repeated it since.
+    assert {o["analyte"] for o in brief["not_rechecked"]} == {"ANC", "WBC"}
+    assert all(o["days_ago"] == (TODAY - date.fromisoformat(o["date"])).days for o in brief["not_rechecked"])
+    assert brief["current"][0]["name"] and brief["next"]["date"] > TODAY.isoformat()
+
+
+def test_brief_falls_back_to_the_previous_visit_and_is_absent_without_history():
+    chart = chart_for("P1001")[0]                                      # no viewer given
+    assert chart["brief"]["basis"] == "the previous visit"
+    assert chart["brief"]["since"] == sorted(v["date"] for v in chart["visits"])[-2]
+    assert build_chart({"patient_id": "X", "name": "No Records"}, {d: [] for d in COLLECTION})["brief"] is None

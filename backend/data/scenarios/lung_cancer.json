@@ -1,6 +1,6 @@
 {
   "condition": "Lung Cancer",
-  "description": "Non-small cell lung cancer (NSCLC) — diagnosed via chest imaging, staged with CT/PET, treated with chemo + possible surgery",
+  "description": "Non-small cell lung cancer (NSCLC), stage IIIA: diagnosed via chest imaging, staged with CT and brain MRI, treated with concurrent chemoradiation then consolidation immunotherapy",
   "timeline_weeks": 52,
   "records": {
     "xray": [
@@ -14,7 +14,7 @@
         "test_name": "Chest X-Ray",
         "result": "Mass reduced in size — treatment response",
         "week_offset": 24,
-        "notes": "Follow-up after 3 chemo cycles"
+        "notes": "Follow-up after chemoradiation"
       },
       {
         "test_name": "Chest X-Ray",
@@ -328,10 +328,16 @@
         "medicines": "Cisplatin 75mg/m², Pemetrexed 500mg/m², Ondansetron 8mg"
       },
       {
-        "treatment_name": "Immunotherapy — Pembrolizumab maintenance",
+        "treatment_name": "Radiation Therapy — Thoracic, concurrent with chemotherapy",
+        "result": "Completed — 60 Gy in 30 fractions",
+        "week_offset": 9,
+        "medicines": "N/A"
+      },
+      {
+        "treatment_name": "Immunotherapy — Durvalumab consolidation",
         "result": "In Progress",
         "week_offset": 16,
-        "medicines": "Pembrolizumab 200mg IV q3w"
+        "medicines": "Durvalumab 1500mg IV q4w"
       }
     ]
   },
@@ -662,6 +668,16 @@
           "by": "Infusion nursing"
         },
         {
+          "step": "Final radiation session given",
+          "by": "Radiation oncology",
+          "links": [
+            [
+              "treatment",
+              "Radiation Therapy — Thoracic, concurrent with chemotherapy"
+            ]
+          ]
+        },
+        {
           "step": "Checked out",
           "by": "Front desk"
         }
@@ -744,7 +760,7 @@
         {
           "step": "Consultation with {oncologist}",
           "by": "{oncologist}",
-          "detail": "Maintenance therapy discussed."
+          "detail": "Consolidation immunotherapy after chemoradiation discussed."
         },
         {
           "step": "Infusion given",
@@ -752,7 +768,7 @@
           "links": [
             [
               "treatment",
-              "Immunotherapy — Pembrolizumab maintenance"
+              "Immunotherapy — Durvalumab consolidation"
             ]
           ]
         },

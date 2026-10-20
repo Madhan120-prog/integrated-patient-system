@@ -25,6 +25,18 @@ SOURCE_SYSTEMS = {
     "Treatment": "Treatment",
 }
 
+# How each simulated system keeps its data, and the MPI field that holds this
+# patient's own id inside that system. Shown on the chart so every section says
+# where its data came from.
+SOURCE_STORES = {
+    "Blood Profile": ("SQLite database", "sunquest_lab_id"),
+    "MRI": ("JSON files, one per patient", "ris_mri_id"),
+    "X-Ray": ("Key-value store", "xray_local_id"),
+    "CT Scan": ("Object store", "ct_local_id"),
+    "ECG": ("CSV export file", "ecg_local_id"),
+    "Treatment": ("JSON data file", "treatment_local_id"),
+}
+
 # Rows a clinician scans first come first; anything else follows alphabetically.
 _ANALYTE_ORDER = ["WBC", "ANC", "ALC", "Hgb", "PLT", "Blasts", "Creatinine", "ALT", "AST",
                   "CEA", "CA 15-3", "PSA", "TSH"]
@@ -249,12 +261,48 @@ def build_visit_log(visit_logs: list) -> dict:
     }
 
 
-def build_chart(profile: dict, records_by_dept: dict, today: date = None, visit_logs: list = None) -> dict:
+def build_brief(chart: dict, viewer: str = None, today: date = None) -> dict:
+    """What changed since the viewer last saw this patient. Counted and compared
+    in code from the chart, so it reads the same every time; no model involved."""
+    visits = chart["visits"]
+    own = [v["date"] for v in visits if viewer and viewer in v["doctors"]]
+    if own:
+        since, basis = max(own), "your last consultation"
+    elif len(visits) > 1:
+        since, basis = sorted(v["date"] for v in visits)[-2], "the previous visit"
+    else:
+        return None
+    today = today or date.today()
+    changes = []
+    for row in chart["flowsheet"]["rows"]:
+        before = [d for d in sorted(row["cells"]) if d <= since]
+        after = [d for d in sorted(row["cells"]) if d > since]
+        if before and after:
+            changes.append({"analyte": row["analyte"], "unit": row["unit"],
+                            "from": {"date": before[-1], **row["cells"][before[-1]]},
+                            "to": {"date": after[-1], **row["cells"][after[-1]]}})
+    return {
+        "since": since,
+        "basis": basis,
+        "new": [{k: i[k] for k in ("date", "department", "system", "title", "result", "doctor")}
+                for i in chart["timeline"] if i["date"] > since],
+        "changes": changes,
+        # Out of range at the last measurement and not measured again since the anchor date.
+        "not_rechecked": [{**o, "days_ago": (today - date.fromisoformat(o["date"])).days}
+                          for o in chart["out_of_range"] if o["date"] <= since],
+        "current": chart["medications"]["current"],
+        "next": (chart["upcoming"]["items"] or [None])[0],
+    }
+
+
+def build_chart(profile: dict, records_by_dept: dict, today: date = None, visit_logs: list = None, mpi: dict = None,
+                viewer: str = None) -> dict:
+    mpi = mpi or {}
     labs = records_by_dept.get("Blood Profile", [])
     latest_values = summarize_latest(labs)["latest_values"]
     treatments = build_treatments(records_by_dept.get("Treatment", []))
     timeline = build_timeline(records_by_dept)
-    return {
+    chart = {
         "profile": profile,
         "vitals": build_vitals(profile),
         "care_team": profile.get("care_team", []),
@@ -272,7 +320,12 @@ def build_chart(profile: dict, records_by_dept: dict, today: date = None, visit_
             {"analyte": name, **v} for name, v in sorted(latest_values.items()) if v["status"] != "IN RANGE"
         ],
         "sources": [
-            {"department": dept, "system": SOURCE_SYSTEMS[dept], "records": len(records)}
+            {"department": dept, "system": SOURCE_SYSTEMS[dept], "records": len(records),
+             "store": SOURCE_STORES[dept][0], "local_id": mpi.get(SOURCE_STORES[dept][1])}
             for dept, records in records_by_dept.items() if records
         ],
+        "visit_source": {"system": "Visit Log", "store": "JSON file", "records": len(visit_logs or []),
+                         "local_id": mpi.get("visit_local_id")},
     }
+    chart["brief"] = build_brief(chart, viewer, today)
+    return chart
