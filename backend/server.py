@@ -7,6 +7,8 @@ import os
 import logging
 import re
 import io
+import base64
+import pydicom
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
@@ -380,6 +382,7 @@ import visit_gateway
 import pacs_gateway
 import radiation_gateway
 import radiation
+import explain
 import rag
 import multi_agent
 from chart import build_chart
@@ -748,6 +751,27 @@ async def get_patient_analytics(patient_id: str, _: dict = Depends(get_current_u
         "recent_results": recent_results
     }
 
+async def radiation_department_rows() -> list[dict]:
+    """One row per radiation course, read from the plan files through the radiation gateway."""
+    names = {p["patient_id"]: p.get("name") for p in await db.profiles.find({}, {"_id": 0, "patient_id": 1, "name": 1}).to_list(None)}
+    rows = []
+    for c in await radiation_gateway.get_all_courses(db):
+        plan_ds = await asyncio.to_thread(radiation.read, c["files"]["RTPLAN"])
+        plan = radiation.plan_summary(plan_ds)
+        done = [d for d in c["delivery"] if d.get("status") == "Delivered"]
+        planned = plan["fractions"] or len(c["delivery"])
+        raw_date = done[-1]["date"] if done else plan["date"]
+        reviewer = str(plan_ds.get("ReviewerName", "")).title()
+        rows.append({
+            "patient_id": c["patient_id"], "name": names.get(c["patient_id"], ""),
+            "test_name": f"{plan['name'] or plan['label']} ({plan['rx_gy']:g} Gy in {planned} fractions)",
+            "test_date": raw_date if "-" in raw_date else f"{raw_date[:4]}-{raw_date[4:6]}-{raw_date[6:8]}",
+            "result": f"{'Completed' if len(done) >= planned else 'In progress'}: {len(done)} of {planned} fractions delivered",
+            "doctor": f"Dr. {reviewer}" if reviewer else "",
+        })
+    return sorted(rows, key=lambda r: r["test_date"])
+
+
 @api_router.get("/department/{department_name}")
 async def get_department_records(department_name: str, _: dict = Depends(get_current_user)):
     """Get all patient records for a specific department
@@ -771,6 +795,10 @@ async def get_department_records(department_name: str, _: dict = Depends(get_cur
         "treatment": "treatment_records"
     }
     
+    if department_name.lower() in ("radiation", "radiation-oncology"):
+        records = await radiation_department_rows()
+        return {"department": department_name, "records": records, "total": len(records)}
+
     collection_name = department_map.get(department_name.lower())
     if not collection_name:
         raise HTTPException(status_code=404, detail="Department not found")
@@ -1313,6 +1341,107 @@ Guidelines:
         # Clean up temp file
         if temp_file_path.exists():
             temp_file_path.unlink()
+
+# ── DICOM files dropped into DocAssist: parsed here, nothing stored ──────────
+
+_MAX_DICOM_BYTES = 25 * 1024 * 1024
+
+
+async def read_dicom_upload(file: UploadFile):
+    data = await file.read(_MAX_DICOM_BYTES + 1)
+    if len(data) > _MAX_DICOM_BYTES:
+        raise HTTPException(status_code=413, detail="That DICOM file is larger than 25 MB.")
+    try:
+        ds = await asyncio.to_thread(pydicom.dcmread, io.BytesIO(data))
+        return await asyncio.to_thread(radiation.describe_upload, ds)
+    except Exception:
+        raise HTTPException(status_code=400, detail="That file could not be read as DICOM.")
+
+
+@api_router.post("/dicom/inspect")
+@limiter.limit("60/minute")
+async def inspect_dicom(request: Request, file: UploadFile = File(...), _: dict = Depends(require_physician)):
+    """Header summary and a picture for a dropped DICOM file. No AI is involved, and identifying
+    header fields are listed by name only, never by value."""
+    d = await read_dicom_upload(file)
+    preview = d.pop("preview")
+    d["preview"] = f"data:image/png;base64,{base64.b64encode(preview).decode()}" if preview else None
+    return d
+
+
+@api_router.post("/dicom/analyze")
+@limiter.limit("30/minute")
+async def analyze_dicom(request: Request, file: UploadFile = File(...), patient_id: str = Form(...),
+                        current_user: dict = Depends(require_physician)):
+    """The doctor said yes: describe the image. Only the rendered pixels and the de-identified
+    header go to the model; files that may have burned-in text are refused."""
+    d = await read_dicom_upload(file)
+    if not d["can_analyze"]:
+        raise HTTPException(status_code=400, detail=(
+            "This file may have text burned into the image, which could identify the patient, so it is not sent to the AI model."
+            if d["burned_in"] else "This DICOM file has no image to analyze. Its contents are summarized above."))
+    header = "; ".join(f"{k}: {v}" for k, v in d["info"].items() if k != "beams")
+    prompt = (f"DICOM header (identifying fields removed): {header}\n\n"
+              "Describe what is visible in this image in 3 to 5 short bullets, using standard radiology terms. "
+              "Note the anatomy shown and anything that stands out. Do not diagnose, and do not recommend treatment.")
+    system_message = ("You are DocAssist, describing a medical image for a physician. Be concise and factual. "
+                      "You do not diagnose.")
+    analysis = await generate_vision_response(image_bytes=d["preview"], mime_type="image/png", prompt=prompt,
+                                              system_message=system_message)
+    analysis = check_diagnosis(strip_prompt_echo(analysis))
+    await db.audit_log.insert_one({
+        "timestamp": datetime.now(timezone.utc), "user_id": current_user["username"], "role": current_user["role"],
+        "patient_id": patient_id,
+        "question_hash": hashlib.sha256(f"analyze-dicom:{d['info'].get('modality')}".encode()).hexdigest()[:16],
+        "departments_fetched": [], "model_backend": os.environ.get("LLM_BACKEND", "gemini"),
+        "model_version": active_model_name(vision=True), "response_length": len(analysis), "multi_agent_used": False,
+    })
+    return {"analysis": analysis, "summary": d["summary"]}
+
+
+# ── One finding explained at four levels ─────────────────────────────────────
+
+_explain_cache: dict = {}   # ponytail: per-process cache keyed by the fact sheet; a restart clears it
+
+
+@api_router.get("/explain-levels/{patient_id}")
+@limiter.limit("30/minute")
+async def explain_levels(request: Request, patient_id: str, refresh: bool = False,
+                         current_user: dict = Depends(require_physician)):
+    """The patient's main finding for four readers, written from one fact sheet built in code.
+    Every number is checked against that fact sheet; a saved, pre-checked version is the fallback."""
+    profile = await db.profiles.find_one({"patient_id": patient_id}, {"_id": 0})
+    if not explain.available(profile):
+        raise HTTPException(status_code=404, detail="This patient's record does not have the pathology and molecular results needed.")
+    records = {name: await DEPARTMENT_GATEWAYS[name].get_records_for_patient(db, patient_id)
+               for name in ("CT Scan", "MRI", "Blood Profile", "Treatment")}
+    facts = explain.build_facts(profile, records)
+    key = (patient_id, json.dumps(facts, sort_keys=True))
+    if key in _explain_cache and not refresh:
+        return _explain_cache[key]
+    # EXPLAIN_BACKEND=gemini sends only this feature to Gemini while the rest of the portal stays on LLM_BACKEND.
+    use_gemini = os.environ.get("EXPLAIN_BACKEND", LLM_BACKEND) == "gemini"
+    texts, source = None, "model"
+    try:
+        call = _gemini_generate if use_gemini else generate_response
+        texts = explain.parse(await asyncio.wait_for(call(explain.prompt(facts), explain.SYSTEM), timeout=45))
+    except Exception as e:   # slow, overloaded or unreachable: the saved version below takes over
+        logger.warning(f"explain-levels model call failed: {e!r}")
+    if texts is None:
+        texts, source = explain.saved(patient_id), "saved"
+        if texts is None:
+            raise HTTPException(status_code=503, detail="The AI model is unavailable right now. The chart itself is unaffected.")
+    result = explain.assemble(texts, facts, source)
+    result["model"] = (GEMINI_MODEL if use_gemini else active_model_name()) if source == "model" else None
+    _explain_cache[key] = result
+    await db.audit_log.insert_one({
+        "timestamp": datetime.now(timezone.utc), "user_id": current_user["username"], "role": current_user["role"],
+        "patient_id": patient_id, "question_hash": hashlib.sha256(b"explain-levels").hexdigest()[:16],
+        "departments_fetched": list(records), "model_backend": ("gemini" if use_gemini else LLM_BACKEND) if source == "model" else "saved",
+        "model_version": result["model"], "response_length": sum(len(v) for v in texts.values()), "multi_agent_used": False,
+    })
+    return result
+
 
 class StudyAnalysisRequest(BaseModel):
     patient_id: str

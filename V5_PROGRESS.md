@@ -570,6 +570,29 @@ paid tier or the guardrails above plus a narrow, rehearsed question list.
   zooms at the cursor (up to 6x), drag pans, double-click or 0 resets, arrow
   keys step. When zoomed the server sends a 1024 px slice; the dose wash is now
   bilinear instead of nearest-point, so it stays smooth.
+- Landing page: seventh tile, Radiation Oncology. Its list reads each course
+  from the radiation system through its gateway (plan name, dose, fractions
+  delivered, approving physician). Department list dates no longer shift one
+  day earlier in US time zones (date-only strings were read as UTC midnight).
+- DocAssist accepts a DICOM file (drop or attach, up to 25 MB, read in memory,
+  never stored). Without AI it shows the picture, a one-line summary (image
+  geometry, or the RT plan's dose and fractions, structure names, dose maximum)
+  and the names of the identifying fields it hid. The image goes to the vision
+  model only after the doctor says yes, never for RT objects, and never when
+  the file states or is likely to have burned-in text (US, secondary capture).
+  New routes `/api/dicom/inspect` and `/api/dicom/analyze` (physician only,
+  audited). Checkpoint: `pytest` 190 passed; build compiled; headless drop of
+  a real CT slice and an RT plan worked end to end on local MedGemma.
+- Graded explanations (James only): "Explain this diagnosis at four levels" in the
+  chart header opens Patient, Physician, Lab scientist and Drug developer views of
+  the same finding. All four are written from one fact sheet built in code from the
+  record (diagnosis, stage, grade, pathology, molecular results, CT and MRI, CEA
+  trend, treatments); every number is checked against it, and the patient view
+  flags any talk of outlook. A saved, pre-checked version is used when the model
+  is slow (45 s limit) or unavailable. Optional EXPLAIN_BACKEND=gemini sends only
+  this feature to Gemini. James's record gained grade, pathology and molecular
+  facts. New route `/api/explain-levels/{id}` (physician only, audited).
+  Checkpoint: `pytest` 195 passed; build compiled; dialog checked in the browser.
 
 ## Open items noticed during Stage 1
 - Demo timelines are dated 2025 and labs stop months before the last imaging,

@@ -175,3 +175,18 @@ def test_course_on_real_public_ct_derives_the_ptv_and_labels_the_dose(tmp_path):
         assert a["stats"]["PTV"]["D95"] >= 57 and all(c["ok"] for c in a["constraints"]), a["constraints"]
     finally:
         pacs_system.DB_PATH, radiation_system.DB_PATH = old
+
+
+def test_dropped_dicom_is_summarised_and_burned_in_text_is_never_analyzed(stores):
+    files, _, mpi = course("P1001")
+    ct = pydicom.dcmread(pacs_system.list_series(mpi["pacs_local_id"])[0]["files"][0])
+    d = radiation.describe_upload(ct)
+    assert d["summary"].startswith("CT image") and d["can_analyze"] and d["preview"][:4] == b"\x89PNG"
+    assert "PatientName" in d["hidden"] and "MITCHELL" not in str(d["info"]) + d["summary"]
+    plan = radiation.describe_upload(pydicom.dcmread(files["RTPLAN"]))
+    assert "60 Gy in 30 fractions" in plan["summary"] and not plan["can_analyze"]          # no pixels: summary only
+    assert "outlines" in radiation.describe_upload(pydicom.dcmread(files["RTSTRUCT"]))["summary"]
+    ct.BurnedInAnnotation = "YES"
+    assert radiation.describe_upload(ct)["burned_in"] and not radiation.describe_upload(ct)["can_analyze"]
+    ct.BurnedInAnnotation, ct.Modality = "", "US"                                          # ultrasound: assume text unless told otherwise
+    assert not radiation.describe_upload(ct)["can_analyze"]

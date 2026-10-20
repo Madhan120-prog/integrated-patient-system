@@ -396,6 +396,40 @@ def render_slice(ct_files: list[str], files: dict | None, index: int, window: st
     return buf.getvalue()
 
 
+# Kinds of image that usually carry text in the pixels (ultrasound, screen captures, photos).
+LIKELY_BURNED_IN = {"US", "SC", "OT", "XC", "ES", "DOC"}
+
+
+def describe_upload(ds) -> dict:
+    """What DocAssist shows for a DICOM file the doctor dropped in: the de-identified
+    header, one plain summary, and whether the picture may go to the vision model.
+    Pixels with burned-in text can carry a name or ID that header de-identification
+    cannot remove, so those are never sent."""
+    d = deidentify(ds)
+    info, modality = d["info"], d["info"].get("modality", "")
+    burned = _text(ds.get("BurnedInAnnotation")).upper()
+    burned_in = burned == "YES" or (modality in LIKELY_BURNED_IN and burned != "NO")
+    if modality == "RTPLAN":
+        summary = (f"Treatment plan {info.get('name') or info.get('label', '')}: {info.get('rx_gy', 0):g} Gy in "
+                   f"{info.get('fractions')} fractions, {len(info.get('beams', []))} beams, {info.get('approval', 'status not stated').lower()}.")
+    elif modality == "RTSTRUCT":
+        names = info.get("structures", [])
+        summary = f"Structure set with {len(names)} outlines: {', '.join(names)}."
+    elif modality == "RTDOSE":
+        grid = dose_array(ds)[0]
+        summary = f"Dose grid, {grid.shape[0]} planes, maximum {grid.max():.1f} {info.get('dose_units', 'GY').replace('GY', 'Gy')}."
+    else:
+        parts = [modality or "DICOM", "image", info.get("body_part", "").lower(), info.get("size", "")]
+        if "pixel_spacing_mm" in info:
+            parts.append(f"{info['pixel_spacing_mm'][0]} mm pixels")
+        if "slice_thickness_mm" in info:
+            parts.append(f"{info['slice_thickness_mm']:g} mm slice")
+        summary = ", ".join(p for p in parts[:2] if p).replace(", image", " image") + "".join(f", {p}" for p in parts[2:] if p) + "."
+    preview = render_any(ds)
+    return {"info": info, "hidden": d["hidden"], "summary": summary, "burned_in": burned_in,
+            "preview": preview, "can_analyze": preview is not None and not burned_in and not modality.startswith("RT")}
+
+
 def render_any(ds, size: int = 512) -> bytes | None:
     """Picture for an uploaded DICOM image (first frame), windowed for viewing. None if it has no pixels."""
     if "PixelData" not in ds:

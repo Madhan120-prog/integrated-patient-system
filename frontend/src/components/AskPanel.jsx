@@ -35,9 +35,12 @@ const findStudy = (text, images) => {
 const IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
 const AUDIO_TYPES = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/mp4', 'audio/m4a', 'audio/x-m4a', 'audio/aac', 'audio/webm', 'audio/ogg'];
 const isAudio = (file) => AUDIO_TYPES.includes(file.type);
+const isDicom = (file) => /\.dcm$/i.test(file.name) || file.type === 'application/dicom';
 const ATTACH_OPTIONS = [
   { Icon: ImageIcon, label: 'Photo or scan', hint: 'PNG, JPEG or WebP', accept: IMAGE_TYPES.join(',') },
   { Icon: FileText, label: 'File', hint: 'PDF report or letter', accept: 'application/pdf' },
+  { Icon: ScanLine, label: 'DICOM file', hint: 'Image, RT plan, structures or dose (.dcm)', accept: '.dcm,application/dicom',
+    info: 'The file is read on this server and not stored. Identifying header fields (name, ID, dates and so on) are hidden first. The image goes to the AI model only if you say yes, and never when it may have text burned into the pixels.' },
   { Icon: Mic, label: 'Recording', hint: 'Visit audio: MP3, M4A or WAV', accept: 'audio/*',
     info: 'A recorded visit is transcribed, each voice is labelled Doctor or Patient for the whole conversation, and you can then ask questions about what was said. Labels are assigned by AI, so check them.' },
 ];
@@ -53,7 +56,7 @@ const explain = (error) => {
   const role = JSON.parse(localStorage.getItem('user') || '{}').role;
   if (status === 403) return `DocAssist answers are limited to physician accounts${role ? ` (you are signed in as ${role.toLowerCase()})` : ''}. The chart itself is fully available.`;
   if (status === 404 && error.response.data?.detail === 'Not Found') return 'The running server does not have this feature yet. Restart the backend and try again.';
-  if ([404, 429, 502, 503].includes(status)) return error.response.data?.detail || 'The AI model is unavailable right now. The chart itself is unaffected.';
+  if ([400, 404, 413, 429, 502, 503].includes(status) && error.response.data?.detail) return error.response.data?.detail || 'The AI model is unavailable right now. The chart itself is unaffected.';
   if (!error.response) return 'The AI service did not respond. Check the connection and try again.';
   return 'The request could not be completed. Try rephrasing it.';
 };
@@ -94,12 +97,48 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
 
   const offerStudy = (study, lead) => push({ role: 'offer', study, lead });
   const offerFile = (file) => {
-    if (![...IMAGE_TYPES, 'application/pdf'].includes(file.type) && !isAudio(file)) {
-      push({ role: 'error', content: 'That file type is not supported. Attach an image, a PDF or an audio recording.' });
+    if (isDicom(file)) {
+      if (file.size > 25 * 1024 * 1024) push({ role: 'error', content: 'That DICOM file is larger than 25 MB.' });
+      else inspectDicom(file);
+    } else if (![...IMAGE_TYPES, 'application/pdf'].includes(file.type) && !isAudio(file)) {
+      push({ role: 'error', content: 'That file type is not supported. Attach an image, a PDF, a DICOM file or an audio recording.' });
     } else if (file.size > (isAudio(file) ? 15 : 10) * 1024 * 1024) {
       push({ role: 'error', content: `That file is larger than ${isAudio(file) ? 15 : 10} MB.` });
     } else {
       push({ role: 'offer', file, lead: isAudio(file) ? 'Recording received.' : 'File received.' });
+    }
+  };
+
+  // A DICOM file is read straight away (no AI): header, picture and what was hidden.
+  const inspectDicom = async (file) => {
+    setLoading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await axios.post(`${API}/dicom/inspect`, form);
+      push({ role: 'dicom', file, data: res.data });
+    } catch (e) {
+      push({ role: 'error', content: explain(e) });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const analyzeDicom = async (m, index) => {
+    if (loading) return;
+    setMessages((all) => all.map((x, i) => (i === index ? { ...x, answered: true } : x)));
+    setLoading(true);
+    try {
+      const form = new FormData();
+      form.append('file', m.file);
+      form.append('patient_id', patientId);
+      const res = await axios.post(`${API}/dicom/analyze`, form);
+      answer({ content: res.data.analysis, footnote: 'AI description of the image only. Identifying header fields were removed before it was sent. Check it against the formal report.' });
+      setHistory((h) => [...h, { role: 'assistant', content: res.data.analysis }]);
+    } catch (e) {
+      push({ role: 'error', content: explain(e) });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -276,6 +315,44 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
               </div>
             </div>
           </div>
+        ) : m.role === 'dicom' ? (
+          <div key={i} className="flex gap-2 rise-in" data-testid="dicom-card">
+            <DocAssistOrb size={26} />
+            <div className="flex-1 min-w-0 bg-white border border-slate-200 rounded-2xl rounded-tl-md overflow-hidden card-raised">
+              {m.data.preview && <img src={m.data.preview} alt={`${m.data.info.modality || 'DICOM'} image from the file`} className="w-full max-h-64 object-contain bg-black" />}
+              <div className="px-3.5 pt-2.5 text-sm">
+                <p className="text-slate-600">DICOM file read <span className="text-slate-400 break-all">· {m.file.name}</span></p>
+                <p className="font-semibold text-slate-900 mt-1">{m.data.summary}</p>
+                {m.data.hidden.length > 0 && (
+                  <details className="mt-1.5 text-xs text-slate-600">
+                    <summary className="cursor-pointer text-teal-800 font-medium">{m.data.hidden.length} identifying field{m.data.hidden.length > 1 ? 's' : ''} hidden</summary>
+                    <p className="mt-1">{m.data.hidden.map((h) => h.replace(/([a-z])([A-Z])/g, '$1 $2')).join(', ')}. Dates are shown as the year only.</p>
+                  </details>
+                )}
+                {m.data.burned_in && (
+                  <p className="mt-2 flex gap-1.5 text-xs text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+                    <TriangleAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+                    This image may have text burned into the pixels, which could identify the patient, so it will not be sent to the AI model.
+                  </p>
+                )}
+              </div>
+              <div className="px-3.5 py-3">
+                {!m.data.can_analyze ? (
+                  <p className="text-xs text-slate-500">{m.data.burned_in ? 'Shown here only.' : 'This file has no anatomy image to analyze; the summary above is read directly from it.'}</p>
+                ) : m.answered ? <p className="text-xs text-slate-500">Request noted.</p> : (
+                  <>
+                    <p className="text-sm text-slate-900">Would you like me to analyze this image?</p>
+                    <div className="flex gap-2 mt-2">
+                      <button onClick={() => analyzeDicom(m, i)} disabled={loading}
+                        className="text-sm font-medium px-3.5 py-1.5 rounded-full bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-40">Yes, analyze</button>
+                      <button onClick={() => setMessages((all) => all.map((x, k) => (k === i ? { ...x, answered: true } : x)))}
+                        className="text-sm px-3.5 py-1.5 rounded-full border border-slate-300 text-slate-700 hover:bg-slate-50">Not now</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
         ) : m.role === 'transcript' ? (
           <div key={i} className="flex gap-2 rise-in" data-testid="transcript">
             <DocAssistOrb size={26} />
@@ -365,7 +442,7 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
                       </button>
                       {info && (
                         <button type="button" onClick={() => setInfoFor(infoFor === label ? null : label)} aria-expanded={infoFor === label}
-                          aria-label={`What DocAssist does with a ${label.toLowerCase()}`} data-testid="recording-info"
+                          aria-label={`What DocAssist does with a ${label.toLowerCase()}`} data-testid={`${label.toLowerCase().replace(" ", "-")}-info`}
                           className="mr-1.5 w-7 h-7 rounded-full text-slate-500 hover:bg-white hover:text-teal-800 flex items-center justify-center">
                           <Info className="w-4 h-4" />
                         </button>

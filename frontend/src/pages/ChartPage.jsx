@@ -3,13 +3,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   Activity, ArrowUpRight, Radiation, Check, NotebookPen, CalendarClock, CalendarDays, ChevronDown, ChevronUp, ChevronsDownUp, ChevronsUpDown, Database, HeartPulse, Maximize2, Minimize2, Ruler, Thermometer, Weight, Wind, FlaskConical, LayoutDashboard, Pill, ScanLine, Stethoscope, Syringe,
-  TriangleAlert, Users, X,
+  TriangleAlert, Users, X, Layers,
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import AskPanel, { SECTION_SCOPE } from '../components/AskPanel';
 import RadiationPlan from '../components/RadiationPlan';
+import ExplainLevels from '../components/ExplainLevels';
 import {
   StatTile, FindingCard, RangeGauge, Sparkline, LabTrendChart, SystemsTimeline, TreatmentTimeline, DocAssistOrb,
   SYSTEM_COLORS, RANGE_LETTER, RANGE_WORD, formatDate,
@@ -41,9 +42,9 @@ const OutChip = ({ status, children }) => (
 );
 
 // Patient header: one compact card. Every field shows in full and wraps; nothing is cut short.
-const PatientHero = ({ profile, flagCount }) => {
+const PatientHero = ({ profile, flagCount, onExplain }) => {
   const facts = [
-    ['Diagnosis', profile.diagnosis], ['Stage', profile.stage], ['Biomarkers', profile.biomarkers],
+    ['Diagnosis', profile.diagnosis], ['Stage', profile.stage], ['Grade', profile.grade], ['Biomarkers', profile.biomarkers],
     ['Regimen', profile.regimen], ['Allergies', profile.allergies],
   ].filter(([, value]) => value);
   return (
@@ -86,6 +87,12 @@ const PatientHero = ({ profile, flagCount }) => {
               </div>
             )}
           </dl>
+        )}
+        {onExplain && profile.grade && profile.pathology && profile.molecular && (
+          <button onClick={onExplain} data-testid="explain-levels-button"
+            className="mt-3 inline-flex items-center gap-2 rounded-full bg-white text-teal-800 text-sm font-semibold px-4 py-1.5 hover:bg-teal-50">
+            <Layers className="w-4 h-4" aria-hidden="true" />Explain this diagnosis at four levels
+          </button>
         )}
       </div>
     </section>
@@ -435,6 +442,7 @@ const ChartPage = () => {
   const [mineOnly, setMineOnly] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [assemblyOpen, setAssemblyOpen] = useState(false);
+  const [explainOpen, setExplainOpen] = useState(false);
   const [askWidth, setAskWidth] = useState(432);
   const [analyte, setAnalyte] = useState(null);
   const [dayOpen, setDayOpen] = useState(null);
@@ -584,7 +592,7 @@ const ChartPage = () => {
 
         <SectionContext.Provider value={{ collapsed, toggle, askAbout, sources: allSources }}>
         <main className="space-y-5 min-w-0">
-          <PatientHero profile={profile} flagCount={outOfRange.length} />
+          <PatientHero profile={profile} flagCount={outOfRange.length} onExplain={() => setExplainOpen(true)} />
 
           <Section id="Summary">
               <div className="grid grid-cols-1 sm:grid-cols-2 2xl:grid-cols-4 gap-4" data-testid="stat-boxes">
@@ -873,6 +881,8 @@ const ChartPage = () => {
       {isPhysician && <NotesWindow key={profile.patient_id} patientId={profile.patient_id} patientName={profile.name} open={notesOpen} onClose={() => setNotesOpen(false)} />}
 
       {/* The federation in one picture: one patient id, a different id in every system */}
+      <ExplainLevels patientId={profile.patient_id} open={explainOpen} onOpenChange={setExplainOpen} />
+
       <Dialog open={assemblyOpen} onOpenChange={setAssemblyOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto" data-testid="assembly">
           <DialogHeader><DialogTitle>How this chart was assembled</DialogTitle></DialogHeader>

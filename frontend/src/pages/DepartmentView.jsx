@@ -45,7 +45,7 @@ const DepartmentView = () => {
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' });   // plain days, not shifted to local time
   };
 
   const getDepartmentInfo = () => {
@@ -79,6 +79,10 @@ const DepartmentView = () => {
         icon: 'https://cdn-icons-png.flaticon.com/512/3774/3774286.png',
         color: 'from-green-500 to-green-600', 
         name: 'Treatment' 
+      },
+      'radiation': {
+        color: 'from-sky-500 to-cyan-700',
+        name: 'Radiation Oncology'
       }
     };
     return icons[departmentName] || { 
@@ -278,6 +282,15 @@ const DepartmentView = () => {
                     <circle cx="48" cy="32" r="3" fill="currentColor" opacity="0.7"/>
                   </svg>
                 )}
+                {deptInfo.name === 'Radiation Oncology' && (
+                  <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                    <circle cx="32" cy="32" r="26" stroke="currentColor" strokeWidth="2.5" opacity="0.3"/>
+                    <path d="M32 32 L20 11 A24 24 0 0 1 44 11 Z" fill="currentColor" opacity="0.85"/>
+                    <path d="M32 32 L56 32 A24 24 0 0 1 44 53 Z" fill="currentColor" opacity="0.85"/>
+                    <path d="M32 32 L20 53 A24 24 0 0 1 8 32 Z" fill="currentColor" opacity="0.85"/>
+                    <circle cx="32" cy="32" r="6" fill="currentColor"/>
+                  </svg>
+                )}
               </div>
               <div>
                 <h1 className="text-3xl font-bold text-gray-800 mb-2" data-testid="department-heading">
@@ -376,7 +389,7 @@ const DepartmentView = () => {
                         <TableCell>
                           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
                             record.result?.includes('Normal') || record.result?.includes('Clear') || 
-                            record.result?.includes('Within Range') ? 'bg-green-100 text-green-700' :
+                            record.result?.includes('Within Range') || record.result?.startsWith('Completed') ? 'bg-green-100 text-green-700' :
                             record.result?.includes('Critical') ? 'bg-red-100 text-red-700' :
                             'bg-yellow-100 text-yellow-700'
                           }`}>

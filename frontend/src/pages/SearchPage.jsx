@@ -14,9 +14,10 @@ const DEPARTMENTS = [
   { name: 'Blood Test', color: 'from-red-400 to-red-600', route: 'blood-test', caption: 'Counts, markers and panels' },
   { name: 'CT Scan', color: 'from-purple-400 to-purple-600', route: 'ct-scan', caption: 'Chest and abdominal scans' },
   { name: 'Treatment', color: 'from-green-400 to-green-600', route: 'treatment', caption: 'Surgery, chemotherapy and more' },
+  { name: 'Radiation Oncology', color: 'from-sky-500 to-cyan-700', route: 'radiation', caption: 'Plans, dose and delivered fractions' },
 ];
 
-// The six department icons, unchanged from the original page.
+// The department icons; the first six are unchanged from the original page.
 const DepartmentIcon = ({ name }) => {
   switch (name) {
     case 'MRI Scan': return (
@@ -77,6 +78,15 @@ const DepartmentIcon = ({ name }) => {
                             <path d="M38 20 L44 20 C46 20, 48 22, 48 24 L48 28" 
                               stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" opacity="0.7"/>
                             <circle cx="48" cy="32" r="3" fill="currentColor" opacity="0.7"/>
+                          </svg>
+    );
+    case 'Radiation Oncology': return (
+                          <svg className="w-full h-full text-white" viewBox="0 0 64 64" fill="none">
+                            <circle cx="32" cy="32" r="26" stroke="currentColor" strokeWidth="2.5" opacity="0.3"/>
+                            <path d="M32 32 L20 11 A24 24 0 0 1 44 11 Z" fill="currentColor" opacity="0.85"/>
+                            <path d="M32 32 L56 32 A24 24 0 0 1 44 53 Z" fill="currentColor" opacity="0.85"/>
+                            <path d="M32 32 L20 53 A24 24 0 0 1 8 32 Z" fill="currentColor" opacity="0.85"/>
+                            <circle cx="32" cy="32" r="6" fill="currentColor"/>
                           </svg>
     );
     default: return null;
