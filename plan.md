@@ -1,6 +1,6 @@
 # Project Plan — Integrated Patient Data Retrieval System
 
-> Last updated: 2026-10-08
+> Last updated: 2026-10-27
 >
 > **V5 in progress** on `feature/v5-new-version` (local; `main` frozen as V4).
 > Stages, checkpoints and test runs: `V5_PROGRESS.md`.
@@ -244,6 +244,20 @@ Rules for this phase: see `RULES.md` → V3 section
 - [ ] Frontend on Vercel / Netlify
 - [ ] Hospital branding (West Cancer Center, Memphis)
 - [ ] Custom domain, HTTPS, production CORS
+
+---
+
+## Research track: AI tumour outlining (started 2026-10-27)
+
+Separate experiment in `research/tumor-ai/` (does not touch the portal). Train and compare models that
+find and outline lung tumours on CT (public NSCLC-Radiomics data), explain results at several levels, and
+later connect to the portal. Guide and experiment table: `research/tumor-ai/README.md`; order of work:
+`research/tumor-ai/plan.md`.
+
+- [x] Pipeline: download, data check, DICOM to NIfTI + QC pictures, patient-level split
+- [x] Own 3D U-Net + training script, tested on 6 local patients
+- [ ] HPC setup and 50-patient run (E0, E1-small, E3-small)
+- [ ] Full 422-patient runs, then the rest of the experiment table
 
 ---
 

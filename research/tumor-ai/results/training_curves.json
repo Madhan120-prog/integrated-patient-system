@@ -1,0 +1,47 @@
+[
+ {
+  "run": "E0 (1 patient)",
+  "step": 250,
+  "val_dice": 0.157
+ },
+ {
+  "run": "E0 (1 patient)",
+  "step": 500,
+  "val_dice": 0.575
+ },
+ {
+  "run": "E0 (1 patient)",
+  "step": 750,
+  "val_dice": 0.607
+ },
+ {
+  "run": "E0 (1 patient)",
+  "step": 1000,
+  "val_dice": 0.693
+ },
+ {
+  "run": "E0 (1 patient)",
+  "step": 1250,
+  "val_dice": 0.83
+ },
+ {
+  "run": "E0 (1 patient)",
+  "step": 1500,
+  "val_dice": 0.786
+ },
+ {
+  "run": "E0 (1 patient)",
+  "step": 1750,
+  "val_dice": 0.891
+ },
+ {
+  "run": "E0 (1 patient)",
+  "step": 2000,
+  "val_dice": 0.899
+ },
+ {
+  "run": "E3-small (50 patients)",
+  "step": 1000,
+  "val_dice": 0.1
+ }
+]

@@ -1,0 +1,162 @@
+[
+ {
+  "id": "E0",
+  "question": "Does the pipeline work at all?",
+  "model": "Our U-Net (base 16)",
+  "data": "1 patient (LUNG1-001)",
+  "status": "Done",
+  "result": "Dice 0.90 after 2,000 steps",
+  "job": "local + BigBlue",
+  "notes": "Bug test passed on A100: train and check on the same patient."
+ },
+ {
+  "id": "E1-small",
+  "question": "What is the strong baseline?",
+  "model": "nnU-Net 3d_fullres, 100 epochs",
+  "data": "50 patients, fold 0",
+  "status": "Fixing",
+  "result": "Crashed at training start",
+  "job": "3516113",
+  "notes": "torch.compile error; preprocessing finished. Rerun with nnUNet_compile=f."
+ },
+ {
+  "id": "E3-small",
+  "question": "How does our own design do?",
+  "model": "Our U-Net (base 32), from scratch",
+  "data": "50 patients, fold 0",
+  "status": "Running",
+  "result": "Dice 0.10 at step 1,000 of 20,000",
+  "job": "3516111",
+  "notes": "Early score, expected to rise. Checks on 9 patients."
+ },
+ {
+  "id": "E1",
+  "question": "What is the strong baseline? (full)",
+  "model": "nnU-Net 3d_fullres",
+  "data": "422 patients, 5 folds",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "After the 50-patient review."
+ },
+ {
+  "id": "E2",
+  "question": "Does 3D beat 2D?",
+  "model": "nnU-Net 2d vs 3d_fullres",
+  "data": "422 patients",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "Expect 3D better on small tumours."
+ },
+ {
+  "id": "E3",
+  "question": "How does our own design do? (full)",
+  "model": "Our U-Net (base 32)",
+  "data": "422 patients, 5 folds",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "Compared with E1."
+ },
+ {
+  "id": "E4",
+  "question": "Can we help small tumours?",
+  "model": "Our U-Net + one change",
+  "data": "422 patients",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "One change at a time: deep supervision, attention gates or Tversky loss."
+ },
+ {
+  "id": "E5",
+  "question": "Find first, then outline?",
+  "model": "Two-stage: locate, then outline",
+  "data": "422 patients",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "Newest papers use this."
+ },
+ {
+  "id": "E6",
+  "question": "Do transformers help?",
+  "model": "Swin UNETR (MONAI)",
+  "data": "422 patients",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "Heavier model; record GPU memory."
+ },
+ {
+  "id": "E7",
+  "question": "Does pre-training help?",
+  "model": "Pre-trained CT model, fine-tuned",
+  "data": "422 patients",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "Compared with from-scratch results."
+ },
+ {
+  "id": "E8",
+  "question": "How good is click-to-outline?",
+  "model": "MedSAM with a box prompt",
+  "data": "422 patients",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "A doctor helps the AI."
+ },
+ {
+  "id": "E9",
+  "question": "How much data do we need?",
+  "model": "Best model on 25/50/100% of patients",
+  "data": "422 patients",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "Tells whether more data is worth chasing."
+ },
+ {
+  "id": "E10",
+  "question": "Does more data help?",
+  "model": "Best model + Radiogenomics + Decathlon Lung",
+  "data": "~600 patients",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "Only datasets whose outlines mean the same thing."
+ },
+ {
+  "id": "E11",
+  "question": "Does it work on another hospital's scans?",
+  "model": "Train on Lung1, test on Radiogenomics",
+  "data": "External test",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "Key question for doctors."
+ },
+ {
+  "id": "E12",
+  "question": "Which preparation steps matter?",
+  "model": "HU window, flip on/off, block size",
+  "data": "422 patients",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "Small ablation runs."
+ },
+ {
+  "id": "E13",
+  "question": "Do outline errors change the dose?",
+  "model": "AI vs doctor outline through the dose code",
+  "data": "Later, with plans",
+  "status": "Planned",
+  "result": "",
+  "job": "",
+  "notes": "Our distinctive question."
+ }
+]

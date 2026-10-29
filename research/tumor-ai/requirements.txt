@@ -1,0 +1,8 @@
+pydicom
+SimpleITK
+rt-utils
+numpy
+pillow
+torch
+tcia_utils
+scipy
