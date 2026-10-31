@@ -593,6 +593,44 @@ paid tier or the guardrails above plus a narrow, rehearsed question list.
   this feature to Gemini. James's record gained grade, pathology and molecular
   facts. New route `/api/explain-levels/{id}` (physician only, audited).
   Checkpoint: `pytest` 195 passed; build compiled; dialog checked in the browser.
+- Saved work, stage A of four (asked for after the Green Mountain Tech review):
+  every DocAssist exchange (questions, study, file, DICOM and recording analyses)
+  is saved on the server for the doctor who asked, with the records used kept as
+  date and name only, and the model that answered. It comes back when the chart
+  is reopened, so refresh or sign-out loses nothing. Private by default: a Share
+  control in DocAssist lets the doctor tick colleagues (physicians only, per
+  patient) and untick to take access back. Shared work shows read-only to that
+  colleague; sharing changes and every view of shared work go to the audit log.
+  Uploaded files are still never kept. A second demo doctor (doctor2, Dr. Patel)
+  shows sharing. New routes `GET /api/workspace/{id}`, `PUT /api/workspace/{id}/sharing`;
+  AI routes now return `work_id` for stages B and C. Checkpoint: `pytest` 197
+  passed (2 new, against a throwaway MongoDB database); build compiled.
+- Saved work, stage B (Save to chart): under each DocAssist answer, "Save to
+  chart" opens the text as an editable draft. It goes on the chart only after the
+  doctor ticks "I have reviewed this and it is correct". The server looks up the
+  AI's original answer from the doctor's saved work (never from the browser) and
+  keeps it with the note, with the question, model and records used, and whether
+  the doctor changed the text. New "Notes on the chart" panel in Summary, visible
+  to the whole care team, labelled "AI-assisted, reviewed by Dr. X" (or "edited
+  and reviewed", or "Written by" for notes without AI), with "What the AI wrote"
+  one click away. New routes `POST`/`GET /api/chart-notes/{id}`; saving is audited.
+  Checkpoint: `pytest` 198 passed; build compiled.
+- Saved work, stage C (decision trail, stored, no screen): DocAssist records how
+  each question was started (the doctor's own words, a suggested question, a chart
+  section, or a chart button). When a doctor edits AI text before saving it to the
+  chart, an optional "why you changed it" box appears. With the saved conversation
+  and the AI original kept on each note, what happened can be reconstructed later;
+  `GET /api/decision-trail/{id}` (physician only, audited) does that from the stored
+  data: counts (doctor-led, AI edited, AI unchanged, AI answers never used) and per
+  note the steps in order plus a word-level comparison (`provenance.py`). A screen
+  for it was built and then removed at the user's request: storage is what matters.
+- Saved work, stage D (print and export): "Print or save as PDF" in the chart
+  sidebar uses the browser's print; the sidebar, DocAssist and floating windows are
+  left out, collapsed sections are left out (collapse what you don't want printed),
+  and a footer says who printed it and when. The lab flowsheet downloads as a
+  spreadsheet (CSV), and a DocAssist conversation downloads as text with the records
+  each answer used. Every print and download is written to the audit log
+  (`POST /api/export-log/{id}`). Checkpoint: `pytest` 200 passed; build compiled.
 
 ## Open items noticed during Stage 1
 - Demo timelines are dated 2025 and labs stop months before the last imaging,

@@ -1,3 +1,4 @@
+import axios from 'axios';
 import React, { useState } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceArea, ReferenceLine, ResponsiveContainer,
@@ -41,6 +42,15 @@ const TREATMENT = {
 const OTHER_TREATMENT = { color: '#64748b', Icon: Pill };
 
 const ts = (d) => new Date(`${d}T00:00:00`).getTime();
+// Print and download leave a line in the audit log first; a failed log never blocks the doctor.
+export const logExport = (patientId, what) =>
+  axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/export-log/${patientId}`, { what }).catch(() => {});
+export const download = (filename, text, type = 'text/plain') => {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  Object.assign(document.createElement('a'), { href: url, download: filename }).click();
+  URL.revokeObjectURL(url);
+};
+
 export const formatDate = (d) =>
   d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
 const tickDate = (t) => new Date(t).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });

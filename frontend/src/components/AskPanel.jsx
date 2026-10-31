@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import axios from 'axios';
-import { FileText, FlaskConical, Image as ImageIcon, Info, ListChecks, Mic, Paperclip, ScanLine, Send, Square, TriangleAlert, Volume2, VolumeX, X } from 'lucide-react';
+import { FileText, FlaskConical, Image as ImageIcon, Download, Info, ListChecks, Lock, NotebookPen, Mic, Paperclip, ScanLine, Send, Square, TriangleAlert, Users, Volume2, VolumeX, X } from 'lucide-react';
 import { MessageContent } from './DeepSearchModal';
-import { DocAssistOrb, formatDate } from './ChartVisuals';
+import { DocAssistOrb, formatDate, download, logExport } from './ChartVisuals';
 import { useDictation, useSpeaker } from '../hooks/useVoice';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -45,6 +45,11 @@ const ATTACH_OPTIONS = [
     info: 'A recorded visit is transcribed, each voice is labelled Doctor or Patient for the whole conversation, and you can then ask questions about what was said. Labels are assigned by AI, so check them.' },
 ];
 const SPEAKER_STYLE = { Doctor: 'bg-teal-700 text-white', Patient: 'bg-slate-200 text-slate-900' };
+// A saved exchange as it appears in the conversation. Records are kept as date and name only.
+const savedTurn = (t) => [
+  { role: 'user', content: t.question, saved: true },
+  { role: 'assistant', content: t.answer, saved: true, workId: t.id, noteId: t.note_id, evidence: t.records.map((r) => ({ test_date: r.date, test_name: r.name })) },
+];
 const transcriptText = (t) => t.segments.map((seg) => `(${seg.start}) ${seg.speaker}: ${seg.text}`).join('\n');
 
 // Long dashes read as noise on screen; answers and warnings use a colon instead.
@@ -67,7 +72,52 @@ const explain = (error) => {
 //   2. ask it to pull up a study, or drag one in from the Imaging section,
 //   3. attach or drop a file.
 // A study or file is shown first; the image is analyzed only when the doctor says so.
-const AskPanel = ({ patientId, patientName, images = [], request }) => {
+// "Save to chart": the answer opens as an editable draft, and goes on the chart only
+// after the doctor confirms they reviewed it. The server keeps the AI's original wording beside it.
+const SaveToChart = ({ patientId, workId, text, onSaved, onCancel }) => {
+  const [draft, setDraft] = useState(text);
+  const [reviewed, setReviewed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const [reason, setReason] = useState('');
+  const edited = draft.trim() !== text.trim();
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const { data } = await axios.post(`${API}/chart-notes/${patientId}`, { text: draft, work_id: workId, reviewed, reason: edited ? reason : '' });
+      onSaved(data);
+    } catch (e) {
+      setError(explain(e));
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="mt-2 pt-2 border-t border-slate-100" data-testid="save-to-chart-form">
+      <label className="block text-xs font-medium text-slate-600">Edit before it goes on the chart</label>
+      <textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={6}
+        className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-600" />
+      {edited && (
+        <input value={reason} onChange={(e) => setReason(e.target.value)} maxLength={2000} data-testid="edit-reason"
+          placeholder="Why you changed it (optional), e.g. adjusted for kidney function" aria-label="Reason for changing the AI text"
+          className="mt-1.5 w-full rounded-xl border border-slate-300 px-3 py-1.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-600" />
+      )}
+      <label className="mt-2 flex items-start gap-2 text-sm text-slate-800 cursor-pointer">
+        <input type="checkbox" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} className="mt-0.5 accent-teal-700" data-testid="reviewed-box" />
+        I have reviewed this and it is correct.
+      </label>
+      <p className="mt-1 text-xs text-slate-500">It will be labelled "AI-assisted, reviewed by you", with the records it used and the AI's original wording.</p>
+      {error && <p role="alert" className="mt-1 text-xs text-amber-800">{error}</p>}
+      <div className="flex gap-2 mt-2">
+        <button onClick={save} disabled={!reviewed || !draft.trim() || busy}
+          className="text-sm font-medium px-3.5 py-1.5 rounded-full bg-teal-700 text-white hover:bg-teal-800 disabled:opacity-40">{busy ? 'Saving…' : 'Save to chart'}</button>
+        <button onClick={onCancel} className="text-sm px-3.5 py-1.5 rounded-full border border-slate-300 text-slate-700 hover:bg-slate-50">Cancel</button>
+      </div>
+    </div>
+  );
+};
+
+const AskPanel = ({ patientId, patientName, images = [], request, onNoteSaved }) => {
   const [messages, setMessages] = useState([]);
   const [history, setHistory] = useState([]);
   const [question, setQuestion] = useState('');
@@ -77,6 +127,9 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
   const [attachOpen, setAttachOpen] = useState(false);
   const [infoFor, setInfoFor] = useState(null);
   const [transcript, setTranscript] = useState(null);   // set while questions are about a recording
+  const [work, setWork] = useState(null);                // sharing settings and colleagues' shared work
+  const [shareOpen, setShareOpen] = useState(false);
+  const [drafting, setDrafting] = useState(null);         // index of the answer being saved to the chart
   const endRef = useRef(null);
   const fileRef = useRef(null);
   const push = (m) => setMessages((all) => [...all, m]);
@@ -85,14 +138,45 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
   // An answer appears on screen (already through the safety checks) and, if voice is on, is spoken at once.
   const answer = (m) => { push({ role: 'assistant', ...m }); if (speaker.enabled) speaker.speak(m.content); };
 
-  useEffect(() => { setMessages([]); setHistory([]); setQuestion(''); setScope(null); setTranscript(null); speaker.stop(); }, [patientId]);
+  useEffect(() => {
+    setMessages([]); setHistory([]); setQuestion(''); setScope(null); setTranscript(null); setWork(null); setShareOpen(false); setDrafting(null); speaker.stop();
+    // The doctor's own earlier work on this patient comes back, so a refresh or sign-out loses nothing.
+    let current = true;
+    axios.get(`${API}/workspace/${patientId}`).then(({ data }) => {
+      if (!current) return;
+      setWork(data);
+      setMessages((now) => [...data.mine.flatMap(savedTurn), ...now]);
+      setHistory((now) => [...data.mine.slice(-3).flatMap((t) => [{ role: 'user', content: t.question }, { role: 'assistant', content: t.answer }]), ...now]);
+    }).catch(() => {});   // not a physician, or the server is older: DocAssist still works, just without saved work
+    return () => { current = false; };
+  }, [patientId]);
+  const share = async (username) => {
+    const next = work.shared_with.includes(username) ? work.shared_with.filter((u) => u !== username) : [...work.shared_with, username];
+    try {
+      const { data } = await axios.put(`${API}/workspace/${patientId}/sharing`, { shared_with: next });
+      setWork((w) => ({ ...w, shared_with: data.shared_with }));
+    } catch (e) {
+      push({ role: 'error', content: explain(e) });
+    }
+  };
+  // The conversation as plain text, with the records each answer used.
+  const exportConversation = () => {
+    const lines = messages.filter((m) => m.role === 'user' || m.role === 'assistant').map((m) => (m.role === 'user'
+      ? `DOCTOR: ${m.content}`
+      : `DOCASSIST: ${tidy(m.content)}${m.evidence?.length ? `\n  Records used: ${m.evidence.map((ev) => `${ev.test_name || ev.treatment_name} (${ev.test_date || ev.treatment_date})`).join(', ')}` : ''}`));
+    const who = JSON.parse(localStorage.getItem('user') || '{}').name || 'a portal user';
+    logExport(patientId, 'downloaded DocAssist conversation');
+    download(`${patientId}-docassist.txt`, [`DocAssist conversation about ${patientName} (${patientId})`,
+      `Exported by ${who} on ${new Date().toLocaleString()}. AI-assisted: verify against the record before acting.`, '', ...lines].join('\n\n'));
+  };
+  const nameOf = (u) => work?.colleagues.find((c) => c.username === u)?.name || u;
   useEffect(() => { endRef.current?.scrollIntoView?.({ block: 'nearest' }); }, [messages, loading]);
   // Something sent from the chart page; request.id changes per click.
   useEffect(() => {
     if (!request) return;
     if (request.scope) setScope(request.scope);
     if (request.study) offerStudy(request.study, 'Here is that study.');
-    if (request.text) ask(request.text);
+    if (request.text) ask(request.text, 'chart');
   }, [request?.id]);
 
   const offerStudy = (study, lead) => push({ role: 'offer', study, lead });
@@ -133,7 +217,7 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
       form.append('file', m.file);
       form.append('patient_id', patientId);
       const res = await axios.post(`${API}/dicom/analyze`, form);
-      answer({ content: res.data.analysis, footnote: 'AI description of the image only. Identifying header fields were removed before it was sent. Check it against the formal report.' });
+      answer({ content: res.data.analysis, workId: res.data.work_id, footnote: 'AI description of the image only. Identifying header fields were removed before it was sent. Check it against the formal report.' });
       setHistory((h) => [...h, { role: 'assistant', content: res.data.analysis }]);
     } catch (e) {
       push({ role: 'error', content: explain(e) });
@@ -142,7 +226,8 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
     }
   };
 
-  const ask = async (text) => {
+  // source records how the question was started, for the decision trail.
+  const ask = async (text, source = 'typed') => {
     if (!text.trim() || loading) return;
     speaker.stop();
     push({ role: 'user', content: text, scope });
@@ -157,7 +242,7 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
     if (transcript) {   // questions go to the recording until its chip is removed
       try {
         const res = await axios.post(`${API}/ask-transcript`, { patient_id: patientId, transcript, question: text });
-        answer({ content: res.data.answer, footnote: 'Answered from the recording transcript only.' });
+        answer({ content: res.data.answer, workId: res.data.work_id, footnote: 'Answered from the recording transcript only.' });
       } catch (e) {
         push({ role: 'error', content: explain(e) });
       } finally {
@@ -167,9 +252,9 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
     }
     try {
       const res = await axios.post(`${API}/deep-query`, {
-        patient_id: patientId, question: text, conversation_history: history.slice(-6), scope: SECTION_SCOPE[scope] || [],
+        patient_id: patientId, question: text, conversation_history: history.slice(-6), scope: SECTION_SCOPE[scope] || [], source,
       });
-      answer({ content: res.data.answer, evidence: res.data.evidence });
+      answer({ content: res.data.answer, evidence: res.data.evidence, workId: res.data.work_id });
       setHistory((h) => [...h, { role: 'user', content: text }, { role: 'assistant', content: res.data.answer }]);
     } catch (e) {
       push({ role: 'error', content: explain(e) });
@@ -184,11 +269,12 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
     setMessages((all) => all.map((m, i) => (i === index ? { ...m, answered: true } : m)));
     setLoading(true);
     try {
-      let content, footnote;
+      let content, footnote, workId;
       if (offer.study) {
         const { department, title, date } = offer.study;
         const res = await axios.post(`${API}/analyze-study`, { patient_id: patientId, department, title, date });
         content = res.data.analysis;
+        workId = res.data.work_id;
         footnote = `Written report on record: ${tidy(res.data.report)}. ${res.data.note}`;
       } else if (isAudio(offer.file)) {
         const form = new FormData();
@@ -204,9 +290,10 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
         form.append('patient_id', patientId);
         const res = await axios.post(`${API}/analyze-document`, form);
         content = res.data.analysis;
+        workId = res.data.work_id;
         footnote = 'AI reading of an uploaded file. Check it against the original document.';
       }
-      answer({ content, footnote });
+      answer({ content, footnote, workId });
       setHistory((h) => [...h, { role: 'assistant', content }]);
     } catch (e) {
       push({ role: 'error', content: explain(e) });
@@ -254,16 +341,59 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
               <Square className="w-3 h-3" aria-hidden="true" />Stop
             </button>
           )}
+          {work && (
+            <div className="relative">
+              <button type="button" onClick={() => setShareOpen(!shareOpen)} aria-haspopup="true" aria-expanded={shareOpen} data-testid="share-button"
+                className="inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-3 py-1.5 bg-white/10 text-slate-200 hover:bg-white/15">
+                {work.shared_with.length ? <Users className="w-3.5 h-3.5" aria-hidden="true" /> : <Lock className="w-3.5 h-3.5" aria-hidden="true" />}
+                {work.shared_with.length ? `Shared with ${work.shared_with.map(nameOf).join(', ')}` : 'Private'}
+              </button>
+              {shareOpen && (
+                <div className="absolute left-0 top-full mt-2 z-20 w-64 rounded-2xl bg-white text-slate-900 border border-slate-200 shadow-xl p-3 rise-in" data-testid="share-menu">
+                  <p className="text-xs text-slate-600">Your work on this patient is saved and only you can see it. Tick a colleague to let them read it. Untick to take access back.</p>
+                  {work.colleagues.length === 0 && <p className="mt-2 text-xs text-slate-500">No other physicians have accounts yet.</p>}
+                  {work.colleagues.map((c) => (
+                    <label key={c.username} className="mt-2 flex items-center gap-2 text-sm cursor-pointer">
+                      <input type="checkbox" checked={work.shared_with.includes(c.username)} onChange={() => share(c.username)} className="accent-teal-700" />
+                      {c.name}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {messages.some((m) => m.role === 'assistant') && (
+            <button type="button" onClick={exportConversation} data-testid="export-conversation"
+              className="inline-flex items-center gap-1.5 text-xs font-medium rounded-full px-3 py-1.5 bg-white/10 text-slate-200 hover:bg-white/15">
+              <Download className="w-3.5 h-3.5" aria-hidden="true" />Download
+            </button>
+          )}
           <span className="text-xs text-slate-300">AI-assisted. Verify against the record before acting.</span>
         </div>
       </header>
+
+      {work?.shared_with_me.map((s) => (
+        <details key={s.owner} className="mx-4 mt-3 rounded-2xl bg-white border border-slate-200 px-3.5 py-2.5 text-sm" data-testid="shared-work">
+          <summary className="cursor-pointer font-medium text-teal-800">{s.name} shared their work on this patient ({s.turns.length})</summary>
+          <p className="mt-1 text-xs text-slate-500">Read only. Your viewing is recorded.</p>
+          <ol className="mt-2 space-y-2 max-h-64 overflow-y-auto">
+            {s.turns.map((t) => (
+              <li key={t.id} className="rounded-xl bg-slate-50 px-3 py-2">
+                <p className="text-xs text-slate-500">{formatDate(t.at.slice(0, 10))}</p>
+                <p className="font-medium text-slate-900">{t.question}</p>
+                <MessageContent text={tidy(t.answer)} />
+              </li>
+            ))}
+          </ol>
+        </details>
+      ))}
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3" aria-live="polite">
         {messages.length === 0 && (
           <div className="space-y-2">
             <p className="text-sm text-slate-600 mb-3">Ask a question, pick a starting point, or drag in a scan or a file.</p>
             {SUGGESTIONS.map(({ Icon, title, hint }) => (
-              <button key={title} onClick={() => ask(title)} disabled={loading}
+              <button key={title} onClick={() => ask(title, 'suggestion')} disabled={loading}
                 className="card-raised lift w-full flex items-center gap-3 text-left rounded-2xl bg-white border border-slate-200 px-4 py-3 disabled:opacity-50">
                 <span className="w-9 h-9 rounded-xl bg-teal-50 text-teal-700 flex items-center justify-center shrink-0"><Icon className="w-4 h-4" aria-hidden="true" /></span>
                 <span>
@@ -389,11 +519,22 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
                   <summary className="cursor-pointer font-medium text-teal-800">Records used ({m.evidence.length})</summary>
                   <ul className="mt-1.5 space-y-1">
                     {m.evidence.map((ev, j) => (
-                      <li key={j} className="rounded-lg bg-slate-50 px-2 py-1">{ev.test_date || ev.treatment_date} · {ev.test_name || ev.treatment_name}: {tidy(ev.result)}</li>
+                      <li key={j} className="rounded-lg bg-slate-50 px-2 py-1">{ev.test_date || ev.treatment_date} · {ev.test_name || ev.treatment_name}{ev.result ? `: ${tidy(ev.result)}` : ''}</li>
                     ))}
                   </ul>
                 </details>
               )}
+              {m.workId && (m.noteId ? (
+                <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-800"><NotebookPen className="w-3.5 h-3.5" aria-hidden="true" />Saved to chart</p>
+              ) : drafting === i ? (
+                <SaveToChart patientId={patientId} workId={m.workId} text={tidy(m.content)} onCancel={() => setDrafting(null)}
+                  onSaved={(note) => { setMessages((all) => all.map((x, k) => (k === i ? { ...x, noteId: note.id } : x))); setDrafting(null); onNoteSaved?.(note); }} />
+              ) : (
+                <button onClick={() => setDrafting(i)} data-testid="save-to-chart"
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-teal-800 hover:text-teal-950">
+                  <NotebookPen className="w-3.5 h-3.5" aria-hidden="true" />Save to chart
+                </button>
+              ))}
             </div>
           </div>
         ))}
@@ -421,7 +562,7 @@ const AskPanel = ({ patientId, patientName, images = [], request }) => {
             <button onClick={() => setScope(null)} aria-label={`Stop asking only about ${scope}`} className="p-0.5 rounded-full hover:bg-teal-100"><X className="w-3 h-3" /></button>
           </p>
         )}
-        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); ask(question); }}>
+        <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); ask(question, scope ? 'section' : 'typed'); }}>
           <input ref={fileRef} type="file" className="hidden"
             onChange={(e) => { if (e.target.files[0]) offerFile(e.target.files[0]); e.target.value = ''; }} />
           <div className="relative">

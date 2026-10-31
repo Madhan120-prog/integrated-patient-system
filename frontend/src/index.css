@@ -175,3 +175,10 @@ code {
     .card-raised, .cal-tile, .cal-tile .cal-peek { transition: none; }
     .voice-bar, .mic-live::before, .mic-live::after { animation: none; }
 }
+
+/* Print or save as PDF: the chart only, with its colours, no floating windows */
+@media print {
+  [data-print="hide"] { display: none !important; }
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  section { break-inside: avoid-page; }
+}

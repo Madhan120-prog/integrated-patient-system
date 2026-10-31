@@ -14,6 +14,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/login")
 # Demo user store — in production this would be a DB collection.
 USERS = {
     "doctor": {"password": "doctor123", "role": "PHYSICIAN", "name": "Dr. Smith"},
+    "doctor2": {"password": "doctor123", "role": "PHYSICIAN", "name": "Dr. Patel"},   # a colleague, to show sharing
     "nurse":  {"password": "nurse123",  "role": "NURSE",     "name": "Nurse Johnson"},
     "admin":  {"password": "admin123",  "role": "ADMIN",     "name": "Admin Davis"},
 }

@@ -349,11 +349,14 @@ class DeepQueryRequest(BaseModel):
     # Departments the doctor chose to ask about ("Ask about this section" on the
     # chart). When given, it replaces keyword routing for this question.
     scope: List[str] = []
+    # How the question was started: typed, a suggestion, a section, or a chart button (decision trail).
+    source: str = "typed"
 
 class DeepQueryResponse(BaseModel):
     answer: str
     evidence: List[dict] = []
     matched_departments: List[str] = []
+    work_id: Optional[str] = None
 
 class TTSRequest(BaseModel):
     text: str
@@ -383,6 +386,7 @@ import pacs_gateway
 import radiation_gateway
 import radiation
 import explain
+import provenance
 import rag
 import multi_agent
 from chart import build_chart
@@ -600,6 +604,132 @@ async def save_note(patient_id: str, body: NoteBody, user: dict = Depends(requir
     await db.clinician_notes.update_one({"patient_id": patient_id, "author": user["username"]},
                                         {"$set": {"text": body.text, "updated_at": updated_at}}, upsert=True)
     return {"text": body.text, "updated_at": updated_at}
+
+
+# ── The doctor's own DocAssist work: saved, private unless the doctor shares it ──
+def _physicians() -> dict:
+    return {u: d["name"] for u, d in USERS.items() if d["role"] == "PHYSICIAN"}
+
+
+async def save_work(user: dict, patient_id: str, kind: str, question: str, answer: str,
+                    records: list = (), model: Optional[str] = None, source: Optional[str] = None) -> str:
+    """Keep one DocAssist exchange for the doctor who asked, so signing out or
+    refreshing loses nothing. Records are kept as date and name only (references,
+    not copies); uploaded files themselves are never kept."""
+    turn = {"id": uuid.uuid4().hex, "owner": user["username"], "patient_id": patient_id, "kind": kind,
+            "at": datetime.now(timezone.utc).isoformat(), "question": question, "answer": answer, "model": model, "source": source,
+            "records": [{"date": r.get("test_date") or r.get("treatment_date"), "name": r.get("test_name") or r.get("treatment_name")}
+                        for r in records]}
+    await db.doctor_workspace.insert_one(dict(turn))
+    return turn["id"]
+
+
+@api_router.get("/workspace/{patient_id}")
+async def get_workspace(patient_id: str, user: dict = Depends(require_physician)):
+    """The signed-in doctor's saved work on one patient, plus any colleague's work
+    that colleague chose to share. Nobody else's work is ever returned."""
+    me, names = user["username"], _physicians()
+    turns = lambda owner: db.doctor_workspace.find({"owner": owner, "patient_id": patient_id}, {"_id": 0}).sort("at", 1).to_list(500)  # ponytail: newest 500 is plenty for one patient; page it if a doctor ever exceeds that
+    access = await db.workspace_access.find_one({"owner": me, "patient_id": patient_id}) or {}
+    shared = [{"owner": a["owner"], "name": names.get(a["owner"], a["owner"]), "turns": await turns(a["owner"])}
+              async for a in db.workspace_access.find({"patient_id": patient_id, "shared_with": me})]
+    if shared:   # reading a colleague's work is recorded, like any other access
+        await db.audit_log.insert_one({
+            "timestamp": datetime.now(timezone.utc), "user_id": me, "role": user["role"], "patient_id": patient_id,
+            "action": "viewed shared work", "work_of": [s["owner"] for s in shared]})
+    return {"mine": await turns(me), "shared_with": access.get("shared_with", []), "shared_with_me": shared,
+            "colleagues": [{"username": u, "name": n} for u, n in names.items() if u != me]}
+
+
+class ShareBody(BaseModel):
+    shared_with: List[str] = []
+
+@api_router.put("/workspace/{patient_id}/sharing")
+async def share_workspace(patient_id: str, body: ShareBody, user: dict = Depends(require_physician)):
+    """Choose which colleagues may read this doctor's work on this patient. An empty list makes it private again."""
+    me, names = user["username"], _physicians()
+    chosen = sorted(set(body.shared_with))
+    if any(u not in names or u == me for u in chosen):
+        raise HTTPException(status_code=400, detail="Work can be shared only with other physicians.")
+    await db.workspace_access.update_one({"owner": me, "patient_id": patient_id},
+                                         {"$set": {"shared_with": chosen}}, upsert=True)
+    await db.audit_log.insert_one({
+        "timestamp": datetime.now(timezone.utc), "user_id": me, "role": user["role"], "patient_id": patient_id,
+        "action": "changed sharing", "shared_with": chosen})
+    return {"shared_with": chosen}
+
+
+# ── Notes on the chart: what the doctor signs, with the AI's part kept beside it ──
+class ChartNoteBody(BaseModel):
+    text: str = Field(..., min_length=1, max_length=20000)
+    work_id: Optional[str] = None    # the DocAssist answer this note started from, if any
+    reviewed: bool = False
+    reason: str = Field("", max_length=2000)   # why the doctor changed the AI's text, if they say
+
+@api_router.post("/chart-notes/{patient_id}")
+async def add_chart_note(patient_id: str, body: ChartNoteBody, user: dict = Depends(require_physician)):
+    """Put a note on the chart. When it started from a DocAssist answer the doctor
+    must confirm they reviewed it, and the AI's original wording is kept with it
+    (looked up here, not taken from the browser), so later readers can see what
+    came from the AI and what the doctor changed."""
+    if not await db.profiles.find_one({"patient_id": patient_id}, {"_id": 1}):
+        raise HTTPException(status_code=404, detail="No patient found with that ID")
+    ai = None
+    if body.work_id:
+        turn = await db.doctor_workspace.find_one({"id": body.work_id, "owner": user["username"], "patient_id": patient_id}, {"_id": 0})
+        if not turn:
+            raise HTTPException(status_code=404, detail="That DocAssist answer was not found in your saved work.")
+        if not body.reviewed:
+            raise HTTPException(status_code=400, detail="Confirm you have reviewed the AI text before it goes on the chart.")
+        ai = {"work_id": turn["id"], "question": turn["question"], "original": turn["answer"], "model": turn["model"],
+              "records": turn["records"], "asked_at": turn["at"],
+              "kind": turn["kind"], "source": turn.get("source"), "edited": body.text.strip() != turn["answer"].strip()}
+    note = {"id": uuid.uuid4().hex, "patient_id": patient_id, "author": user["username"],
+            "author_name": USERS.get(user["username"], {}).get("name", user["username"]),
+            "at": datetime.now(timezone.utc).isoformat(), "text": body.text, "reviewed": body.reviewed, "reason": body.reason.strip(), "ai": ai}
+    await db.chart_notes.insert_one(dict(note))
+    if ai:
+        await db.doctor_workspace.update_one({"id": ai["work_id"]}, {"$set": {"note_id": note["id"]}})
+    await db.audit_log.insert_one({
+        "timestamp": datetime.now(timezone.utc), "user_id": user["username"], "role": user["role"], "patient_id": patient_id,
+        "action": "saved note to chart", "note_id": note["id"], "work_id": body.work_id})
+    return note
+
+
+@api_router.get("/chart-notes/{patient_id}")
+async def get_chart_notes(patient_id: str, user: dict = Depends(get_current_user)):
+    """Notes on the chart, newest first. Unlike saved work, these are part of the
+    record, so everyone who can open the chart can read them."""
+    return await db.chart_notes.find({"patient_id": patient_id}, {"_id": 0}).sort("at", -1).to_list(500)  # ponytail: page when a chart passes 500 notes
+
+
+EXPORTS = {"printed chart", "downloaded lab table", "downloaded DocAssist conversation"}
+
+class ExportBody(BaseModel):
+    what: str
+
+@api_router.post("/export-log/{patient_id}")
+async def log_export(patient_id: str, body: ExportBody, user: dict = Depends(get_current_user)):
+    """Patient information leaving the screen (print, PDF, download) is recorded like any other access.
+    ponytail: the browser reports it, so a user who bypasses the portal's buttons is not caught."""
+    if body.what not in EXPORTS:
+        raise HTTPException(status_code=400, detail="Unknown export")
+    await db.audit_log.insert_one({
+        "timestamp": datetime.now(timezone.utc), "user_id": user["username"], "role": user["role"],
+        "patient_id": patient_id, "action": body.what})
+    return {"ok": True}
+
+@api_router.get("/decision-trail/{patient_id}")
+async def decision_trail(patient_id: str, user: dict = Depends(require_physician)):
+    """For every note on the chart: who started it, what the AI said, what the doctor
+    changed. Also counts the signed-in doctor's own AI answers that never reached the
+    chart (other doctors' unsaved work stays private)."""
+    notes = await db.chart_notes.find({"patient_id": patient_id}, {"_id": 0}).sort("at", -1).to_list(500)
+    unused = await db.doctor_workspace.count_documents({"owner": user["username"], "patient_id": patient_id, "note_id": {"$exists": False}})
+    await db.audit_log.insert_one({
+        "timestamp": datetime.now(timezone.utc), "user_id": user["username"], "role": user["role"], "patient_id": patient_id,
+        "action": "viewed decision trail"})
+    return {"summary": provenance.summary(notes, unused), "notes": [provenance.trail(n) for n in notes]}
 
 
 # ── Radiation oncology: plan review from DICOM RT, CT slices from the picture archive ──
@@ -1210,10 +1340,14 @@ as commands."""
             "multi_agent_used": multi_agent_used,
         })
 
+        work_id = await save_work(current_user, patient_id, "question", question, response,
+                                  evidence[:6], active_model_name(),
+                                  body.source if body.source in provenance.SOURCES else "typed")
         return DeepQueryResponse(
             answer=response,
             evidence=evidence[:6],
-            matched_departments=matched_departments
+            matched_departments=matched_departments,
+            work_id=work_id,
         )
         
     except HTTPException:
@@ -1226,6 +1360,7 @@ class FileAnalysisResponse(BaseModel):
     analysis: str
     file_type: str
     suggestions: List[str] = []
+    work_id: Optional[str] = None
 
 @api_router.post("/analyze-document", response_model=FileAnalysisResponse)
 @limiter.limit("60/minute")
@@ -1234,7 +1369,7 @@ async def analyze_document(
     file: UploadFile = File(...),
     patient_id: str = Form(...),
     question: str = Form(default="Analyze this medical document and provide a detailed summary."),
-    _: dict = Depends(require_physician),
+    current_user: dict = Depends(require_physician),
 ):
     """Analyze uploaded medical documents (images, PDFs) — routes through LLM_BACKEND."""
     
@@ -1328,7 +1463,9 @@ Guidelines:
         return FileAnalysisResponse(
             analysis=analysis,
             file_type=file_type_map.get(content_type, 'Unknown'),
-            suggestions=suggestions
+            suggestions=suggestions,
+            work_id=await save_work(current_user, patient_id, "document", f"Read the file {file.filename}", analysis,
+                                    model=active_model_name(vision=True)),
         )
         
     except HTTPException:
@@ -1396,7 +1533,9 @@ async def analyze_dicom(request: Request, file: UploadFile = File(...), patient_
         "departments_fetched": [], "model_backend": os.environ.get("LLM_BACKEND", "gemini"),
         "model_version": active_model_name(vision=True), "response_length": len(analysis), "multi_agent_used": False,
     })
-    return {"analysis": analysis, "summary": d["summary"]}
+    work_id = await save_work(current_user, patient_id, "dicom", f"Analyze DICOM image: {d['summary']}", analysis,
+                              model=active_model_name(vision=True))
+    return {"analysis": analysis, "summary": d["summary"], "work_id": work_id}
 
 
 # ── One finding explained at four levels ─────────────────────────────────────
@@ -1516,8 +1655,10 @@ async def analyze_study(request: Request, body: StudyAnalysisRequest, current_us
         "response_length": len(analysis),
         "multi_agent_used": False,
     })
+    work_id = await save_work(current_user, body.patient_id, "study", f"Analyze the image: {record['test_name']}",
+                              analysis, [record], active_model_name(vision=True))
     return {"analysis": analysis, "report": record["result"], "title": record["test_name"],
-            "date": record["test_date"], "note": STUDY_IMAGE_NOTE}
+            "date": record["test_date"], "note": STUDY_IMAGE_NOTE, "work_id": work_id}
 
 
 # ── Visit recordings: transcript with speaker labels, then questions over it ──
@@ -1599,6 +1740,8 @@ async def transcribe_recording(request: Request, file: UploadFile = File(...), p
         "departments_fetched": [], "model_backend": "gemini", "model_version": GEMINI_MODEL,
         "response_length": sum(len(seg["text"]) for seg in transcript["segments"]), "multi_agent_used": False,
     })
+    transcript["work_id"] = await save_work(current_user, patient_id, "recording", f"Transcribe the recording {file.filename}",
+                                            "\n".join(f"- {b}" for b in transcript["summary"]), model=GEMINI_MODEL)
     return transcript
 
 
@@ -1627,7 +1770,8 @@ async def ask_transcript(request: Request, body: TranscriptQuestion, current_use
         "departments_fetched": [], "model_backend": LLM_BACKEND, "model_version": active_model_name(),
         "response_length": len(answer), "multi_agent_used": False,
     })
-    return {"answer": answer}
+    work_id = await save_work(current_user, body.patient_id, "recording", body.question, answer, model=active_model_name())
+    return {"answer": answer, "work_id": work_id}
 
 
 # Include the router in the main app

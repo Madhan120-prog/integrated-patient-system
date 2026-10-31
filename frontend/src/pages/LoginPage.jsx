@@ -117,6 +117,7 @@ const LoginPage = () => {
             <p className="text-sm font-semibold text-gray-700 mb-2">Demo Credentials:</p>
             <div className="text-xs text-gray-600 space-y-1">
               <p>• Doctor: <span className="font-mono">doctor / doctor123</span></p>
+              <p>• Second doctor: <span className="font-mono">doctor2 / doctor123</span></p>
               <p>• Nurse: <span className="font-mono">nurse / nurse123</span></p>
               <p>• Admin: <span className="font-mono">admin / admin123</span></p>
             </div>

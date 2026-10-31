@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import {
   Activity, ArrowUpRight, Radiation, Check, NotebookPen, CalendarClock, CalendarDays, ChevronDown, ChevronUp, ChevronsDownUp, ChevronsUpDown, Database, HeartPulse, Maximize2, Minimize2, Ruler, Thermometer, Weight, Wind, FlaskConical, LayoutDashboard, Pill, ScanLine, Stethoscope, Syringe,
-  TriangleAlert, Users, X, Layers,
+  TriangleAlert, Users, X, Layers, Printer, Download,
 } from 'lucide-react';
 import { Skeleton } from '../components/ui/skeleton';
 import { Button } from '../components/ui/button';
@@ -13,7 +13,7 @@ import RadiationPlan from '../components/RadiationPlan';
 import ExplainLevels from '../components/ExplainLevels';
 import {
   StatTile, FindingCard, RangeGauge, Sparkline, LabTrendChart, SystemsTimeline, TreatmentTimeline, DocAssistOrb,
-  SYSTEM_COLORS, RANGE_LETTER, RANGE_WORD, formatDate,
+  SYSTEM_COLORS, RANGE_LETTER, RANGE_WORD, formatDate, logExport, download,
 } from '../components/ChartVisuals';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -119,6 +119,13 @@ const SystemTag = ({ system }) => (
     <span className="w-2 h-2 rounded-full" style={{ background: SYSTEM_COLORS[system] }} aria-hidden="true" />{system}
   </span>
 );
+
+// The lab flowsheet as CSV: one row per test, one column per date, H or L after an out-of-range value.
+const csvCell = (v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : v);
+const flowsheetCsv = ({ rows, dates }) => [
+  ['Test', 'Unit', 'Low', 'High', ...dates],
+  ...rows.map((r) => [r.analyte, r.unit, r.low, r.high, ...dates.map((d) => (r.cells[d] ? `${r.cells[d].value}${RANGE_LETTER[r.cells[d].status] ? ` ${RANGE_LETTER[r.cells[d].status]}` : ''}` : ''))]),
+].map((row) => row.map((v) => csvCell(v ?? '')).join(',')).join('\n');
 
 const Flowsheet = ({ flowsheet }) =>
   flowsheet.rows.length === 0 ? <Empty>No numeric lab values on file for this patient.</Empty> : (
@@ -356,7 +363,7 @@ const NotesWindow = ({ patientId, patientName, open, onClose }) => {
   }[status];
 
   return (
-    <div role="dialog" aria-label={`My notes on ${patientName}`} data-testid="notes-window"
+    <div role="dialog" aria-label={`My notes on ${patientName}`} data-testid="notes-window" data-print="hide"
       onKeyDown={(e) => e.key === 'Escape' && onClose()}
       className={`fixed z-50 flex-col rounded-2xl bg-amber-50 border border-amber-300 shadow-2xl overflow-hidden ${open ? 'flex' : 'hidden'}`}
       style={{ left: clamp(rect.x, 0, Math.max(0, window.innerWidth - 80)), top: clamp(rect.y, 0, Math.max(0, window.innerHeight - 48)),
@@ -407,7 +414,7 @@ const Section = ({ id, children }) => {
         </button>
         {SECTION_SCOPE[id] && !closed && (
           <button onClick={() => askAbout(id)} data-testid={`ask-about-${id}`}
-            className="ml-auto inline-flex items-center gap-2 text-sm font-medium rounded-full pl-1.5 pr-3.5 py-1 bg-white border border-slate-200 text-slate-800 hover:border-slate-400 card-raised">
+            className="print:hidden ml-auto inline-flex items-center gap-2 text-sm font-medium rounded-full pl-1.5 pr-3.5 py-1 bg-white border border-slate-200 text-slate-800 hover:border-slate-400 card-raised">
             <DocAssistOrb size={22} />Ask about {id.toLowerCase()}
           </button>
         )}
@@ -417,6 +424,34 @@ const Section = ({ id, children }) => {
     </section>
   );
 };
+
+// Notes on the chart. A note that started from DocAssist says so, and keeps the AI's original wording one click away.
+const noteLabel = (n) => (!n.ai ? `Written by ${n.author_name}`
+  : n.ai.edited ? `AI-assisted, edited and reviewed by ${n.author_name}` : `AI-assisted, reviewed by ${n.author_name}`);
+
+const ChartNotes = ({ notes }) => (
+  <Panel title="Notes on the chart" note="Saved by physicians. Visible to the whole care team">
+    <ul className="space-y-3" data-testid="chart-notes">
+      {notes.map((n) => (
+        <li key={n.id} className="rounded-2xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className={`font-medium px-2 py-0.5 rounded-full ${n.ai ? 'bg-teal-50 text-teal-900 border border-teal-200' : 'bg-slate-100 text-slate-700'}`}>{noteLabel(n)}</span>
+            <span className="text-slate-500">{new Date(n.at).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}</span>
+          </div>
+          <p className="mt-2 text-sm text-slate-900 whitespace-pre-wrap">{n.text}</p>
+          {n.ai && (
+            <details className="mt-2 text-xs text-slate-600">
+              <summary className="cursor-pointer font-medium text-teal-800">What the AI wrote</summary>
+              <p className="mt-1.5"><span className="font-medium">Question:</span> {n.ai.question}</p>
+              <p className="mt-1 whitespace-pre-wrap rounded-lg bg-white border border-slate-200 px-2.5 py-2">{n.ai.original}</p>
+              <p className="mt-1">Model: {n.ai.model || 'not recorded'}{n.ai.records.length > 0 && ` · Records used: ${n.ai.records.map((r) => `${r.name} (${r.date})`).join(', ')}`}</p>
+            </details>
+          )}
+        </li>
+      ))}
+    </ul>
+  </Panel>
+);
 
 const ChartSkeleton = () => (
   <div className="min-h-screen bg-slate-50" aria-busy="true" aria-label="Loading chart">
@@ -443,6 +478,7 @@ const ChartPage = () => {
   const [notesOpen, setNotesOpen] = useState(false);
   const [assemblyOpen, setAssemblyOpen] = useState(false);
   const [explainOpen, setExplainOpen] = useState(false);
+  const [notes, setNotes] = useState([]);
   const [askWidth, setAskWidth] = useState(432);
   const [analyte, setAnalyte] = useState(null);
   const [dayOpen, setDayOpen] = useState(null);
@@ -457,6 +493,8 @@ const ChartPage = () => {
       const res = await axios.get(`${API}/chart`, { params: { term } });
       setChart(res.data);
       setRt(null);
+      setNotes([]);
+      axios.get(`${API}/chart-notes/${res.data.profile.patient_id}`).then((r) => setNotes(r.data)).catch(() => {});
       axios.get(`${API}/radiation/${res.data.profile.patient_id}`).then((r) => setRt(r.data)).catch(() => setRt({ available: false }));
     } catch (e) {
       setError(e.response?.status === 404
@@ -539,8 +577,8 @@ const ChartPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-teal-50/40 to-sky-50" data-testid="chart-page">
-      <div className="max-w-[1320px] mx-auto px-4 py-5 grid grid-cols-1 lg:grid-cols-[13rem_minmax(0,1fr)] gap-5 items-start">
-        <aside className="lg:sticky lg:top-5 space-y-3 lg:max-h-[calc(100vh-2.5rem)] lg:overflow-y-auto lg:p-1 lg:-m-1">
+      <div className="max-w-[1320px] mx-auto px-4 py-5 grid grid-cols-1 lg:grid-cols-[13rem_minmax(0,1fr)] print:block gap-5 items-start">
+        <aside className="print:hidden lg:sticky lg:top-5 space-y-3 lg:max-h-[calc(100vh-2.5rem)] lg:overflow-y-auto lg:p-1 lg:-m-1">
           <nav aria-label="Chart sections" className="card-raised bg-white border border-slate-200/70 rounded-2xl p-2 flex lg:flex-col gap-1 overflow-x-auto">
             {visibleSections.map(({ id, Icon }) => (
               <button
@@ -557,6 +595,11 @@ const ChartPage = () => {
               className="flex items-center gap-2.5 text-left text-sm px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 whitespace-nowrap lg:mt-1 lg:border-t lg:border-slate-100 lg:rounded-t-none lg:pt-3">
               {collapsed.size ? <ChevronsUpDown className="w-4 h-4" aria-hidden="true" /> : <ChevronsDownUp className="w-4 h-4" aria-hidden="true" />}
               {collapsed.size ? 'Expand all' : 'Collapse all'}
+            </button>
+            <button onClick={() => { logExport(profile.patient_id, 'printed chart'); window.print(); }} data-testid="print-chart"
+              title="Prints the sections that are open. Collapse any you want to leave out."
+              className="flex items-center gap-2.5 text-left text-sm px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 whitespace-nowrap">
+              <Printer className="w-4 h-4" aria-hidden="true" />Print or save as PDF
             </button>
             <button onClick={() => navigate('/search')} className="flex items-center gap-2.5 text-left text-sm px-3 py-2.5 rounded-xl text-slate-500 hover:bg-slate-100 whitespace-nowrap">
               <Users className="w-4 h-4" aria-hidden="true" />Other patients
@@ -631,6 +674,8 @@ const ChartPage = () => {
                   <ul className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">{findings.map((f, i) => <FindingCard key={i} finding={f} />)}</ul>
                 )}
               </Panel>
+
+              {notes.length > 0 && <ChartNotes notes={notes} />}
 
               {(vitals || careTeam.length > 0 || problems.length > 0) && (
                 <div className="grid xl:grid-cols-2 gap-5">
@@ -715,7 +760,13 @@ const ChartPage = () => {
                   <LabTrendChart key={explored.analyte} row={explored} domain={domain} events={treatments} height={260} />
                 </Panel>
               )}
-              <Panel title="Lab flowsheet" note="L marks a value below range, H a value above range">
+              <Panel title="Lab flowsheet" note="L marks a value below range, H a value above range"
+                action={flowsheet.rows.length > 0 && (
+                  <button onClick={() => { logExport(profile.patient_id, 'downloaded lab table'); download(`${profile.patient_id}-labs.csv`, flowsheetCsv(flowsheet), 'text/csv'); }}
+                    data-testid="download-labs" className="print:hidden inline-flex items-center gap-1.5 text-sm font-medium text-teal-800 hover:text-teal-950">
+                    <Download className="w-4 h-4" aria-hidden="true" />Download as spreadsheet
+                  </button>
+                )}>
                 <Flowsheet flowsheet={flowsheet} />
               </Panel>
           </Section>
@@ -835,6 +886,10 @@ const ChartPage = () => {
                 <VisitList visits={shownVisits} viewer={viewer} onOpenDay={setDayOpen} />
               </Panel>
           </Section>
+          <p className="hidden print:block text-xs text-slate-500 border-t border-slate-300 pt-2" data-testid="print-footer">
+            Printed by {viewer || 'a portal user'} on {new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })} from the Integrated Patient Portal.
+            Synthetic demonstration data. Confidential: handle as patient information.
+          </p>
         </main>
         </SectionContext.Provider>
       </div>
@@ -842,7 +897,7 @@ const ChartPage = () => {
       {/* Floating DocAssist button on narrow screens, where the sidebar card is hidden */}
       {!askOpen && (
         <button onClick={() => setAskOpen(true)} data-testid="docassist-fab" aria-label="Ask DocAssist"
-          className="lg:hidden fixed bottom-6 right-6 z-30 inline-flex items-center gap-3 rounded-full bg-slate-900 text-white pl-2 pr-5 py-2 shadow-2xl hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
+          className="print:hidden lg:hidden fixed bottom-6 right-6 z-30 inline-flex items-center gap-3 rounded-full bg-slate-900 text-white pl-2 pr-5 py-2 shadow-2xl hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700">
           <DocAssistOrb size={40} />
           <span className="text-left leading-tight">
             <span className="block text-sm font-semibold">Ask DocAssist</span>
@@ -852,10 +907,10 @@ const ChartPage = () => {
       )}
 
       {/* DocAssist drawer: always mounted so a conversation survives closing it */}
-      {askOpen && <div className="fixed inset-0 z-30 bg-slate-900/30 backdrop-blur-[2px]" onClick={() => setAskOpen(false)} aria-hidden="true" />}
+      {askOpen && <div className="print:hidden fixed inset-0 z-30 bg-slate-900/30 backdrop-blur-[2px]" onClick={() => setAskOpen(false)} aria-hidden="true" />}
       <aside
         role="dialog" aria-label="DocAssist" aria-hidden={!askOpen}
-        className={`fixed top-0 right-0 z-40 h-full max-w-full bg-white shadow-2xl transition-transform duration-300 ${askOpen ? 'translate-x-0' : 'translate-x-full invisible'}`}
+        className={`print:hidden fixed top-0 right-0 z-40 h-full max-w-full bg-white shadow-2xl transition-transform duration-300 ${askOpen ? 'translate-x-0' : 'translate-x-full invisible'}`}
         style={{ width: askWidth }}
         data-testid="docassist-drawer"
       >
@@ -875,7 +930,7 @@ const ChartPage = () => {
         <button onClick={() => setAskOpen(false)} aria-label="Close DocAssist" className="absolute top-4 right-4 z-10 p-1.5 rounded-full text-white/80 hover:bg-white/15">
           <X className="w-4 h-4" />
         </button>
-        <AskPanel patientId={profile.patient_id} patientName={profile.name} images={images} request={askRequest} />
+        <AskPanel patientId={profile.patient_id} patientName={profile.name} images={images} request={askRequest} onNoteSaved={(n) => setNotes((all) => [n, ...all])} />
       </aside>
 
       {isPhysician && <NotesWindow key={profile.patient_id} patientId={profile.patient_id} patientName={profile.name} open={notesOpen} onClose={() => setNotesOpen(false)} />}
