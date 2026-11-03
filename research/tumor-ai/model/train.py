@@ -66,9 +66,8 @@ def dice_ce_loss(logits, target):
 
 
 @torch.no_grad()
-def predict(net, img, size, device):
-    """Cover the whole scan with blocks that overlap by half, average the tumour probability where they
-    overlap, then keep only the largest connected tumour piece (we outline one primary tumour, GTV-1).
+def predict_prob(net, img, size, device):
+    """Tumour probability for the whole scan: blocks that overlap by half, averaged where they overlap.
     ponytail: plain average; nnU-Net weights block centres more (Gaussian), try it if edges still hurt."""
     shape = img.shape
     x = pad_to(normalise(img), size, -1)
@@ -85,11 +84,19 @@ def predict(net, img, size, device):
                 block = torch.from_numpy(x[sl][None, None].copy()).to(device)
                 prob[sl] += net(block).softmax(1)[0, 1].cpu().numpy()
                 count[sl] += 1
-    mask = prob / count > 0.5
+    return (prob / count)[:shape[0], :shape[1], :shape[2]]
+
+
+def largest_piece(mask):
+    """Keep only the largest connected tumour piece (we outline one primary tumour, GTV-1)."""
     pieces, n = ndimage.label(mask)
     if n > 1:
         mask = pieces == 1 + int(np.argmax(ndimage.sum(mask, pieces, range(1, n + 1))))
-    return mask[:shape[0], :shape[1], :shape[2]].astype(np.uint8)
+    return mask.astype(np.uint8)
+
+
+def predict(net, img, size, device):
+    return largest_piece(predict_prob(net, img, size, device) > 0.5)
 
 
 def dice(pred, gt):

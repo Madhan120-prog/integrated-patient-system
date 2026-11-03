@@ -195,10 +195,39 @@ Every run: same `splits.json`, seed recorded, results added as one row to `resul
 | **E11** | Does it work on unseen hospitals' scans? | train on Lung1, test on Radiogenomics | external | Dice drop | key question for doctors |
 | **E12** | Which preprocessing matters? | HU window, flip on/off, block size | Lung1 | Dice | small ablation runs |
 | **E13** | Do outline errors change the dose? | AI vs doctor outline through the dose code | later, with plans | dose difference (Gy) | our distinctive question |
+| **E14** | Can radiology **reports** replace some drawn outlines? | report supervision (R-Super idea): extract tumour count, size and location from report text, add as extra training losses | lung masks + chest CT reports (ReXGroundingCT / CT-RATE, later clinic reports with approval) | Dice with fewer masks | see section 6 |
+| **E15** | Organ 2: pelvis | nnU-Net + our U-Net trained on Merlin Plus; Merlin-Cancer-Super as ready-made baseline | Merlin Plus (Stanford AIMI, needs data use agreement) | Dice on bladder / prostate tumours | links to Dr. Pradeep's pelvis case |
 
 `results.csv` columns: `id, model, data, fold, seed, dice, hd95_mm, vol_diff_pct, detect_rate, dice_small, dice_large, train_hours, gpu_gb, notes`
 
 ---
+
+## 6. Research idea: learning tumour outlines from radiology reports (added 2026-10-30)
+
+**Problem:** drawn tumour outlines are slow and expensive; hospitals have very few, but they have
+thousands of radiology reports ("3.2 cm mass, right upper lobe").
+
+**Idea (R-Super, Bassi et al., MICCAI 2025, arXiv 2507.05582, code github.com/MrGiovanni/R-Super):**
+a language model reads each report and pulls out tumour count, size and location. During training,
+extra losses push the network's predicted tumours to match those numbers ("Volume loss", "Ball loss").
+Scans with only a report still teach the model; scans with masks teach it as usual.
+
+**Their result:** Merlin-Cancer-Super (huggingface.co/AbdomenAtlas/Merlin-Cancer-Super), trained on
+Merlin Plus: 25,494 abdomen/pelvis CTs from 18,317 patients, each with a report, 1,193 radiologist
+tumour masks (9 tumour types: bladder, prostate, uterus, gallbladder, spleen, oesophagus, stomach,
+duodenum, adrenal), AI masks for 44 organs. **No chest or lung tumours.**
+Model licence CC BY-NC-ND 4.0 (no commercial use, no sharing of modified versions: ask authors before
+fine-tuning). Dataset: masks on Hugging Face (AbdomenAtlas/MerlinPlus), scans + reports from Stanford
+AIMI after a data use agreement; no commercial use.
+
+**How we use it:**
+1. **E14, lung:** apply the report-supervision idea ourselves. NSCLC-Radiomics has masks but no reports;
+   for reports use ReXGroundingCT (3,142 chest CTs, reports linked to 3D finding masks, Hugging Face)
+   or CT-RATE (25,692 chest CTs with reports, no masks), then clinic chest-CT reports with approval.
+2. **E15, pelvis:** Merlin Plus as the public pelvis training set; Merlin-Cancer-Super as a ready baseline.
+3. **E7:** optionally Merlin-Cancer-Super weights as a pre-trained start (licence check first).
+
+**To do:** apply for the Stanford AIMI data use agreement early (approval takes time).
 
 ## 5. Folder layout
 

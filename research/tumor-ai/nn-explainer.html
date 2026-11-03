@@ -1,0 +1,870 @@
+<title>From Neuron to 3D U-Net</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one reading column (~68ch) with figures that widen to 1040px; a step rail down the left on wide screens.
+   Palette borrowed from a CT reading room: blue-slate film greys, a cyan "signal" for data flowing,
+   and the tumour-mask red used only where something is a tumour or an error. */
+:root {
+  --bg: #f5f7fa;
+  --panel: #ffffff;
+  --ink: #17202b;
+  --muted: #5a6777;
+  --line: #d6dde6;
+  --signal: #0a7c99;
+  --signal-soft: #dff1f6;
+  --mask: #c7362f;
+  --mask-soft: #fbe4e2;
+  --good: #23824a;
+  --code-bg: #eef2f6;
+  --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+:root { color-scheme: light }  /* light only, by request */
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font: 17px/1.6 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 64px }
+.wrap { max-width: 1040px; margin: 0 auto }
+.read { max-width: 68ch }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; line-height: 1.15; margin: 0 }
+h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -0.02em }
+h2 { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 700 }
+h3 { font-size: 1.15rem; font-weight: 500 }
+p { margin: 0 }
+.stack { display: flex; flex-direction: column; gap: 16px }
+code, pre, .mono { font-family: var(--f-mono); font-size: 0.86em }
+:not(pre) > code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px }
+pre { background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; margin: 0; overflow-x: auto; line-height: 1.5 }
+pre .c { color: var(--muted) }
+pre .k { color: var(--signal); font-weight: 600 }
+.eyebrow { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--signal) }
+
+header.hero { padding-block: 56px 32px; display: grid; gap: 20px }
+header.hero p.lede { font-size: 1.2rem; color: var(--muted); max-width: 60ch }
+.ladder { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px }
+.ladder a { font-family: var(--f-mono); font-size: 0.8rem; text-decoration: none; color: var(--ink); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; background: var(--panel) }
+.ladder a:hover, .ladder a:focus-visible { border-color: var(--signal); color: var(--signal); outline: none }
+
+section.step { padding-block: 44px; border-top: 1px solid var(--line); display: grid; gap: 22px }
+.step-head { display: grid; gap: 8px }
+.fig { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; display: grid; gap: 14px; min-width: 0 }
+.fig-cap { font-size: 0.9rem; color: var(--muted) }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; align-items: start }
+.cols > * { min-width: 0 }
+.scroll { overflow-x: auto }
+.key { border-left: 3px solid var(--signal); padding: 4px 0 4px 14px; color: var(--ink) }
+.key.warn { border-color: var(--mask) }
+
+/* controls */
+.ctrl { display: grid; grid-template-columns: 2.6em 1fr 3.4em; align-items: center; gap: 10px; font-family: var(--f-mono); font-size: 0.85rem }
+input[type=range] { width: 100%; accent-color: var(--signal) }
+button { font: 600 0.85rem var(--f-mono); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer }
+button:hover { border-color: var(--signal) }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px }
+button.primary { background: var(--signal); color: var(--panel); border-color: var(--signal) }
+.btns { display: flex; flex-wrap: wrap; gap: 8px }
+
+table.tt { border-collapse: collapse; font-family: var(--f-mono); font-size: 0.85rem; font-variant-numeric: tabular-nums; width: 100% }
+table.tt th, table.tt td { border-bottom: 1px solid var(--line); padding: 6px 8px; text-align: center }
+table.tt th { color: var(--muted); font-weight: 400 }
+.ok { color: var(--good); font-weight: 600 }
+.bad { color: var(--mask); font-weight: 600 }
+.pill { display: inline-block; font: 600 0.75rem var(--f-mono); border-radius: 999px; padding: 2px 10px; border: 1px solid currentColor }
+
+canvas { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--line); display: block }
+svg text { font-family: var(--f-mono); fill: var(--ink) }
+svg .muted { fill: var(--muted) }
+
+/* conv grids */
+.grids { display: flex; flex-wrap: wrap; gap: 18px; align-items: center }
+.grid { display: grid; gap: 2px }
+.cell { width: 30px; height: 30px; display: grid; place-items: center; font: 0.68rem var(--f-mono); border-radius: 3px; font-variant-numeric: tabular-nums }
+.grid.out .cell { cursor: pointer; border: 1px solid var(--line) }
+.cell.win { outline: 2px solid var(--signal); outline-offset: -1px }
+.cell.sel { outline: 2px solid var(--mask); outline-offset: -1px }
+.op { font: 700 1.3rem var(--f-mono); color: var(--muted) }
+
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.85rem; color: var(--muted) }
+.legend i { display: inline-block; width: 22px; height: 0; border-top: 3px solid; vertical-align: middle; margin-right: 6px }
+
+.udots { display: flex; flex-wrap: wrap; gap: 6px }
+.udots button { width: 30px; height: 26px; padding: 0; font-size: 0.7rem }
+.udots button.on { background: var(--signal); color: var(--panel); border-color: var(--signal) }
+select { font: 0.85rem var(--f-mono); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important } .pulse { display: none } }
+</style>
+
+<div class="wrap">
+<header class="hero">
+  <span class="eyebrow">Learning notes · Tumour AI research track</span>
+  <h1>From one neuron to our 3D U-Net</h1>
+  <p class="lede">How a neural network works, built up from the smallest piece: a single neuron that can act like an AND or OR gate, why it fails at XOR, how a network learns its own weights, and how the same idea grows into the 3D U-Net we wrote to outline lung tumours on CT.</p>
+  <nav class="ladder" aria-label="Steps">
+    <a href="#neuron">1 · Neuron</a><a href="#gates">2 · AND / OR</a><a href="#xor">3 · XOR</a><a href="#learn">4 · Learning</a>
+    <a href="#images">5 · Images</a><a href="#blocks">6 · Building blocks</a><a href="#unet">7 · 3D U-Net</a><a href="#train">8 · Training it</a>
+  </nav>
+</header>
+
+<!-- 1 NEURON -->
+<section class="step" id="neuron">
+  <div class="step-head read"><span class="eyebrow">Step 1</span><h2>A neuron is a weighted vote</h2></div>
+  <div class="read stack">
+    <p>A neuron takes some numbers in, multiplies each by a <strong>weight</strong> (how much it cares about that input), adds them up with a <strong>bias</strong> (its starting lean), and passes the total through an <strong>activation</strong> that decides how strongly to fire.</p>
+  </div>
+  <div class="fig scroll">
+    <svg viewBox="0 0 760 230" width="760" style="max-width:100%;height:auto" role="img" aria-label="A neuron: inputs x1 and x2 multiplied by weights w1 and w2, summed with bias b, passed through an activation to produce output y">
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/></marker></defs>
+      <g>
+        <circle cx="70" cy="60" r="26" style="fill:var(--signal-soft);stroke:var(--signal)"/><text x="70" y="65" text-anchor="middle">x₁</text>
+        <circle cx="70" cy="170" r="26" style="fill:var(--signal-soft);stroke:var(--signal)"/><text x="70" y="175" text-anchor="middle">x₂</text>
+        <line x1="96" y1="66" x2="318" y2="108" style="stroke:var(--muted);stroke-width:2" marker-end="url(#ar)"/>
+        <line x1="96" y1="164" x2="318" y2="124" style="stroke:var(--muted);stroke-width:2" marker-end="url(#ar)"/>
+        <text x="190" y="72" class="muted">× w₁</text><text x="190" y="168" class="muted">× w₂</text>
+        <circle cx="360" cy="116" r="40" style="fill:var(--panel);stroke:var(--ink);stroke-width:2"/><text x="360" y="112" text-anchor="middle" style="font-size:22px">Σ</text><text x="360" y="136" text-anchor="middle" class="muted" style="font-size:11px">+ b</text>
+        <line x1="400" y1="116" x2="478" y2="116" style="stroke:var(--muted);stroke-width:2" marker-end="url(#ar)"/>
+        <rect x="482" y="86" width="110" height="60" rx="8" style="fill:var(--panel);stroke:var(--ink);stroke-width:2"/>
+        <path d="M494,132 L536,132 L536,100 L580,100" style="fill:none;stroke:var(--signal);stroke-width:2.5"/>
+        <text x="537" y="160" text-anchor="middle" class="muted" style="font-size:11px">activation</text>
+        <line x1="592" y1="116" x2="668" y2="116" style="stroke:var(--muted);stroke-width:2" marker-end="url(#ar)"/>
+        <circle cx="700" cy="116" r="26" style="fill:var(--mask-soft);stroke:var(--mask)"/><text x="700" y="121" text-anchor="middle">y</text>
+        <text x="360" y="212" text-anchor="middle" class="muted" style="font-size:13px">y = activation( w₁·x₁ + w₂·x₂ + b )</text>
+        <g class="pulse">
+          <circle r="6" style="fill:var(--signal)"><animateMotion dur="2.4s" repeatCount="indefinite" keyTimes="0;0.4;1" keyPoints="0;1;1" calcMode="linear" path="M96,66 L318,108"/></circle>
+          <circle r="6" style="fill:var(--signal)"><animateMotion dur="2.4s" repeatCount="indefinite" keyTimes="0;0.4;1" keyPoints="0;1;1" calcMode="linear" path="M96,164 L318,124"/></circle>
+          <circle r="7" style="fill:var(--mask)"><animateMotion dur="2.4s" repeatCount="indefinite" keyTimes="0;0.45;0.85;1" keyPoints="0;0;1;1" calcMode="linear" path="M400,116 L668,116"/></circle>
+        </g>
+      </g>
+    </svg>
+  </div>
+  <div class="read key">The weights and bias are the <strong>knobs</strong>. Training a network means finding good knob settings. Our U-Net is this same idea repeated with 1.4 million knobs.</div>
+</section>
+
+<!-- 2 GATES -->
+<section class="step" id="gates">
+  <div class="step-head read"><span class="eyebrow">Step 2</span><h2>One neuron can be an AND or an OR gate</h2></div>
+  <p class="read">Inputs are 0 or 1. The activation here is a step: output 1 if the total is above 0, otherwise 0. Move the knobs, or load a preset, and watch the truth table and the dividing line. A single neuron always draws one straight line: points on one side give 1, the other side 0.</p>
+  <div class="fig">
+    <div class="cols">
+      <div class="stack">
+        <div class="ctrl"><label for="w1">w₁</label><input id="w1" type="range" min="-2" max="2" step="0.1" value="1"><output id="w1v">1.0</output></div>
+        <div class="ctrl"><label for="w2">w₂</label><input id="w2" type="range" min="-2" max="2" step="0.1" value="1"><output id="w2v">1.0</output></div>
+        <div class="ctrl"><label for="bb">b</label><input id="bb" type="range" min="-2" max="2" step="0.1" value="-1.5"><output id="bbv">-1.5</output></div>
+        <div class="btns"><button type="button" data-preset="and">Load AND</button><button type="button" data-preset="or">Load OR</button><button type="button" data-preset="xor">Try for XOR</button></div>
+        <table class="tt" aria-live="polite">
+          <thead><tr><th>x₁</th><th>x₂</th><th>total</th><th>output</th><th>AND</th><th>OR</th><th>XOR</th></tr></thead>
+          <tbody id="ttb"></tbody>
+          <tfoot><tr><th colspan="4">matches all 4?</th><td id="mAND"></td><td id="mOR"></td><td id="mXOR"></td></tr></tfoot>
+        </table>
+      </div>
+      <div class="stack">
+        <canvas id="gplot" width="320" height="320" aria-label="Four input points and the neuron's dividing line"></canvas>
+        <p class="fig-cap">Filled dot = neuron says 1, hollow = 0. Shaded side of the line = "fire".</p>
+      </div>
+    </div>
+  </div>
+  <div class="read stack">
+    <p><strong>AND:</strong> w₁ = 1, w₂ = 1, b = −1.5. Only 1 + 1 − 1.5 = 0.5 is above zero, so only (1, 1) fires.</p>
+    <p><strong>OR:</strong> w₁ = 1, w₂ = 1, b = −0.5. Any single 1 gives 0.5, so three points fire.</p>
+  </div>
+</section>
+
+<!-- 3 XOR -->
+<section class="step" id="xor">
+  <div class="step-head read"><span class="eyebrow">Step 3</span><h2>XOR breaks a single neuron</h2></div>
+  <div class="cols">
+    <div class="read stack">
+      <p>XOR means "one or the other, but not both": (0,1) and (1,0) give 1; (0,0) and (1,1) give 0. Try it above: no setting works. The two 1-points sit on opposite corners, and <strong>no single straight line</strong> can put them on one side and the two 0-points on the other.</p>
+      <p>The fix is to <strong>stack neurons in layers</strong>. Two hidden neurons each draw one line, and an output neuron combines them:</p>
+      <ul class="stack" style="padding-left:1.2em;margin:0">
+        <li>hidden neuron A = <strong>OR</strong> (x₁, x₂)</li>
+        <li>hidden neuron B = <strong>NAND</strong> (x₁, x₂), "not both"</li>
+        <li>output = <strong>AND</strong> (A, B) → that is exactly XOR</li>
+      </ul>
+      <p class="key">This is why "deep" learning stacks layers: each layer builds new features out of the previous layer's, until a straight line in the new features is enough.</p>
+    </div>
+    <div class="fig scroll">
+      <svg viewBox="0 0 440 300" width="440" style="max-width:100%;height:auto" role="img" aria-label="Two-layer network for XOR: inputs feed an OR neuron and a NAND neuron, both feed an AND neuron">
+        <g style="stroke:var(--muted);stroke-width:1.6">
+          <line x1="66" y1="80" x2="194" y2="80"/><line x1="66" y1="80" x2="194" y2="220"/>
+          <line x1="66" y1="220" x2="194" y2="80"/><line x1="66" y1="220" x2="194" y2="220"/>
+          <line x1="246" y1="80" x2="354" y2="150"/><line x1="246" y1="220" x2="354" y2="150"/>
+        </g>
+        <circle cx="44" cy="80" r="22" style="fill:var(--signal-soft);stroke:var(--signal)"/><text x="44" y="85" text-anchor="middle">x₁</text>
+        <circle cx="44" cy="220" r="22" style="fill:var(--signal-soft);stroke:var(--signal)"/><text x="44" y="225" text-anchor="middle">x₂</text>
+        <circle cx="220" cy="80" r="26" style="fill:var(--panel);stroke:var(--ink);stroke-width:2"/><text x="220" y="85" text-anchor="middle" style="font-size:12px">OR</text>
+        <circle cx="220" cy="220" r="26" style="fill:var(--panel);stroke:var(--ink);stroke-width:2"/><text x="220" y="225" text-anchor="middle" style="font-size:12px">NAND</text>
+        <circle cx="380" cy="150" r="26" style="fill:var(--mask-soft);stroke:var(--mask);stroke-width:2"/><text x="380" y="155" text-anchor="middle" style="font-size:12px">AND</text>
+        <text x="44" y="276" text-anchor="middle" class="muted" style="font-size:11px">input</text>
+        <text x="220" y="276" text-anchor="middle" class="muted" style="font-size:11px">hidden layer</text>
+        <text x="380" y="276" text-anchor="middle" class="muted" style="font-size:11px">output = XOR</text>
+      </svg>
+    </div>
+  </div>
+  <div class="fig scroll">
+    <table class="tt">
+      <thead><tr><th>x₁</th><th>x₂</th><th>A = OR</th><th>B = NAND</th><th>AND(A, B)</th><th>XOR wanted</th></tr></thead>
+      <tbody>
+        <tr><td>0</td><td>0</td><td>0</td><td>1</td><td>0</td><td class="ok">0 ✓</td></tr>
+        <tr><td>0</td><td>1</td><td>1</td><td>1</td><td>1</td><td class="ok">1 ✓</td></tr>
+        <tr><td>1</td><td>0</td><td>1</td><td>1</td><td>1</td><td class="ok">1 ✓</td></tr>
+        <tr><td>1</td><td>1</td><td>1</td><td>0</td><td>0</td><td class="ok">0 ✓</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 4 LEARNING -->
+<section class="step" id="learn">
+  <div class="step-head read"><span class="eyebrow">Step 4</span><h2>Learning: the network finds its own weights</h2></div>
+  <div class="read stack">
+    <p>Above, we chose the weights by hand. Real networks have far too many knobs for that, so they <strong>learn</strong> them with a loop that repeats thousands of times:</p>
+  </div>
+  <div class="fig scroll">
+    <svg viewBox="0 0 900 150" width="900" style="max-width:100%;height:auto" role="img" aria-label="Training loop: forward pass, compare with answer to get loss, backpropagation, update weights, repeat">
+      <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--signal)"/></marker></defs>
+      <g style="font-size:13px">
+        <rect x="10" y="30" width="170" height="64" rx="10" style="fill:var(--signal-soft);stroke:var(--signal)"/><text x="95" y="58" text-anchor="middle">1 · Guess</text><text x="95" y="78" text-anchor="middle" class="muted" style="font-size:11px">forward pass</text>
+        <rect x="235" y="30" width="170" height="64" rx="10" style="fill:var(--signal-soft);stroke:var(--signal)"/><text x="320" y="58" text-anchor="middle">2 · How wrong?</text><text x="320" y="78" text-anchor="middle" class="muted" style="font-size:11px">loss vs answer key</text>
+        <rect x="460" y="30" width="190" height="64" rx="10" style="fill:var(--signal-soft);stroke:var(--signal)"/><text x="555" y="58" text-anchor="middle">3 · Who caused it?</text><text x="555" y="78" text-anchor="middle" class="muted" style="font-size:11px">backpropagation</text>
+        <rect x="705" y="30" width="185" height="64" rx="10" style="fill:var(--signal-soft);stroke:var(--signal)"/><text x="797" y="58" text-anchor="middle">4 · Nudge knobs</text><text x="797" y="78" text-anchor="middle" class="muted" style="font-size:11px">optimizer step</text>
+        <g style="stroke:var(--signal);stroke-width:2;fill:none">
+          <line x1="180" y1="62" x2="231" y2="62" marker-end="url(#ar2)"/><line x1="405" y1="62" x2="456" y2="62" marker-end="url(#ar2)"/><line x1="650" y1="62" x2="701" y2="62" marker-end="url(#ar2)"/>
+          <path d="M797,94 L797,126 L95,126 L95,98" marker-end="url(#ar2)"/>
+        </g>
+        <text x="446" y="144" text-anchor="middle" class="muted" style="font-size:11px">repeat with the next example</text>
+      </g>
+    </svg>
+  </div>
+  <p class="read">Below is a real network learning XOR in your browser: 2 inputs, 4 hidden neurons, 1 output, 17 knobs, all starting random. The coloured map shows what it answers for every point in the square. Press <strong>Train</strong> and watch the loss fall and the map bend around the corners.</p>
+  <div class="fig">
+    <div class="cols">
+      <div class="stack">
+        <canvas id="xmap" width="320" height="320" aria-label="Decision map of the XOR network"></canvas>
+        <p class="fig-cap">Red = network says 1, grey = says 0. Corner dots are the four XOR examples.</p>
+      </div>
+      <div class="stack">
+        <div class="btns"><button type="button" class="primary" id="xtrain">Train</button><button type="button" id="xstep">One step</button><button type="button" id="xreset">New random knobs</button></div>
+        <div class="ctrl"><label for="lr">lr</label><input id="lr" type="range" min="0.05" max="2" step="0.05" value="0.5"><output id="lrv">0.50</output></div>
+        <p class="mono" id="xstat">step 0 · loss –</p>
+        <canvas id="xloss" width="360" height="140" aria-label="Loss over training steps"></canvas>
+        <table class="tt"><thead><tr><th>x₁</th><th>x₂</th><th>network says</th><th>wanted</th></tr></thead><tbody id="xtb"></tbody></table>
+        <p class="fig-cap"><strong>lr</strong> (learning rate) is the size of each nudge. Try 2.0: faster, but it can wobble. Try 0.05: steady, but slow.</p>
+      </div>
+    </div>
+  </div>
+  <div class="cols">
+    <div class="stack">
+      <h3>The same network in PyTorch</h3>
+<pre><span class="k">import</span> torch
+<span class="k">from</span> torch <span class="k">import</span> nn
+
+X = torch.tensor([[0., 0], [0, 1], [1, 0], [1, 1]])
+y = torch.tensor([[0.], [1], [1], [0]])        <span class="c"># answer key</span>
+
+net = nn.Sequential(nn.Linear(2, 4), nn.Tanh(),  <span class="c"># hidden layer</span>
+                    nn.Linear(4, 1), nn.Sigmoid()) <span class="c"># output</span>
+opt = torch.optim.SGD(net.parameters(), lr=0.5)
+loss_fn = nn.BCELoss()
+
+<span class="k">for</span> step <span class="k">in</span> range(2000):
+    loss = loss_fn(net(X), y)   <span class="c"># 1 guess, 2 how wrong</span>
+    opt.zero_grad()
+    loss.backward()             <span class="c"># 3 who caused it</span>
+    opt.step()                  <span class="c"># 4 nudge knobs</span>
+
+print(net(X).round())  <span class="c"># → 0, 1, 1, 0</span></pre>
+      <p class="fig-cap">Tested: after 2,000 steps the loss is 0.0013 and the answers are 0, 1, 1, 0.</p>
+    </div>
+    <div class="stack read">
+      <h3>What the words mean</h3>
+      <p><strong>Loss</strong>: one number for "how wrong". It should go down.</p>
+      <p><strong>Backpropagation</strong>: works backwards from the loss to find how much each knob contributed. PyTorch does this for us in <code>loss.backward()</code>.</p>
+      <p><strong>Optimizer</strong>: moves every knob a small step in the direction that lowers the loss (gradient descent).</p>
+      <p><strong>Activation</strong>: here <code>Tanh</code> and <code>Sigmoid</code> are smooth versions of the step, because learning needs smooth slopes to follow.</p>
+    </div>
+  </div>
+  <h3 class="read">The code, line by line</h3>
+  <div class="scroll">
+    <table class="tt" style="text-align:left">
+      <thead><tr><th style="text-align:left">Code</th><th style="text-align:left">What it means in plain words</th></tr></thead>
+      <tbody>
+        <tr><td style="text-align:left"><code>import torch</code><br><code>from torch import nn</code></td><td style="text-align:left">Load PyTorch, the toolbox. <code>nn</code> holds ready-made pieces: layers, activations, losses.</td></tr>
+        <tr><td style="text-align:left"><code>X = torch.tensor([[0,0],[0,1],[1,0],[1,1]])</code></td><td style="text-align:left">The 4 questions: every pair of inputs x₁, x₂. A <em>tensor</em> is just a grid of numbers (here 4 rows × 2 columns).</td></tr>
+        <tr><td style="text-align:left"><code>y = torch.tensor([[0],[1],[1],[0]])</code></td><td style="text-align:left">The answer key, one answer per row of <code>X</code>: that is XOR.</td></tr>
+        <tr><td style="text-align:left"><code>nn.Linear(2, 4)</code></td><td style="text-align:left"><strong>Hidden layer</strong>: 4 neurons, each taking both inputs. Each neuron = 2 weights + 1 bias, exactly the neuron from step 1. 4 × 3 = <strong>12 knobs</strong>.</td></tr>
+        <tr><td style="text-align:left"><code>nn.Tanh()</code></td><td style="text-align:left"><strong>Activation</strong> after the hidden layer: squeezes each total into −1..1. A smooth "fire or not". Without it, two layers collapse into one straight line and XOR fails again.</td></tr>
+        <tr><td style="text-align:left"><code>nn.Linear(4, 1)</code></td><td style="text-align:left"><strong>Output neuron</strong>: combines the 4 hidden answers. 4 weights + 1 bias = <strong>5 knobs</strong>. Total 12 + 5 = <strong>17 knobs</strong>, the same as the live demo above.</td></tr>
+        <tr><td style="text-align:left"><code>nn.Sigmoid()</code></td><td style="text-align:left">Squeezes the final total into 0..1, so it reads as "how sure is it the answer is 1". Above 0.5 → 1.</td></tr>
+        <tr><td style="text-align:left"><code>nn.Sequential(...)</code></td><td style="text-align:left">Chains the four pieces in order: data flows Linear → Tanh → Linear → Sigmoid.</td></tr>
+        <tr><td style="text-align:left"><code>opt = torch.optim.SGD(net.parameters(), lr=0.5)</code></td><td style="text-align:left">The <strong>optimizer</strong>: the hand that turns the 17 knobs. <code>lr</code> (learning rate) is how big each turn is, the slider in the demo.</td></tr>
+        <tr><td style="text-align:left"><code>loss_fn = nn.BCELoss()</code></td><td style="text-align:left">How "wrong" is measured (binary cross-entropy). Saying 0.9 when the answer is 1 costs a little; saying 0.1 costs a lot.</td></tr>
+        <tr><td style="text-align:left"><code>for step in range(2000):</code></td><td style="text-align:left">Repeat the learning loop 2,000 times. Each pass sees all 4 examples.</td></tr>
+        <tr><td style="text-align:left"><code>loss = loss_fn(net(X), y)</code></td><td style="text-align:left"><strong>① Guess</strong>: <code>net(X)</code> runs all 4 questions forward. <strong>② How wrong</strong>: compare with <code>y</code>, giving one number.</td></tr>
+        <tr><td style="text-align:left"><code>opt.zero_grad()</code></td><td style="text-align:left">Wipe last round's notes. PyTorch adds new notes on top of old ones, so we clear them first.</td></tr>
+        <tr><td style="text-align:left"><code>loss.backward()</code></td><td style="text-align:left"><strong>③ Who caused it</strong> (backpropagation): for each of the 17 knobs, work out which way, and how much, turning it would lower the loss.</td></tr>
+        <tr><td style="text-align:left"><code>opt.step()</code></td><td style="text-align:left"><strong>④ Nudge</strong>: turn every knob a small step (size <code>lr</code>) in the direction that lowers the loss.</td></tr>
+        <tr><td style="text-align:left"><code>print(net(X).round())</code></td><td style="text-align:left">After training, ask the 4 questions again and round to 0 or 1 → <strong>0, 1, 1, 0</strong>. It learned XOR by itself; nobody told it "OR + NAND".</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="key read">Encoder or decoder? Neither. This tiny network is just layers in a row. Encoder and decoder appear in the U-Net (step 7): the encoder shrinks the image to understand it, and the decoder grows it back to draw the outline.</div>
+</section>
+
+<!-- 5 IMAGES -->
+<section class="step" id="images">
+  <div class="step-head read"><span class="eyebrow">Step 5</span><h2>Images are grids of numbers, read by sliding filters</h2></div>
+  <div class="read stack">
+    <p>A CT slice is a 512 × 512 grid of numbers in <strong>Hounsfield units</strong>: air −1000, water 0, soft tissue and tumour around 0 to +100, bone +400 and up. A tumour in the lung is a bright patch in a dark field.</p>
+    <p>Giving every pixel its own weight would need millions of knobs per neuron and would not recognise the same shape in a different place. A <strong>convolution</strong> instead slides one small filter (here 3 × 3, so 9 knobs) over the whole image, computing a weighted sum at every position. The same filter finds the same pattern anywhere.</p>
+  </div>
+  <div class="fig">
+    <div class="btns" role="group" aria-label="Choose filter"><button type="button" data-k="edge" class="primary">Edge filter</button><button type="button" data-k="blur">Blur filter</button><button type="button" data-k="vert">Vertical-edge filter</button><button type="button" id="cplay">▶ Slide the filter</button></div>
+    <div class="grids scroll">
+      <div><p class="fig-cap">input (simplified slice)</p><div class="grid" id="gin"></div></div>
+      <span class="op">✱</span>
+      <div><p class="fig-cap">filter</p><div class="grid" id="gk"></div></div>
+      <span class="op">=</span>
+      <div><p class="fig-cap">output (click a cell)</p><div class="grid out" id="gout"></div></div>
+    </div>
+    <p class="mono" id="calc" aria-live="polite">Click an output cell to see its sum.</p>
+    <p class="fig-cap">Input values are scaled: 0 = lung (dark), 9 = tumour (bright). The edge filter lights up the tumour's border. In a network the filter values are not hand-picked: they are knobs, learned in training.</p>
+  </div>
+  <p class="read key">Our scans are 3D, so our filters are 3 × 3 × 3 cubes (27 knobs each) that slide through the volume, seeing a tumour as a ball and a blood vessel as a tube.</p>
+</section>
+
+<!-- 6 BLOCKS -->
+<section class="step" id="blocks">
+  <div class="step-head read"><span class="eyebrow">Step 6</span><h2>The building blocks we used</h2></div>
+  <div class="fig scroll">
+    <table class="tt" style="text-align:left">
+      <thead><tr><th style="text-align:left">Block</th><th style="text-align:left">What it does</th><th style="text-align:left">PyTorch</th></tr></thead>
+      <tbody>
+        <tr><td style="text-align:left">Convolution</td><td style="text-align:left">slides many 3 × 3 × 3 filters; each one makes a feature map ("channel")</td><td style="text-align:left"><code>nn.Conv3d(cin, cout, 3, padding=1)</code></td></tr>
+        <tr><td style="text-align:left">Normalisation</td><td style="text-align:left">rescales each feature map to a steady range so training stays stable</td><td style="text-align:left"><code>nn.InstanceNorm3d(c)</code></td></tr>
+        <tr><td style="text-align:left">Activation</td><td style="text-align:left">keeps strong signals, shrinks negative ones (the "fire or not" step)</td><td style="text-align:left"><code>nn.LeakyReLU(0.01)</code></td></tr>
+        <tr><td style="text-align:left">Pooling</td><td style="text-align:left">halves the size, keeping the strongest value in each 2 × 2 × 2 box: step back, see more</td><td style="text-align:left"><code>nn.MaxPool3d(2)</code></td></tr>
+        <tr><td style="text-align:left">Up-convolution</td><td style="text-align:left">doubles the size again, learning how to fill in detail</td><td style="text-align:left"><code>nn.ConvTranspose3d(...)</code></td></tr>
+        <tr><td style="text-align:left">Skip + concatenate</td><td style="text-align:left">copies sharp early features across and stacks them with the upsampled ones</td><td style="text-align:left"><code>torch.cat([up, skip], 1)</code></td></tr>
+        <tr><td style="text-align:left">1 × 1 × 1 head</td><td style="text-align:left">turns features into 2 scores per voxel: not-tumour, tumour</td><td style="text-align:left"><code>nn.Conv3d(16, 2, 1)</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="cols">
+<pre><span class="k">class</span> Block(nn.Sequential):
+    <span class="c">"""Two rounds of: 3x3x3 conv -> normalise -> activation."""</span>
+    <span class="k">def</span> __init__(self, cin, cout):
+        super().__init__(
+            nn.Conv3d(cin, cout, 3, padding=1),
+            nn.InstanceNorm3d(cout, affine=True),
+            nn.LeakyReLU(0.01, inplace=True),
+            nn.Conv3d(cout, cout, 3, padding=1),
+            nn.InstanceNorm3d(cout, affine=True),
+            nn.LeakyReLU(0.01, inplace=True),
+        )</pre>
+    <div class="read stack"><p>One <code>Block</code> is the U-Net's basic unit: two convolutions, each followed by normalisation and activation. It is the 3D, many-channel version of the neuron in step 1: weighted sums, then "fire or not".</p><p class="fig-cap">From <code>model/unet3d.py</code>, exactly as in our project.</p></div>
+  </div>
+</section>
+
+<!-- 7 UNET -->
+<section class="step" id="unet">
+  <div class="step-head read"><span class="eyebrow">Step 7</span><h2>Our 3D U-Net, layer by layer</h2></div>
+  <p class="read">Shapes are written <code>channels × depth × height × width</code>, for one input block of 32 slices × 128 × 128 pixels. Going <strong>down</strong> the U the image shrinks and the number of feature maps doubles (it learns <em>what</em> is there). Going <strong>up</strong> it grows back (it learns <em>where</em>). Skip connections carry the sharp detail across.</p>
+  <div class="fig">
+    <div class="btns">
+      <button type="button" class="primary" id="uplay">▶ Play</button>
+      <button type="button" id="uback">◀ Back</button>
+      <button type="button" id="unext">Next ▶</button>
+      <button type="button" id="ureset">Restart</button>
+      <label class="mono" for="uspeed" style="display:flex;align-items:center;gap:6px">speed
+        <select id="uspeed"><option value="0.5">slow</option><option value="1" selected>normal</option><option value="2">fast</option></select></label>
+    </div>
+    <div class="scroll"><canvas id="ucv" width="1060" height="520" style="min-width:760px;width:100%" aria-label="Animation of a CT block flowing through the 3D U-Net"></canvas></div>
+    <div class="udots" id="udots" role="group" aria-label="Jump to a stage"></div>
+    <p id="ucap" aria-live="polite" style="min-height:3.2em"></p>
+    <div class="legend"><span><i style="border-color:var(--mask)"></i>pool: shrink</span><span><i style="border-color:var(--good)"></i>up-convolution: grow</span><span><i style="border-color:var(--signal)"></i>Block: filters</span><span><i style="border-color:var(--muted);border-top-style:dashed"></i>skip connection</span></div>
+    <p class="fig-cap">Each square is one feature map, drawn at its real grid size (128, 64, 32, 16 pixels), so you can see the picture get coarser going down and sharper coming back up. Stacked squares stand for the 16, 32, 64, 128 maps. The pictures are an illustration on a simplified slice, not real network output.</p>
+  </div>
+  <p class="read fig-cap">The same network as a static map, with every shape:</p>
+  <div class="fig scroll">
+    <svg viewBox="0 0 1000 520" width="1000" style="max-width:none;height:auto;min-width:760px" role="img" aria-label="3D U-Net diagram with encoder, bottleneck, decoder, and skip connections, showing tensor shapes at each level">
+      <defs>
+        <marker id="aD" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--mask)"/></marker>
+        <marker id="aU" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--good)"/></marker>
+        <marker id="aS" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--muted)"/></marker>
+        <marker id="aC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--signal)"/></marker>
+      </defs>
+      <g style="font-size:12px">
+        <!-- input -->
+        <rect x="14" y="40" width="70" height="110" rx="6" style="fill:var(--signal-soft);stroke:var(--signal)"/>
+        <text x="49" y="90" text-anchor="middle">CT</text><text x="49" y="106" text-anchor="middle" class="muted" style="font-size:10px">block</text>
+        <text x="49" y="170" text-anchor="middle" class="muted" style="font-size:10px">1×32×128×128</text>
+        <line x1="84" y1="95" x2="120" y2="95" style="stroke:var(--signal);stroke-width:2" marker-end="url(#aC)"/>
+        <!-- enc0 -->
+        <rect x="124" y="40" width="34" height="110" rx="4" style="fill:var(--panel);stroke:var(--ink);stroke-width:1.6"/>
+        <text x="141" y="30" text-anchor="middle">Block</text><text x="141" y="170" text-anchor="middle" class="muted" style="font-size:10px">16×32×128×128</text>
+        <!-- pool0 -->
+        <line x1="141" y1="150" x2="141" y2="208" style="stroke:var(--mask);stroke-width:2" marker-end="url(#aD)"/>
+        <text x="150" y="195" class="muted" style="font-size:10px">pool (1,2,2)</text>
+        <!-- enc1 -->
+        <rect x="200" y="214" width="42" height="80" rx="4" style="fill:var(--panel);stroke:var(--ink);stroke-width:1.6"/>
+        <text x="221" y="310" text-anchor="middle" class="muted" style="font-size:10px">32×32×64×64</text>
+        <path d="M141,212 L196,236" style="stroke:var(--mask);stroke-width:0"/>
+        <line x1="144" y1="214" x2="198" y2="230" style="stroke:var(--signal);stroke-width:1.4" marker-end="url(#aC)"/>
+        <!-- pool1 -->
+        <line x1="221" y1="294" x2="221" y2="342" style="stroke:var(--mask);stroke-width:2" marker-end="url(#aD)"/>
+        <text x="230" y="330" class="muted" style="font-size:10px">pool (2,2,2)</text>
+        <!-- enc2 -->
+        <rect x="290" y="348" width="52" height="58" rx="4" style="fill:var(--panel);stroke:var(--ink);stroke-width:1.6"/>
+        <text x="316" y="422" text-anchor="middle" class="muted" style="font-size:10px">64×16×32×32</text>
+        <line x1="224" y1="348" x2="288" y2="362" style="stroke:var(--signal);stroke-width:1.4" marker-end="url(#aC)"/>
+        <!-- pool2 -->
+        <line x1="316" y1="406" x2="316" y2="444" style="stroke:var(--mask);stroke-width:2" marker-end="url(#aD)"/>
+        <text x="325" y="436" class="muted" style="font-size:10px">pool (2,2,2)</text>
+        <!-- bottleneck -->
+        <rect x="440" y="448" width="120" height="44" rx="4" style="fill:var(--mask-soft);stroke:var(--mask);stroke-width:1.8"/>
+        <text x="500" y="468" text-anchor="middle">bottom Block</text><text x="500" y="484" text-anchor="middle" class="muted" style="font-size:10px">128×8×16×16</text>
+        <line x1="320" y1="448" x2="436" y2="466" style="stroke:var(--signal);stroke-width:1.4" marker-end="url(#aC)"/>
+        <!-- up2 -->
+        <line x1="560" y1="466" x2="676" y2="410" style="stroke:var(--good);stroke-width:2" marker-end="url(#aU)"/>
+        <text x="612" y="458" class="muted" style="font-size:10px">up ×2</text>
+        <!-- dec2 -->
+        <rect x="658" y="348" width="52" height="58" rx="4" style="fill:var(--panel);stroke:var(--ink);stroke-width:1.6"/>
+        <text x="684" y="422" text-anchor="middle" class="muted" style="font-size:10px">64×16×32×32</text>
+        <!-- up1 -->
+        <line x1="684" y1="348" x2="770" y2="296" style="stroke:var(--good);stroke-width:2" marker-end="url(#aU)"/>
+        <text x="735" y="336" class="muted" style="font-size:10px">up ×2</text>
+        <!-- dec1 -->
+        <rect x="758" y="214" width="42" height="80" rx="4" style="fill:var(--panel);stroke:var(--ink);stroke-width:1.6"/>
+        <text x="779" y="310" text-anchor="middle" class="muted" style="font-size:10px">32×32×64×64</text>
+        <!-- up0 -->
+        <line x1="779" y1="214" x2="842" y2="152" style="stroke:var(--good);stroke-width:2" marker-end="url(#aU)"/>
+        <text x="818" y="200" class="muted" style="font-size:10px">up (1,2,2)</text>
+        <!-- dec0 -->
+        <rect x="842" y="40" width="34" height="110" rx="4" style="fill:var(--panel);stroke:var(--ink);stroke-width:1.6"/>
+        <text x="859" y="30" text-anchor="middle">Block</text><text x="859" y="170" text-anchor="middle" class="muted" style="font-size:10px">16×32×128×128</text>
+        <!-- head -->
+        <line x1="876" y1="95" x2="908" y2="95" style="stroke:var(--signal);stroke-width:2" marker-end="url(#aC)"/>
+        <rect x="912" y="40" width="74" height="110" rx="6" style="fill:var(--mask-soft);stroke:var(--mask)"/>
+        <text x="949" y="86" text-anchor="middle">tumour</text><text x="949" y="102" text-anchor="middle">map</text>
+        <text x="949" y="170" text-anchor="middle" class="muted" style="font-size:10px">2×32×128×128</text>
+        <!-- skips -->
+        <g style="stroke:var(--muted);stroke-width:1.6;stroke-dasharray:6 5;fill:none">
+          <line x1="158" y1="70" x2="838" y2="70" marker-end="url(#aS)"/>
+          <line x1="242" y1="240" x2="754" y2="240" marker-end="url(#aS)"/>
+          <line x1="342" y1="372" x2="654" y2="372" marker-end="url(#aS)"/>
+        </g>
+        <text x="500" y="62" text-anchor="middle" class="muted" style="font-size:10px">skip: copy 16 sharp feature maps across, stack with the upsampled ones</text>
+        <text x="500" y="232" text-anchor="middle" class="muted" style="font-size:10px">skip: 32 maps</text>
+        <text x="500" y="364" text-anchor="middle" class="muted" style="font-size:10px">skip: 64 maps</text>
+        <text x="190" y="508" class="muted" style="font-size:11px">ENCODER · learns WHAT</text>
+        <text x="650" y="508" class="muted" style="font-size:11px">DECODER · learns WHERE</text>
+      </g>
+    </svg>
+    <div class="legend"><span><i style="border-color:var(--mask)"></i>pool: shrink</span><span><i style="border-color:var(--good)"></i>up-convolution: grow</span><span><i style="border-color:var(--muted);border-top-style:dashed"></i>skip connection</span><span><i style="border-color:var(--signal)"></i>Block (2 × conv + norm + activation)</span></div>
+  </div>
+  <div class="cols">
+    <div class="read stack">
+      <h3>Why these choices</h3>
+      <p><strong>First shrink is flat, (1,2,2).</strong> Our slices are 3 mm apart but pixels are about 1 mm. Shrinking only across the slice first makes the voxels nearly cubes (about 2 × 2 × 3 mm) before shrinking in all directions.</p>
+      <p><strong>Channels double as size halves</strong>: 16 → 32 → 64 → 128. Smaller images, but more kinds of pattern.</p>
+      <p><strong>3D, not 2D</strong>: on one slice a vessel and a tumour can look alike; across slices a vessel is a tube and a tumour a ball.</p>
+      <p><strong>1.40 million knobs</strong> at <code>base=16</code>. On HPC we use <code>base=32</code>, about 4 times more.</p>
+    </div>
+<pre><span class="k">def</span> forward(self, x):
+    skips = []
+    <span class="k">for</span> i, enc <span class="k">in</span> enumerate(self.enc):     <span class="c"># going down</span>
+        x = enc(x)
+        <span class="k">if</span> i &lt; len(self.pool):
+            skips.append(x)                   <span class="c"># keep for later</span>
+            x = self.pool[i](x)               <span class="c"># shrink</span>
+    <span class="k">for</span> i <span class="k">in</span> reversed(range(len(self.up))):  <span class="c"># going up</span>
+        up = self.up[i](x)                    <span class="c"># grow</span>
+        x = self.dec[i](torch.cat([up, skips[i]], dim=1))
+    <span class="k">return</span> self.head(x)                      <span class="c"># 2 scores per voxel</span></pre>
+  </div>
+</section>
+
+<!-- 8 TRAIN -->
+<section class="step" id="train">
+  <div class="step-head read"><span class="eyebrow">Step 8</span><h2>Training it on lung CT</h2></div>
+  <p class="read">The loop is the same four steps as XOR. What changes is the data and how we measure "wrong".</p>
+  <div class="fig scroll">
+    <table class="tt" style="text-align:left">
+      <thead><tr><th style="text-align:left"></th><th style="text-align:left">XOR toy</th><th style="text-align:left">Our tumour U-Net</th></tr></thead>
+      <tbody>
+        <tr><td style="text-align:left">Input</td><td style="text-align:left">2 numbers</td><td style="text-align:left">a 32 × 128 × 128 block of CT (524,288 numbers)</td></tr>
+        <tr><td style="text-align:left">Answer key</td><td style="text-align:left">0 or 1</td><td style="text-align:left">the doctor's tumour mask, 0/1 for every voxel</td></tr>
+        <tr><td style="text-align:left">Knobs</td><td style="text-align:left">17</td><td style="text-align:left">1,400,000</td></tr>
+        <tr><td style="text-align:left">Loss</td><td style="text-align:left">cross-entropy</td><td style="text-align:left">cross-entropy + Dice (so a tiny tumour can't be ignored)</td></tr>
+        <tr><td style="text-align:left">Score on new data</td><td style="text-align:left">right / wrong</td><td style="text-align:left">Dice overlap with the doctor, 0 to 1 (doctors agree at about 0.8)</td></tr>
+        <tr><td style="text-align:left">Extra tricks</td><td style="text-align:left">none</td><td style="text-align:left">1 in 3 blocks centred on tumour; brightness jitter; no left-right flip</td></tr>
+        <tr><td style="text-align:left">Hardware</td><td style="text-align:left">your browser</td><td style="text-align:left">Mac chip for tests, BigBlue A100 (80 GB) for real runs</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="cols">
+    <div class="fig">
+      <h3>Our first real run</h3>
+      <canvas id="real" width="460" height="230" aria-label="Loss and validation Dice over 1,500 steps of our local training run"></canvas>
+      <div class="legend"><span><i style="border-color:var(--signal)"></i>training loss (left axis)</span><span><i style="border-color:var(--mask)"></i>validation Dice (right axis)</span></div>
+      <p class="fig-cap">Mac, 4 training patients, 1 unseen patient, 1,500 steps, 41 minutes. Loss fell from 1.35 to 0.67, so it is learning. Dice reached 0.11: far from 0.8, as expected with so little data and time. The 50- and 422-patient runs on BigBlue are next.</p>
+    </div>
+    <div class="read stack">
+      <h3>The loop, from <code>model/train.py</code></h3>
+<pre><span class="k">for</span> step <span class="k">in</span> range(1, steps + 1):
+    x, y = random_blocks()       <span class="c"># CT + doctor's mask</span>
+    loss = dice_ce_loss(net(x), y)
+    opt.zero_grad()
+    loss.backward()
+    opt.step()
+    <span class="k">if</span> step % val_every == 0:
+        score = dice(predict(net, val_scan), val_mask)</pre>
+      <p class="key">Same four steps as the 17-knob XOR network. A neural network at any size is: weighted sums, an activation, a loss, and a loop that nudges the weights.</p>
+    </div>
+  </div>
+</section>
+</div>
+
+<script>
+(() => {
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  const $ = id => document.getElementById(id);
+  const PTS = [[0,0],[0,1],[1,0],[1,1]];
+  const TARGET = { and: [0,0,0,1], or: [0,1,1,1], xor: [0,1,1,0] };
+
+  /* ---------- Step 2: single neuron gates ---------- */
+  const w1 = $("w1"), w2 = $("w2"), bb = $("bb");
+  function drawGate() {
+    const a = +w1.value, b = +w2.value, c = +bb.value;
+    $("w1v").textContent = a.toFixed(1); $("w2v").textContent = b.toFixed(1); $("bbv").textContent = c.toFixed(1);
+    const outs = PTS.map(([x, y]) => (a * x + b * y + c > 0 ? 1 : 0));
+    $("ttb").innerHTML = PTS.map(([x, y], i) => {
+      const t = a * x + b * y + c;
+      return `<tr><td>${x}</td><td>${y}</td><td>${t.toFixed(1)}</td><td><strong>${outs[i]}</strong></td>` +
+        ["and","or","xor"].map(g => `<td class="${outs[i] === TARGET[g][i] ? "ok" : "bad"}">${TARGET[g][i]}</td>`).join("") + "</tr>";
+    }).join("");
+    for (const g of ["and","or","xor"]) {
+      const ok = outs.every((o, i) => o === TARGET[g][i]);
+      $("m" + g.toUpperCase()).innerHTML = `<span class="pill ${ok ? "ok" : "bad"}">${ok ? "yes" : "no"}</span>`;
+    }
+    const cv = $("gplot"), ctx = cv.getContext("2d"), S = cv.width, pad = 50, sc = (S - 2 * pad);
+    const X = v => pad + v * sc, Y = v => S - pad - v * sc;
+    ctx.clearRect(0, 0, S, S);
+    // shade the firing side
+    const img = ctx.createImageData(S, S), sig = hex(css("--signal-soft")), bg = hex(css("--panel"));
+    for (let py = 0; py < S; py++) for (let px = 0; px < S; px++) {
+      const x = (px - pad) / sc, y = (S - pad - py) / sc, on = a * x + b * y + c > 0, col = on ? sig : bg, k = (py * S + px) * 4;
+      img.data[k] = col[0]; img.data[k + 1] = col[1]; img.data[k + 2] = col[2]; img.data[k + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.strokeRect(X(0), Y(1), sc, sc);
+    // dividing line a*x + b*y + c = 0
+    ctx.strokeStyle = css("--signal"); ctx.lineWidth = 2.5; ctx.beginPath();
+    if (Math.abs(b) > 1e-6) { const yA = (-c - a * -0.5) / b, yB = (-c - a * 1.5) / b; ctx.moveTo(X(-0.5), Y(yA)); ctx.lineTo(X(1.5), Y(yB)); }
+    else if (Math.abs(a) > 1e-6) { const x0 = -c / a; ctx.moveTo(X(x0), 0); ctx.lineTo(X(x0), S); }
+    ctx.stroke();
+    PTS.forEach(([x, y], i) => {
+      ctx.beginPath(); ctx.arc(X(x), Y(y), 10, 0, 7); ctx.lineWidth = 2.5; ctx.strokeStyle = css("--ink");
+      if (outs[i]) { ctx.fillStyle = css("--mask"); ctx.fill(); } ctx.stroke();
+      ctx.fillStyle = css("--muted"); ctx.font = "12px " + css("--f-mono"); ctx.fillText(`(${x},${y})`, X(x) - 18, Y(y) + (y ? -18 : 28));
+    });
+  }
+  [w1, w2, bb].forEach(el => el.addEventListener("input", drawGate));
+  document.querySelectorAll("[data-preset]").forEach(btn => btn.addEventListener("click", () => {
+    const p = { and: [1, 1, -1.5], or: [1, 1, -0.5], xor: [1, -1, 0.5] }[btn.dataset.preset];
+    [w1.value, w2.value, bb.value] = p; drawGate();
+  }));
+
+  /* ---------- Step 4: XOR network learning (2-4-1, tanh + sigmoid, cross-entropy, SGD) ---------- */
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  let W1, B1, W2, B2, step = 0, losses = [], running = false;
+  function init() {
+    W1 = [...Array(4)].map(() => [rnd() * 2 - 1, rnd() * 2 - 1]); B1 = [...Array(4)].map(() => rnd() * 2 - 1);
+    W2 = [...Array(4)].map(() => rnd() * 2 - 1); B2 = rnd() * 2 - 1; step = 0; losses = [];
+  }
+  const fwd = (x, y) => {
+    const h = W1.map((w, j) => Math.tanh(w[0] * x + w[1] * y + B1[j]));
+    const o = 1 / (1 + Math.exp(-(h.reduce((s, v, j) => s + v * W2[j], 0) + B2)));
+    return { h, o };
+  };
+  function trainStep() {
+    const lr = +$("lr").value, gW1 = W1.map(() => [0, 0]), gB1 = [0,0,0,0], gW2 = [0,0,0,0]; let gB2 = 0, L = 0;
+    PTS.forEach(([x, y], i) => {
+      const t = TARGET.xor[i], { h, o } = fwd(x, y);
+      L += -(t * Math.log(o + 1e-9) + (1 - t) * Math.log(1 - o + 1e-9));
+      const d = o - t;   // gradient of cross-entropy through the sigmoid
+      gB2 += d;
+      h.forEach((hv, j) => { gW2[j] += d * hv; const dh = d * W2[j] * (1 - hv * hv); gW1[j][0] += dh * x; gW1[j][1] += dh * y; gB1[j] += dh; });
+    });
+    for (let j = 0; j < 4; j++) { W2[j] -= lr * gW2[j] / 4; B1[j] -= lr * gB1[j] / 4; W1[j][0] -= lr * gW1[j][0] / 4; W1[j][1] -= lr * gW1[j][1] / 4; }
+    B2 -= lr * gB2 / 4; step++; losses.push(L / 4);
+  }
+  function drawXor() {
+    const cv = $("xmap"), ctx = cv.getContext("2d"), S = cv.width, pad = 40, sc = S - 2 * pad;
+    const hi = hex(css("--mask")), lo = hex(css("--panel")), N = 64, cell = S / N;
+    for (let gy = 0; gy < N; gy++) for (let gx = 0; gx < N; gx++) {
+      const x = ((gx + 0.5) * cell - pad) / sc, y = (S - pad - (gy + 0.5) * cell) / sc, { o } = fwd(x, y), m = o;
+      ctx.fillStyle = `rgb(${lo.map((v, k) => Math.round(v + (hi[k] - v) * m * 0.85)).join(",")})`;
+      ctx.fillRect(gx * cell, gy * cell, cell + 1, cell + 1);
+    }
+    PTS.forEach(([x, y], i) => {
+      ctx.beginPath(); ctx.arc(pad + x * sc, S - pad - y * sc, 11, 0, 7); ctx.lineWidth = 3; ctx.strokeStyle = css("--ink");
+      ctx.fillStyle = TARGET.xor[i] ? css("--mask") : css("--panel"); ctx.fill(); ctx.stroke();
+    });
+    const last = losses.length ? losses[losses.length - 1] : null;
+    $("xstat").textContent = `step ${step} · loss ${last === null ? "–" : last.toFixed(4)}`;
+    $("xtb").innerHTML = PTS.map(([x, y], i) => { const o = fwd(x, y).o, r = o > 0.5 ? 1 : 0;
+      return `<tr><td>${x}</td><td>${y}</td><td>${o.toFixed(3)} → <strong>${r}</strong></td><td class="${r === TARGET.xor[i] ? "ok" : "bad"}">${TARGET.xor[i]}</td></tr>`; }).join("");
+    lineChart($("xloss"), [{ data: losses, color: css("--signal") }], { ymin: 0, ymax: Math.max(0.8, ...losses.slice(0, 5)) , xlabel: "step", ylabel: "loss" });
+  }
+  function loop() { if (!running) return; for (let k = 0; k < 8; k++) trainStep(); drawXor(); if (step >= 3000) stop(); else requestAnimationFrame(loop); }
+  function stop() { running = false; $("xtrain").textContent = step >= 3000 ? "Done (3,000 steps)" : "Train"; }
+  $("xtrain").addEventListener("click", () => { if (running) return stop(); if (step >= 3000) init(); running = true; $("xtrain").textContent = "Pause"; loop(); });
+  $("xstep").addEventListener("click", () => { trainStep(); drawXor(); });
+  $("xreset").addEventListener("click", () => { stop(); seed = Math.floor(Math.random() * 1e6) + 1; init(); drawXor(); $("xtrain").textContent = "Train"; });
+  $("lr").addEventListener("input", () => { $("lrv").textContent = (+$("lr").value).toFixed(2); });
+
+  /* ---------- Step 5: convolution ---------- */
+  const IMG = [
+    [0,0,0,0,0,0,0,0],[0,0,0,1,1,0,0,0],[0,0,4,9,9,4,0,0],[0,1,9,9,9,9,1,0],
+    [0,1,9,9,9,9,1,0],[0,0,4,9,9,4,0,0],[0,0,0,1,1,0,0,0],[0,0,0,0,0,0,0,0]];
+  const KERNELS = { edge: [[-1,-1,-1],[-1,8,-1],[-1,-1,-1]], blur: [[1,1,1],[1,1,1],[1,1,1]], vert: [[-1,0,1],[-1,0,1],[-1,0,1]] };
+  let kern = "edge", sel = null;
+  const conv = K => [...Array(6)].map((_, r) => [...Array(6)].map((_, c) => {
+    let s = 0; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) s += IMG[r + i][c + j] * K[i][j];
+    return kern === "blur" ? Math.round(s / 9) : s;
+  }));
+  function shade(v, max) {
+    const t = Math.max(0, Math.min(1, v / max)), a = hex(css("--panel")), b = hex(css("--ink"));
+    return `rgb(${a.map((x, k) => Math.round(x + (b[k] - x) * t)).join(",")})`;
+  }
+  function renderGrid(el, m, opts = {}) {
+    el.style.gridTemplateColumns = `repeat(${m[0].length}, 30px)`;
+    el.innerHTML = "";
+    m.forEach((row, r) => row.forEach((v, c) => {
+      const d = document.createElement(opts.click ? "button" : "div"); d.className = "cell"; d.textContent = v;
+      if (opts.click) { d.type = "button"; d.setAttribute("aria-label", `output row ${r + 1} column ${c + 1} value ${v}`); d.style.padding = "0"; d.style.font = "0.68rem var(--f-mono)"; }
+      const max = opts.max || 9, bright = Math.abs(v) / max > 0.55;
+      d.style.background = opts.kernel ? (v > 0 ? css("--signal-soft") : v < 0 ? css("--mask-soft") : css("--panel")) : shade(Math.abs(v), max);
+      d.style.color = !opts.kernel && bright ? css("--panel") : css("--ink");
+      if (opts.win && r >= opts.win[0] && r < opts.win[0] + 3 && c >= opts.win[1] && c < opts.win[1] + 3) d.classList.add("win");
+      if (opts.sel && r === opts.sel[0] && c === opts.sel[1]) d.classList.add("sel");
+      if (opts.click) d.addEventListener("click", () => { sel = [r, c]; renderConv(); });
+      el.appendChild(d);
+    }));
+  }
+  function renderConv() {
+    const K = KERNELS[kern], out = conv(K), max = Math.max(1, ...out.flat().map(Math.abs));
+    renderGrid($("gin"), IMG, { win: sel });
+    renderGrid($("gk"), K, { kernel: true, max: 8 });
+    renderGrid($("gout"), out, { click: true, max, sel });
+    if (sel) {
+      const [r, c] = sel, terms = [];
+      for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) if (K[i][j]) terms.push(`${IMG[r + i][c + j]}×${K[i][j]}`);
+      $("calc").textContent = `${terms.join(" + ")}${kern === "blur" ? " ÷ 9" : ""} = ${out[r][c]}`;
+    }
+  }
+  document.querySelectorAll("[data-k]").forEach(b => b.addEventListener("click", () => {
+    kern = b.dataset.k; document.querySelectorAll("[data-k]").forEach(x => x.classList.toggle("primary", x === b)); renderConv();
+  }));
+
+  /* ---------- Step 8: our real run ---------- */
+  const REAL = { steps: [250,500,750,1000,1250,1500], loss: [1.347,1.092,0.908,0.808,0.753,0.668], dice: [0.027,0.031,0.061,0.032,0.109,0.102] };
+
+  /* ---------- helpers ---------- */
+  function hex(c) {
+    if (c.startsWith("#")) { const n = c.length === 4 ? c.slice(1).split("").map(x => x + x).join("") : c.slice(1); return [0, 2, 4].map(i => parseInt(n.slice(i, i + 2), 16)); }
+    const m = c.match(/\d+/g); return m ? m.slice(0, 3).map(Number) : [0, 0, 0];
+  }
+  function lineChart(cv, series, o) {
+    const ctx = cv.getContext("2d"), W = cv.width, H = cv.height, L = 44, R = o.right ? 44 : 12, T = 12, B = 28;
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = "11px " + css("--f-mono"); ctx.lineWidth = 1;
+    const n = Math.max(2, ...series.map(s => s.data.length)), xs = o.x || null;
+    const px = i => L + (xs ? (xs[i] - xs[0]) / (xs[xs.length - 1] - xs[0]) : i / (n - 1)) * (W - L - R);
+    const py = (v, s) => T + (1 - (v - (s.ymin ?? o.ymin)) / ((s.ymax ?? o.ymax) - (s.ymin ?? o.ymin))) * (H - T - B);
+    for (let g = 0; g <= 4; g++) {
+      const y = T + g / 4 * (H - T - B); ctx.strokeStyle = css("--line"); ctx.beginPath(); ctx.moveTo(L, y); ctx.lineTo(W - R, y); ctx.stroke();
+      ctx.fillStyle = css("--muted"); ctx.textAlign = "right"; ctx.fillText((o.ymax - g / 4 * (o.ymax - o.ymin)).toFixed(o.ymax > 2 ? 1 : 2), L - 6, y + 4);
+      if (o.right) { ctx.textAlign = "left"; ctx.fillText((o.right.ymax - g / 4 * (o.right.ymax - o.right.ymin)).toFixed(2), W - R + 6, y + 4); }
+    }
+    ctx.textAlign = "center"; ctx.fillStyle = css("--muted");
+    if (xs) xs.forEach((x, i) => ctx.fillText(x, px(i), H - 8)); else { ctx.fillText(o.xlabel + " 0", L + 20, H - 8); ctx.fillText(String(Math.max(0, n - 1)), W - R - 10, H - 8); }
+    series.forEach(s => {
+      if (!s.data.length) return;
+      ctx.strokeStyle = s.color; ctx.lineWidth = 2.2; ctx.beginPath();
+      s.data.forEach((v, i) => (i ? ctx.lineTo(px(i), py(v, s)) : ctx.moveTo(px(i), py(v, s)))); ctx.stroke();
+      if (s.dots) s.data.forEach((v, i) => { ctx.fillStyle = s.color; ctx.beginPath(); ctx.arc(px(i), py(v, s), 3.5, 0, 7); ctx.fill(); });
+    });
+  }
+  function drawReal() {
+    lineChart($("real"), [
+      { data: REAL.loss, color: css("--signal"), dots: true },
+      { data: REAL.dice, color: css("--mask"), dots: true, ymin: 0, ymax: 0.15 }],
+      { x: REAL.steps, ymin: 0, ymax: 1.5, right: { ymin: 0, ymax: 0.15 } });
+  }
+
+  /* ---------- Step 5: play the filter sliding ---------- */
+  let slideTimer = null;
+  $("cplay").addEventListener("click", () => {
+    if (slideTimer) { clearInterval(slideTimer); slideTimer = null; $("cplay").textContent = "▶ Slide the filter"; return; }
+    let i = 0; $("cplay").textContent = "❚❚ Pause";
+    slideTimer = setInterval(() => {
+      sel = [Math.floor(i / 6), i % 6]; renderConv();
+      if (++i === 36) { clearInterval(slideTimer); slideTimer = null; $("cplay").textContent = "▶ Slide the filter"; }
+    }, 380);
+  });
+
+  /* ---------- Step 7: animated U-Net ---------- */
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  // A simplified chest slice: body, two dark lungs, heart, spine, and a tumour in the right lung.
+  const N0 = 128, base = new Float32Array(N0 * N0), msk = new Float32Array(N0 * N0);
+  const inE = (nx, ny, cx, cy, rx, ry) => ((nx - cx) / rx) ** 2 + ((ny - cy) / ry) ** 2 < 1;
+  for (let y = 0; y < N0; y++) for (let x = 0; x < N0; x++) {
+    const nx = (x - 64) / 64, ny = (y - 64) / 64, k = y * N0 + x; let v = 0.04;
+    if (inE(nx, ny, 0, 0.05, 0.92, 0.72)) v = 0.52;
+    if (inE(nx, ny, -0.4, -0.02, 0.3, 0.46) || inE(nx, ny, 0.4, -0.02, 0.3, 0.46)) v = 0.1;
+    if (inE(nx, ny, 0.08, 0.12, 0.2, 0.2)) v = 0.62;
+    if (inE(nx, ny, 0, 0.58, 0.1, 0.1)) v = 0.95;
+    if (inE(nx, ny, -0.43, -0.12, 0.13, 0.12)) { v = 0.8; msk[k] = 1; }
+    base[k] = v;
+  }
+  const down = (a, r) => { const s = N0 / r, o = new Float32Array(r * r);
+    for (let y = 0; y < r; y++) for (let x = 0; x < r; x++) { let t = 0; for (let i = 0; i < s; i++) for (let j = 0; j < s; j++) t += a[(y * s + i) * N0 + x * s + j]; o[y * r + x] = t / (s * s); } return o; };
+  const upN = (a, r) => { const o = new Float32Array(4 * r * r), R = 2 * r; for (let y = 0; y < R; y++) for (let x = 0; x < R; x++) o[y * R + x] = a[(y >> 1) * r + (x >> 1)]; return o; };
+  const at = (a, r, x, y) => a[Math.min(r - 1, Math.max(0, y)) * r + Math.min(r - 1, Math.max(0, x))];
+  const filt = (a, r, f) => { const o = new Float32Array(r * r); for (let y = 0; y < r; y++) for (let x = 0; x < r; x++) o[y * r + x] = f(x, y); return o; };
+  const edges = (a, r) => filt(a, r, (x, y) => Math.min(1, 2.2 * Math.abs(8 * at(a, r, x, y) - [-1, 0, 1].flatMap(i => [-1, 0, 1].map(j => at(a, r, x + i, y + j))).reduce((s, v) => s + v, 0) + at(a, r, x, y))));
+  const smooth = (a, r) => filt(a, r, (x, y) => [-1, 0, 1].flatMap(i => [-1, 0, 1].map(j => at(a, r, x + i, y + j))).reduce((s, v) => s + v, 0) / 9);
+  const CT = {}, MK = {};
+  [128, 64, 32, 16].forEach(r => { CT[r] = r === 128 ? base : down(base, r); MK[r] = r === 128 ? msk : down(msk, r); });
+
+  const L = [110, 250, 368, 456];   // vertical centre of each level
+  const SZ = { 128: 104, 64: 76, 32: 54, 16: 40 }, SLABS = { 1: 1, 2: 2, 16: 3, 32: 4, 64: 5, 128: 6 };
+  const ST = [
+    { x: 20,  lv: 0, r: 128, ch: 1,   kind: "ct",   title: "Input", cap: "One block of CT goes in: 32 slices of 128 × 128 pixels, 524,288 numbers." },
+    { x: 150, lv: 0, r: 128, ch: 16,  kind: "enc",  save: 0, title: "Encoder Block", cap: "16 filters slide over the block. Each one makes a feature map: one finds edges, one finds dark lung, one smooths. A copy is saved for later (skip)." },
+    { x: 250, lv: 1, r: 64,  ch: 16,  kind: "enc",  op: "pool", title: "Pool (shrink)", cap: "Height and width halve (slices kept, they are already 3 mm apart). Fewer pixels, but each now covers more of the body." },
+    { x: 250, lv: 1, r: 64,  ch: 32,  kind: "enc",  save: 1, title: "Encoder Block", cap: "32 feature maps. Patterns are bigger now: round blobs, tubes. Copy saved." },
+    { x: 350, lv: 2, r: 32,  ch: 32,  kind: "enc",  op: "pool", title: "Pool (shrink)", cap: "Everything halves again." },
+    { x: 350, lv: 2, r: 32,  ch: 64,  kind: "enc",  save: 2, title: "Encoder Block", cap: "64 feature maps. Some start to respond to the tumour-like ball. Copy saved." },
+    { x: 480, lv: 3, r: 16,  ch: 64,  kind: "enc",  op: "pool", title: "Pool (shrink)", cap: "The smallest picture: 16 × 16." },
+    { x: 480, lv: 3, r: 16,  ch: 128, kind: "enc",  title: "Bottleneck", cap: "128 kinds of pattern on a tiny grid. The network now knows WHAT is there (a tumour), but only roughly WHERE." },
+    { x: 620, lv: 2, r: 32,  ch: 64,  kind: "dec",  op: "up", title: "Up-convolution (grow)", cap: "The picture doubles in size. It is blocky: the fine detail was lost on the way down." },
+    { x: 620, lv: 2, r: 32,  ch: 64,  kind: "dec",  skip: 2, title: "Skip connection", cap: "The 64 sharp maps saved on the way down fly across and are stacked on. A Block mixes them: the shape gets crisper." },
+    { x: 710, lv: 1, r: 64,  ch: 32,  kind: "dec",  op: "up", title: "Up-convolution (grow)", cap: "Doubles again, still a little blocky." },
+    { x: 710, lv: 1, r: 64,  ch: 32,  kind: "dec",  skip: 1, title: "Skip connection", cap: "The 32 saved maps join. Edges sharpen again." },
+    { x: 790, lv: 0, r: 128, ch: 16,  kind: "dec",  op: "up", title: "Up-convolution (grow)", cap: "Back to full size, 128 × 128." },
+    { x: 790, lv: 0, r: 128, ch: 16,  kind: "dec",  skip: 0, title: "Skip connection", cap: "The finest detail from the very first Block joins. Now the outline can follow the real edge, pixel by pixel." },
+    { x: 940, lv: 0, r: 128, ch: 2,   kind: "out",  op: "head", title: "Head: the answer", cap: "Two scores per voxel: not-tumour and tumour. Wherever tumour wins, the voxel is painted red. That red shape is the outline the doctor sees." },
+  ];
+  const savedAt = n => ST.findIndex(s => s.save === n);
+  function featArr(i, k) {
+    const s = ST[i], r = s.r, c = CT[r];
+    if (s.kind === "ct") return c;
+    if (s.kind === "enc") {
+      const list = [edges(c, r), filt(c, r, (x, y) => (at(c, r, x, y) < 0.3 ? 0.9 : 0.05)), smooth(c, r), c];
+      if (s.lv >= 2) list.push(smooth(MK[r], r));
+      return s.ch === 128 && k === 0 ? smooth(MK[r], r) : list[(k + s.lv) % list.length];
+    }
+    const src = s.skip !== undefined || s.kind === "out" ? MK[r] : upN(MK[r / 2], r / 2);
+    if (s.kind === "out") return k ? src : filt(src, r, (x, y) => 1 - at(src, r, x, y));
+    return k % 2 ? (s.skip !== undefined ? edges(src, r) : smooth(src, r)) : filt(src, r, (x, y) => 0.85 * at(src, r, x, y) + 0.15 * at(c, r, x, y));
+  }
+  const cache = new Map();
+  function slabCanvas(i, k) {
+    const key = i + "-" + k; if (cache.has(key)) return cache.get(key);
+    const s = ST[i], r = s.r, a = featArr(i, k), cv = document.createElement("canvas"); cv.width = cv.height = r;
+    const ctx = cv.getContext("2d"), im = ctx.createImageData(r, r), red = hex(css("--mask")), redOut = s.kind === "out" && k === 1;
+    for (let p = 0; p < r * r; p++) {
+      const g = Math.round(18 + a[p] * 225), q = p * 4;
+      if (redOut) { const v = Math.round(18 + CT[128][p] * 225), m = MK[128][p] > 0.5; im.data[q] = m ? red[0] : v; im.data[q + 1] = m ? red[1] : v; im.data[q + 2] = m ? red[2] : v; }
+      else { im.data[q] = g; im.data[q + 1] = g; im.data[q + 2] = g + 6; }
+      im.data[q + 3] = 255;
+    }
+    ctx.putImageData(im, 0, 0); cache.set(key, cv); return cv;
+  }
+  const geom = (i, x) => { const s = ST[i], z = SZ[s.r]; return { x: x ?? s.x, y: L[s.lv] - z / 2, z, n: SLABS[s.ch] }; };
+  function drawTensor(ctx, i, alpha, x, bold) {
+    const s = ST[i], g = geom(i, x);
+    ctx.save(); ctx.globalAlpha = alpha; ctx.imageSmoothingEnabled = false;
+    for (let k = g.n - 1; k >= 0; k--) {
+      const dx = k * 7, dy = -k * 7;
+      ctx.drawImage(slabCanvas(i, k), g.x + dx, g.y + dy, g.z, g.z);
+      ctx.strokeStyle = css("--panel"); ctx.lineWidth = 2; ctx.strokeRect(g.x + dx, g.y + dy, g.z, g.z);
+      ctx.strokeStyle = css("--ink"); ctx.lineWidth = 1; ctx.strokeRect(g.x + dx, g.y + dy, g.z, g.z);
+    }
+    ctx.fillStyle = css("--ink"); ctx.font = (bold ? "600 " : "") + "11px " + css("--f-mono"); ctx.textAlign = "center";
+    ctx.fillText(`${s.ch}×${s.lv === 0 ? 32 : s.lv === 1 ? 32 : s.lv === 2 ? 16 : 8}×${s.r}×${s.r}`, g.x + g.z / 2 + (g.n - 1) * 3.5, g.y + g.z + 16);
+    ctx.restore();
+  }
+  const centre = i => { const g = geom(i); return [g.x + g.z / 2, L[ST[i].lv]]; };
+  function arrow(ctx, a, b, color, dashed) {
+    ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2.2; if (dashed) ctx.setLineDash([7, 6]);
+    ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.setLineDash([]);
+    const ang = Math.atan2(b[1] - a[1], b[0] - a[0]); ctx.beginPath(); ctx.moveTo(b[0], b[1]);
+    ctx.lineTo(b[0] - 10 * Math.cos(ang - 0.4), b[1] - 10 * Math.sin(ang - 0.4)); ctx.lineTo(b[0] - 10 * Math.cos(ang + 0.4), b[1] - 10 * Math.sin(ang + 0.4)); ctx.fill(); ctx.restore();
+  }
+  let cur = 0, prog = 1, playing = false, raf = 0, lastT = 0;
+  function renderU() {
+    const cv = $("ucv"), ctx = cv.getContext("2d"); ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.fillStyle = css("--muted"); ctx.font = "12px " + css("--f-mono"); ctx.textAlign = "left";
+    ctx.fillText("ENCODER · learns WHAT", 150, 506); ctx.fillText("DECODER · learns WHERE", 640, 506);
+    // arrows between reached stages that move
+    for (let i = 1; i <= cur; i++) {
+      const s = ST[i]; if (!s.op) continue;
+      const a = centre(i - 1), b = centre(i), col = s.op === "pool" ? css("--mask") : s.op === "up" ? css("--good") : css("--signal");
+      const gA = geom(i - 1), from = s.op === "pool" ? [a[0], a[1] + gA.z / 2] : s.op === "up" ? [gA.x + gA.z + (gA.n - 1) * 7, a[1] - gA.z / 2] : [gA.x + gA.z + (gA.n - 1) * 7 + 4, a[1]];
+      const gB = geom(i), to = s.op === "pool" ? [gB.x - 4, b[1]] : s.op === "up" ? [gB.x - 4, b[1] + gB.z / 2] : [gB.x - 4, b[1]];
+      ctx.globalAlpha = i === cur ? Math.min(1, prog * 3) : 1; arrow(ctx, from, to, col); ctx.globalAlpha = 1;
+    }
+    // finished skips: dashed lines from the saved encoder map to the decoder
+    for (let i = 0; i <= cur; i++) if (ST[i].skip !== undefined && (i < cur || prog >= 1)) {
+      const e = savedAt(ST[i].skip), ge = geom(e), gd = geom(i);
+      arrow(ctx, [ge.x + ge.z + (ge.n - 1) * 7 + 6, L[ST[e].lv] + ge.z / 2 - 6], [gd.x - 6, L[ST[i].lv] + gd.z / 2 - 6], css("--muted"), true);
+    }
+    // latest tensor at each position (the U builds up as it plays)
+    const latest = new Map(); for (let i = 0; i <= cur; i++) latest.set(ST[i].x + "," + ST[i].lv, i);
+    for (const i of latest.values()) drawTensor(ctx, i, i === cur ? Math.min(1, 0.25 + prog * 1.5) : 0.9, undefined, i === cur);
+    // a skip in progress: the saved maps fly across
+    const s = ST[cur];
+    if (s.skip !== undefined && prog < 1) {
+      const e = savedAt(s.skip), ease = prog < 0.5 ? 2 * prog * prog : 1 - (-2 * prog + 2) ** 2 / 2;
+      drawTensor(ctx, e, 0.95, ST[e].x + (s.x - ST[e].x) * ease, false);
+    }
+    $("ucap").innerHTML = `<strong>${cur + 1} / ${ST.length} · ${s.title}.</strong> ${s.cap}`;
+    document.querySelectorAll("#udots button").forEach((b, i) => b.classList.toggle("on", i === cur));
+    $("uplay").textContent = playing ? "❚❚ Pause" : cur === ST.length - 1 && prog >= 1 ? "↺ Play again" : "▶ Play";
+  }
+  function tick(ts) {
+    raf = 0; const dt = lastT ? ts - lastT : 16; lastT = ts;
+    prog = Math.min(1, prog + dt / (2200 / +$("uspeed").value));
+    if (prog >= 1 && playing) { if (cur < ST.length - 1) { cur++; prog = 0; } else playing = false; }
+    renderU();
+    if (prog < 1 || playing) raf = requestAnimationFrame(tick); else lastT = 0;
+  }
+  const kick = () => { if (!raf) { lastT = 0; raf = requestAnimationFrame(tick); } };
+  function goU(i) { cur = Math.max(0, Math.min(ST.length - 1, i)); prog = reduced ? 1 : 0; renderU(); if (!reduced) kick(); }
+  $("udots").innerHTML = ST.map((s, i) => `<button type="button" aria-label="Stage ${i + 1}: ${s.title}">${i + 1}</button>`).join("");
+  document.querySelectorAll("#udots button").forEach((b, i) => b.addEventListener("click", () => { playing = false; goU(i); }));
+  $("uplay").addEventListener("click", () => {
+    if (playing) { playing = false; renderU(); return; }
+    if (cur === ST.length - 1 && prog >= 1) cur = -1;
+    playing = !reduced; goU(cur + 1);
+    if (reduced) renderU();
+  });
+  $("unext").addEventListener("click", () => { playing = false; goU(cur + 1); });
+  $("uback").addEventListener("click", () => { playing = false; goU(cur - 1); });
+  $("ureset").addEventListener("click", () => { playing = false; goU(0); });
+
+  function drawAll() { drawGate(); drawXor(); renderConv(); drawReal(); cache.clear(); renderU(); }
+  init(); sel = [2, 1]; drawAll();
+  const mq = matchMedia("(prefers-color-scheme: dark)");
+  mq.addEventListener?.("change", drawAll);
+  new MutationObserver(drawAll).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+})();
+</script>

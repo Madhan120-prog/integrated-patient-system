@@ -79,6 +79,13 @@ cd model && ../.venv/bin/python train.py --data ../data/nnunet/Dataset001_LungGT
 - [ ] Decide: fix anything found, then download all 422 (27.5 GB) and run all 5 folds of E1 and E3
 - [ ] Then continue with the experiment table (E2, E4 ...)
 
+- [x] Full runs done 2026-10-30: E1 and E3 on 415 patients, 5 folds each, plus the final test (results in EXPERIMENTS.md)
+
+## Later: report learning and pelvis (added 2026-10-30, details in README section 6)
+- [ ] Apply for Stanford AIMI data use agreement for Merlin Plus (pelvis/abdomen CT + reports)
+- [ ] E14: report supervision (R-Super idea) on lung, using ReXGroundingCT / CT-RATE reports
+- [ ] E15: pelvis model on Merlin Plus, Merlin-Cancer-Super as baseline
+
 ## Rules
 - Only public data on HPC. Clinic data stays off it until the hospital and university both approve.
 - Never run training on the login node.
