@@ -6,3 +6,5 @@ pillow
 torch
 tcia_utils
 scipy
+monai
+einops

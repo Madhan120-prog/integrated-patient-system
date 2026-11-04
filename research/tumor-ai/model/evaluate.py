@@ -17,8 +17,7 @@ import SimpleITK as sitk
 import torch
 from scipy import ndimage
 
-from train import largest_piece, predict_prob
-from unet3d import UNet3D
+from train import build, largest_piece, predict_prob
 
 SIZE_GROUPS = [("small", 0, 20), ("medium", 20, 100), ("large", 100, float("inf"))]   # tumour volume, cc
 
@@ -54,24 +53,28 @@ def main():
     ap.add_argument("--ours", nargs="*", default=[], help="run names under runs/, one per fold")
     ap.add_argument("--nnunet-pred", default=None, help="folder of nnUNetv2_predict outputs for the test patients")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--cutoff", type=float, default=0.5, help="our U-Net: tumour cut-off (choose it on validation, never on test)")
+    ap.add_argument("--gauss", action="store_true", help="our U-Net: centre-weighted blocks")
     a = ap.parse_args()
+    if Path(a.out).exists():
+        raise SystemExit(f"{a.out} already exists (results are never overwritten). Use a new --out.")
 
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     data = Path(a.data)
     nets = []
     for name in a.ours:
         ck = torch.load(Path("runs") / name / "best.pt", map_location=device)
-        net = UNet3D(base=ck["args"]["base"]).to(device)
+        net = build(ck["args"]).to(device)
         net.load_state_dict(ck["model"])
-        nets.append((net.eval(), ck["args"]["patch"]))
+        nets.append((net.eval(), ck["args"]["patch"], ck.get("norm")))
 
     rows = []
     for pid in json.load(open(a.splits))["test"]:
         img, spacing = read(data / "imagesTr" / f"{pid}_0000.nii.gz")
         gt, _ = read(data / "labelsTr" / f"{pid}.nii.gz")
         if nets:
-            prob = np.mean([predict_prob(n, img.astype(np.int16), p, device) for n, p in nets], axis=0)
-            rows.append({"patient": pid, "model": "our U-Net", **scores(largest_piece(prob > 0.5), gt, spacing)})
+            prob = np.mean([predict_prob(n, img.astype(np.int16), p, device, nm, a.gauss) for n, p, nm in nets], axis=0)
+            rows.append({"patient": pid, "model": "our U-Net", **scores(largest_piece(prob > a.cutoff), gt, spacing)})
         if a.nnunet_pred:
             pred, _ = read(Path(a.nnunet_pred) / f"{pid}.nii.gz")
             rows.append({"patient": pid, "model": "nnU-Net", **scores(largest_piece(pred > 0), gt, spacing)})

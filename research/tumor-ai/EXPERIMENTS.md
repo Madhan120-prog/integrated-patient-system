@@ -5,6 +5,31 @@
 - [x] **E3-small**: our U-Net, 50 patients, fold 0. Best Dice 0.300 (job 3516111, 1 h 32 min). Good on 4 of 9 patients (0.57 to 0.72), missed 5 (0.00). Re-scored with overlapping prediction + largest piece (job 3517030): 0.297, no gain; the misses are real misses
 - [x] **E1**: nnU-Net, 415 usable patients, 5 folds (job 3517863, ~2 h 55 min per fold). Val Dice 0.581 / 0.501 / 0.474 / 0.611 / 0.469, mean 0.527
 - [x] **Final test** (job 3519743, 60 locked patients, 5 folds averaged): nnU-Net Dice 0.591, found 47/60, volume -6.5%; our U-Net Dice 0.468, found 40/60, volume -39%. Small tumours (<20 cc): 0.449 vs 0.244. Our U-Net outlines too small and misses small tumours. Scores in `results/test_scores.csv` on BigBlue
+
+## Batch 1: independent experiments, fold 0, all submitted together (submitted 2026-11-02)
+Each run changes ONE thing from E3 fold 0 (val Dice 0.450) or nnU-Net 3D fold 0 (0.581). Every run keeps its own
+folder `runs/<name>/` (settings.json, log.csv, best.pt, summary.json) and refuses to overwrite one that exists.
+One table of everything: `module load python/3.12.9/gcc.8.5.0 && cd ~/tumor-ai/model && ../.venv/bin/python collect.py` (saved to `results/all_runs.csv`).
+
+- [ ] `e4af_predict_fold0-4`: E4a cut-off 0.2/0.3/0.4/0.5 and E4f centre-weighted blocks, on the E3 models (no training). Job: 3544322_[0-4]. Folds 0-2 done; the plain_0.5 rows equal E3 exactly (check passed).
+  Best: **plain cut-off 0.3**, +0.090 / +0.069 / +0.056 on folds 0 / 1 / 2 (mean 0.494 vs E3 0.423), size vs doctor
+  from -46/-33/-44% to -10/-9/-3%. Centre-weighted at 0.5 also helps (+0.068 / +0.051 / +0.053) but with a lower
+  cut-off it outlines too big (+15 to +25%). Pick the cut-off once folds 3-4 are in, then re-run the final test with it
+- [x] `e4b_deepsup_fold0`: E4b deep supervision. Job: 3544323_0. **0.453 (+0.004)**, found 48/71, 4 h 54 min
+- [x] `e4c_moreaug_fold0`: E4c + rotation, zoom, gamma. Job: 3544323_1. **0.445 (-0.004)**, found 51/71, 4 h 51 min
+- [x] `e4d_zscore_fold0`: E4d nnU-Net brightness scaling. Job: 3544323_2. **0.464 (+0.014)**, found 51/71, 4 h 52 min
+- [x] `e4e_bigger_fold0`: E4e 5 levels, up to 320 channels. Job: 3544323_3. **0.438 (-0.012)**, found 50/71, 4 h 58 min
+- [ ] `e6_swin_fold0`: E6 Swin UNETR. Job: 3544323_4
+- [x] `e9_frac25_fold0`, `e9_frac50_fold0`: E9 25% / 50% of training patients (100% = E3). Job: 3544323 (tasks 5, 6). **25%: 0.448 (-0.002)**, found 46/71; **50%: 0.416 (-0.034)**, found 47/71
+- [ ] `e12_hu_wide_fold0`, `e12_flip_fold0`, `e12_patch_big_fold0`: E12 HU window, flip, bigger block. Job: 3544323 (tasks 7, 8, 9). **HU wide: 0.428 (-0.021)**, found 47/71; **flip: 0.451 (+0.002)**, found 50/71; bigger block still running (0.475 so far)
+- [ ] `nnunet_2d_fold0`: E2 nnU-Net 2D. Job: 3544324
+
+Reading so far (2026-11-03, 6 of 16 done): every finished change is within about +-0.03 of E3, and 25% of the
+patients scores the same as 100% while 50% scores lower. So one run on one fold cannot separate these changes from
+chance; the gap to nnU-Net is not about the amount of data. Swin was at 0.512 (+0.063) part way through.
+
+Later batches (need something first): E4d part 2 resampling (new data prep), E5, E7 and E8 (pre-trained weights), E10, E11, E13.
+
 - [ ] **E2**: 2D vs 3D (nnU-Net)
 - [x] **E3**: our U-Net, 415 usable patients, 5 folds (job 3517862, ~4 h 48 min per fold). Best val Dice 0.450 / 0.430 / 0.388 / 0.473 / 0.317, mean 0.412
 - [ ] **E4**: our U-Net + one change for small tumours
