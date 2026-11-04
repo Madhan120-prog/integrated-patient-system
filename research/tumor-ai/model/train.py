@@ -56,6 +56,18 @@ def load(data: Path, pid: str):
     return img, lab
 
 
+def crop_body(img, lab, margin=10):
+    """--crop-body: cut the scan down to the box around the body (HU > -500) plus a margin, so random
+    training blocks land on the patient instead of the air and table around them."""
+    body = img > -500
+    sl = []
+    for ax in range(3):
+        nz = np.flatnonzero(body.any(axis=tuple(i for i in range(3) if i != ax)))
+        sl.append(slice(max(int(nz[0]) - margin, 0), min(int(nz[-1]) + margin + 1, img.shape[ax])) if nz.size else slice(None))
+    sl = tuple(sl)
+    return (img[sl], lab[sl]) if lab[sl].sum() == lab.sum() else (img, lab)   # never cut off tumour
+
+
 def normalise(hu: np.ndarray, norm=None) -> np.ndarray:
     """Clip to the useful range, then scale so the network sees small, steady numbers."""
     n = norm or window_norm()
@@ -221,6 +233,8 @@ def main():
     ap.add_argument("--hu", type=float, nargs=2, default=[HU_MIN, HU_MAX], help="E12: HU window for --norm window")
     ap.add_argument("--flip", action="store_true", help="E12: random left-right flip")
     ap.add_argument("--frac", type=float, default=1.0, help="E9: share of the fold's training patients to use")
+    ap.add_argument("--opt", choices=["adamw", "sgd"], default="adamw", help="E4g: sgd = nnU-Net's optimizer (use --lr 0.01)")
+    ap.add_argument("--crop-body", action="store_true", help="E4h: training blocks only from the box around the body")
     ap.add_argument("--exp", default="", help="experiment id for the record, e.g. E4b")
     ap.add_argument("--change", default="", help="what differs from the baseline, in words, for the record")
     # prediction-only experiments
@@ -228,6 +242,7 @@ def main():
     ap.add_argument("--from", dest="from_run", default=None, help="eval-only: the finished run to score")
     ap.add_argument("--cutoffs", type=float, nargs="+", default=[0.5], help="eval-only: tumour cut-offs to try")
     ap.add_argument("--gauss", action="store_true", help="eval-only: also try centre-weighted blocks")
+    ap.add_argument("--on", choices=["val", "train"], default="val", help="eval-only: score the run's val or its training patients")
     a = ap.parse_args()
 
     rng = random.Random(a.seed)
@@ -244,12 +259,12 @@ def main():
         fold = json.load(open(a.splits))["folds"][ck["args"]["fold"]]
         run = new_run_dir(a.name) if a.from_run else None
         if run:
-            write_json(run / "settings.json", {**record, "from": src, "fold": ck["args"]["fold"], "args": vars(a)})
+            write_json(run / "settings.json", {**record, "from": src, "fold": ck["args"]["fold"], "scored_on": a.on, "args": vars(a)})
         net = build(ck["args"]).to(device).eval()
         net.load_state_dict(ck["model"])
         variants = [("plain", False)] + ([("gauss", True)] if a.gauss else [])
         per = {f"{v}_{c}": {} for v, _ in variants for c in a.cutoffs}
-        for p in fold["val"]:
+        for p in fold[a.on]:
             img, lab = load(data, p)
             for v, g in variants:
                 prob = predict_prob(net, img, ck["args"]["patch"], device, ck.get("norm"), g)
@@ -264,7 +279,7 @@ def main():
             print(f"{src} {r['variant']:<10} val Dice {r['val_dice']:.3f}  found {r['found']}/{r['n_val']}  "
                   f"size vs doctor {r['median_vol_diff_pct']:+.1f}%")
         if run:
-            write_json(run / "summary.json", {**record, "from": src, "fold": ck["args"]["fold"], "rows": rows,
+            write_json(run / "summary.json", {**record, "from": src, "fold": ck["args"]["fold"], "scored_on": a.on, "rows": rows,
                                               "per_patient": per, "finished": time.strftime("%Y-%m-%d %H:%M:%S")})
         return
 
@@ -273,6 +288,8 @@ def main():
     train_ids = fold["train"] if a.frac >= 1 else random.Random(a.seed).sample(fold["train"], round(len(fold["train"]) * a.frac))
     # ponytail: all training scans held in RAM as int16 (~30 MB each); switch to memory-mapped files past ~500 scans.
     train = [load(data, p) for p in train_ids]
+    if a.crop_body:
+        train = [crop_body(img, lab) for img, lab in train]
     val = {p: load(data, p) for p in fold["val"]}
     norm = zscore_norm(train) if a.norm == "zscore" else window_norm(*a.hu)
     write_json(run / "settings.json", {**record, "fold": a.fold, "args": vars(a), "norm": norm,
@@ -281,7 +298,10 @@ def main():
     net = build(vars(a)).to(device)
     print(f"{run.name}: {a.exp} {a.change} | {sum(p.numel() for p in net.parameters()) / 1e6:.2f} M weights, "
           f"{len(train)} training / {len(val)} validation patients", flush=True)
-    opt = torch.optim.AdamW(net.parameters(), lr=a.lr, weight_decay=1e-4)
+    if a.opt == "sgd":      # nnU-Net: SGD, Nesterov momentum 0.99, weight decay 3e-5, gradients clipped at 12
+        opt = torch.optim.SGD(net.parameters(), lr=a.lr, momentum=0.99, nesterov=True, weight_decay=3e-5)
+    else:
+        opt = torch.optim.AdamW(net.parameters(), lr=a.lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.PolynomialLR(opt, total_iters=a.steps, power=0.9)
     log_file = open(run / "log.csv", "w", newline="")
     log = csv.writer(log_file)
@@ -304,6 +324,8 @@ def main():
         loss = loss_fn(net(x), y)
         opt.zero_grad()
         loss.backward()
+        if a.opt == "sgd":
+            torch.nn.utils.clip_grad_norm_(net.parameters(), 12)
         opt.step()
         sched.step()
         losses.append(loss.item())

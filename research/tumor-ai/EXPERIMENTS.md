@@ -28,6 +28,15 @@ Reading so far (2026-11-03, 6 of 16 done): every finished change is within about
 patients scores the same as 100% while 50% scores lower. So one run on one fold cannot separate these changes from
 chance; the gap to nnU-Net is not about the amount of data. Swin was at 0.512 (+0.063) part way through.
 
+## Batch 2: fold 0, queued behind batch 1 (built 2026-11-03)
+- [ ] `d1_trainfit_fold0`: D1 E3 fold 0 scored on its own 284 training patients (no training). Job:
+- [ ] `e3_seed7_fold0`: E3 repeated with another seed, to measure how much a score moves by chance. Job:
+- [ ] `e4g_sgd_fold0`: E4g nnU-Net optimizer (SGD, momentum 0.99, lr 0.01). Job:
+- [ ] `e4h_body_fold0`: E4h training blocks only from the box around the body. Job:
+- [ ] `e4_combo_fold0`: brightness scaling + deep supervision + more augmentation + bigger block + body box. Job:
+- [ ] `e4_combo_sgd_fold0`: the combo + nnU-Net optimizer. Job:
+- [ ] Final test again with the cut-off chosen on validation (all 5 e4af folds) -> `results/test_scores_cutoff.csv`. Job:
+
 Later batches (need something first): E4d part 2 resampling (new data prep), E5, E7 and E8 (pre-trained weights), E10, E11, E13.
 
 - [ ] **E2**: 2D vs 3D (nnU-Net)

@@ -21,7 +21,8 @@ def ours(runs):
     for run in sorted(p for p in runs.iterdir() if p.is_dir()):
         s = json.loads((run / "summary.json").read_text()) if (run / "summary.json").exists() else None
         if s and "rows" in s:                                   # prediction-only run: one row per variant
-            rows += [{"name": f"{run.name} [{r['variant']}]", "exp": s["exp"], "change": f"{s['change']} [{r['variant']}]",
+            on = " on TRAINING patients" if s.get("scored_on") == "train" else ""
+            rows += [{"name": f"{run.name} [{r['variant']}]", "exp": s["exp"], "change": f"{s['change']} [{r['variant']}]{on}",
                       "model": "our U-Net", "fold": s["fold"], "val_dice": r["val_dice"], "found": f"{r['found']}/{r['n_val']}",
                       "size_vs_doctor_pct": r["median_vol_diff_pct"], "job": s["job"], "finished": s["finished"]}
                      for r in s["rows"]]
