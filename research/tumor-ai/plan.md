@@ -81,6 +81,31 @@ cd model && ../.venv/bin/python train.py --data ../data/nnunet/Dataset001_LungGT
 
 - [x] Full runs done 2026-10-30: E1 and E3 on 415 patients, 5 folds each, plus the final test (results in EXPERIMENTS.md)
 
+## After batch 3: more lung data (E11 first, then E10) (planned 2026-11-05)
+Why: E9 showed more patients *of the same kind* add little (25% scored like 100%). What can help is *different*
+data (other hospitals, scanners, tumour sizes). So first measure how our best model does on another hospital (E11),
+then add data where it fails (E10).
+
+| Dataset (public, TCIA) | What it has | Use | Check before use |
+|---|---|---|---|
+| NSCLC-Radiogenomics (Stanford / Palo Alto VA) | ~211 patients, ~144 with a primary-tumour mask (DICOM SEG, 1 class) | **E11 outside test** first; later half to training (E10) | counts and licence (listed CC BY 3.0) on the TCIA page |
+| Medical Segmentation Decathlon, Task06 Lung | ~63 training CTs with tumour masks, already NIfTI | E10: add to training | may share patients with Radiogenomics: match before splitting; CC BY-SA 4.0 |
+| NSCLC-Radiomics-Interobserver1 (Maastro) | 22 patients, 21 with GTVs from 5 oncologists each (RTSTRUCT + SEG) | **Evaluation only**: how well doctors agree = realistic ceiling; compare model vs each doctor | same hospital as our data: check those patients are not in our training folds |
+| LIDC-IDRI | ~1,000 chest CTs, small nodules outlined by up to 4 radiologists | Optional (E10b): small-tumour practice | label means "nodule", not radiotherapy GTV: train as a separate run, never mixed blindly |
+
+Preparation, so new data lines up with what we have (same steps as `prep/01`-`03`):
+1. **Download** with `prep/00_download.py` (TCIA) or the MSD archive; one folder per dataset under `data/<dataset>/`.
+2. **Inventory**: slices, spacing, scanner, label names; flag uneven spacing and missing tumour masks (as for Lung1).
+3. **Convert** to the same NIfTI layout: CT in HU as `imagesTr/<id>_0000.nii.gz`, label 1 = tumour as `labelsTr/<id>.nii.gz`.
+   New readers: DICOM SEG (Radiogenomics, Interobserver) via `highdicom` or `pydicom-seg`; MSD is NIfTI already (check HU and orientation).
+4. **Same meaning of "tumour"**: primary tumour only (like GTV-1); drop node labels; note where the source drew differently.
+5. **Remove duplicates** across datasets (same patient in two sets) by matching IDs and scan dates/sizes.
+6. **QC picture** for every case, as for Lung1.
+7. **Split**: keep our 60 locked Lung1 test patients unchanged; new training data only goes into the training folds;
+   an outside-test dataset stays wholly separate and is used once.
+8. **Spacing**: keep native spacing like now (our model is built for 3 mm slices); flag scans with thin slices (~1 mm)
+   and decide then whether to resample them to 3 mm.
+
 ## Later: report learning and pelvis (added 2026-10-30, details in README section 6)
 - [ ] Apply for Stanford AIMI data use agreement for Merlin Plus (pelvis/abdomen CT + reports)
 - [ ] E14: report supervision (R-Super idea) on lung, using ReXGroundingCT / CT-RATE reports

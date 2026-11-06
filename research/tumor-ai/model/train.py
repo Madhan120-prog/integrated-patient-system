@@ -118,23 +118,26 @@ def more_augment(x, y, rng, p=0.3):
     return x, y
 
 
-def dice_ce_loss(logits, target):
-    """Cross-entropy teaches every voxel; soft Dice stops the tiny tumour from being ignored."""
+def dice_ce_loss(logits, target, ab=(0.5, 0.5)):
+    """Cross-entropy teaches every voxel; soft Dice stops the tiny tumour from being ignored.
+    ab = (weight of false alarms, weight of misses). (0.5, 0.5) is plain Dice; (0.3, 0.7) is the
+    Tversky loss, which punishes missed tumour more than extra outline."""
     ce = F.cross_entropy(logits, target)
     p = logits.softmax(1)[:, 1]
     t = (target == 1).float()
-    dice = (2 * (p * t).sum() + 1) / (p.sum() + t.sum() + 1)
-    return ce + (1 - dice)
+    tp, fp, fn = (p * t).sum(), (p * (1 - t)).sum(), ((1 - p) * t).sum()
+    overlap = (tp + 0.5) / (tp + ab[0] * fp + ab[1] * fn + 0.5)
+    return ce + (1 - overlap)
 
 
-def loss_fn(out, y):
+def loss_fn(out, y, ab=(0.5, 0.5)):
     """One output: Dice+CE. Deep supervision (a list): the same loss at each size, halving the weight per level."""
     if not isinstance(out, list):
-        return dice_ce_loss(out, y)
+        return dice_ce_loss(out, y, ab)
     w = [0.5 ** i for i in range(len(out))]
     ys = [y if o.shape[2:] == y.shape[1:] else F.interpolate(y[:, None].float(), size=o.shape[2:], mode="nearest")[:, 0].long()
           for o in out]
-    return sum(wi * dice_ce_loss(o, yi) for wi, o, yi in zip(w, out, ys)) / sum(w)
+    return sum(wi * dice_ce_loss(o, yi, ab) for wi, o, yi in zip(w, out, ys)) / sum(w)
 
 
 def build(args: dict):
@@ -175,6 +178,20 @@ def predict_prob(net, img, size, device, norm=None, gauss=False):
                 prob[sl] += net(block).softmax(1)[0, 1].cpu().numpy() * w
                 count[sl] += w
     return (prob / count)[:shape[0], :shape[1], :shape[2]]
+
+
+def confident_piece(mask, prob):
+    """Keep the connected piece the model is most sure of (highest probability inside it), not the biggest,
+    so a large false alarm cannot push out a small real tumour."""
+    pieces, n = ndimage.label(mask)
+    if n > 1:
+        mask = pieces == 1 + int(np.argmax(ndimage.maximum(prob, pieces, range(1, n + 1))))
+    return mask.astype(np.uint8)
+
+
+def one_piece(prob, cutoff, how="largest"):
+    m = prob > cutoff
+    return confident_piece(m, prob) if how == "confident" else largest_piece(m)
 
 
 def largest_piece(mask):
@@ -235,6 +252,8 @@ def main():
     ap.add_argument("--frac", type=float, default=1.0, help="E9: share of the fold's training patients to use")
     ap.add_argument("--opt", choices=["adamw", "sgd"], default="adamw", help="E4g: sgd = nnU-Net's optimizer (use --lr 0.01)")
     ap.add_argument("--crop-body", action="store_true", help="E4h: training blocks only from the box around the body")
+    ap.add_argument("--fg", type=float, default=1 / 3, help="share of training blocks centred on tumour (E3: 1/3)")
+    ap.add_argument("--loss", choices=["dice", "tversky"], default="dice", help="tversky = misses cost more than extra outline")
     ap.add_argument("--exp", default="", help="experiment id for the record, e.g. E4b")
     ap.add_argument("--change", default="", help="what differs from the baseline, in words, for the record")
     # prediction-only experiments
@@ -242,6 +261,8 @@ def main():
     ap.add_argument("--from", dest="from_run", default=None, help="eval-only: the finished run to score")
     ap.add_argument("--cutoffs", type=float, nargs="+", default=[0.5], help="eval-only: tumour cut-offs to try")
     ap.add_argument("--gauss", action="store_true", help="eval-only: also try centre-weighted blocks")
+    ap.add_argument("--pieces", nargs="+", choices=["largest", "confident"], default=["largest"],
+                    help="eval-only: which connected piece to keep")
     ap.add_argument("--on", choices=["val", "train"], default="val", help="eval-only: score the run's val or its training patients")
     a = ap.parse_args()
 
@@ -263,14 +284,15 @@ def main():
         net = build(ck["args"]).to(device).eval()
         net.load_state_dict(ck["model"])
         variants = [("plain", False)] + ([("gauss", True)] if a.gauss else [])
-        per = {f"{v}_{c}": {} for v, _ in variants for c in a.cutoffs}
+        name = lambda v, c, h: f"{v}_{c}" + ("" if h == "largest" else f"_{h}")
+        per = {name(v, c, h): {} for v, _ in variants for c in a.cutoffs for h in a.pieces}
         for p in fold[a.on]:
             img, lab = load(data, p)
             for v, g in variants:
                 prob = predict_prob(net, img, ck["args"]["patch"], device, ck.get("norm"), g)
-                for c in a.cutoffs:
-                    m = largest_piece(prob > c)
-                    per[f"{v}_{c}"][p] = {"dice": round(float(dice(m, lab)), 4),
+                for c, h in [(c, h) for c in a.cutoffs for h in a.pieces]:
+                    m = one_piece(prob, c, h)
+                    per[name(v, c, h)][p] = {"dice": round(float(dice(m, lab)), 4),
                                          "vol_diff_pct": round(100 * (int(m.sum()) - int(lab.sum())) / int(lab.sum()), 1)}
         rows = [{"variant": k, "val_dice": round(float(np.mean([r["dice"] for r in d.values()])), 4),
                  "found": sum(r["dice"] > 0.1 for r in d.values()), "n_val": len(d),
@@ -311,7 +333,7 @@ def main():
     for step in range(1, a.steps + 1):
         xs, ys = [], []
         for _ in range(a.batch):
-            xi, yi = sample(*rng.choice(train), a.patch, 1 / 3, rng)
+            xi, yi = sample(*rng.choice(train), a.patch, a.fg, rng)
             if a.flip and rng.random() < 0.5:
                 xi, yi = xi[..., ::-1], yi[..., ::-1]
             xs.append(augment(normalise(xi, norm), rng))
@@ -321,7 +343,7 @@ def main():
         if a.aug == "more":
             x, y = more_augment(x, y, rng)
         net.train()
-        loss = loss_fn(net(x), y)
+        loss = loss_fn(net(x), y, (0.3, 0.7) if a.loss == "tversky" else (0.5, 0.5))
         opt.zero_grad()
         loss.backward()
         if a.opt == "sgd":

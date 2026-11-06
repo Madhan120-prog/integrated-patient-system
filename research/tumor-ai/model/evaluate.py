@@ -17,7 +17,7 @@ import SimpleITK as sitk
 import torch
 from scipy import ndimage
 
-from train import build, largest_piece, predict_prob
+from train import build, largest_piece, one_piece, predict_prob
 
 SIZE_GROUPS = [("small", 0, 20), ("medium", 20, 100), ("large", 100, float("inf"))]   # tumour volume, cc
 
@@ -55,6 +55,7 @@ def main():
     ap.add_argument("--out", required=True)
     ap.add_argument("--cutoff", type=float, default=0.5, help="our U-Net: tumour cut-off (choose it on validation, never on test)")
     ap.add_argument("--gauss", action="store_true", help="our U-Net: centre-weighted blocks")
+    ap.add_argument("--piece", choices=["largest", "confident"], default="largest", help="our U-Net: which piece to keep")
     a = ap.parse_args()
     if Path(a.out).exists():
         raise SystemExit(f"{a.out} already exists (results are never overwritten). Use a new --out.")
@@ -74,7 +75,7 @@ def main():
         gt, _ = read(data / "labelsTr" / f"{pid}.nii.gz")
         if nets:
             prob = np.mean([predict_prob(n, img.astype(np.int16), p, device, nm, a.gauss) for n, p, nm in nets], axis=0)
-            rows.append({"patient": pid, "model": "our U-Net", **scores(largest_piece(prob > a.cutoff), gt, spacing)})
+            rows.append({"patient": pid, "model": "our U-Net", **scores(one_piece(prob, a.cutoff, a.piece), gt, spacing)})
         if a.nnunet_pred:
             pred, _ = read(Path(a.nnunet_pred) / f"{pid}.nii.gz")
             rows.append({"patient": pid, "model": "nnU-Net", **scores(largest_piece(pred > 0), gt, spacing)})
