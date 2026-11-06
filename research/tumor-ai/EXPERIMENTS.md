@@ -64,8 +64,8 @@ Every fold-0 idea runs with 2 seeds (42, 7). Baseline = bigger block, fold 0: `e
 ## Batch 4: first two jobs, independent of batch 3 (built 2026-11-05)
 - [ ] `b4_nnunet_prob`: nnU-Net prediction again with probabilities saved, folds 0-4 on their own validation patients + 5-fold test -> `data/full/prob_nnunet/` (no training). Job: 3556788_[0-5] (tasks 0-4 validation folds, 5 test)
 - [ ] `b4_swin_big_fold0`: Swin UNETR + bigger block 64x192x192 (our two best single changes together). Job: 3556789
-- [ ] `b4_resenc_prep` + `b4_resenc` folds 0-4: nnU-Net ResEnc L preset, 250 epochs like E1 (network is the only change). Job:
-- [ ] `b4_nnunet_1000ep` folds 0-4: nnU-Net 3d_fullres at its normal 1000 epochs (E1 used 250). Job:
+- [ ] `b4_resenc_prep` + `b4_resenc` folds 0-4: nnU-Net ResEnc L preset, 250 epochs like E1 (network is the only change). Job: prep 3556864, training 3556865_[0-4] (waits for prep)
+- [ ] `b4_nnunet_1000ep` folds 0-4: nnU-Net 3d_fullres at its normal 1000 epochs (E1 used 250). Job: 3556866_[0-4]
 - Not yet: nnU-Net 2D + 3D combined needs validation probabilities from the 2D run (re-run its validation with `--npz`)
 - Next in batch 4, after batch 3: average our U-Net with nnU-Net (chosen on validation, then the test)
 
