@@ -44,18 +44,27 @@ three changes stand out: bigger block (+0.095), the combo (+0.089, which is the 
 under-fits (train = val), so it needs more context or capacity, not more data or regularisation. Next: bigger block +
 cut-off 0.3 on all 5 folds, then the final test; then work on small tumours.
 
-## Batch 3: lock in the bigger block, then small tumours (built 2026-11-05)
+## Batch 3: lock in the bigger block, then small tumours (built and submitted 2026-11-05)
 Every fold-0 idea runs with 2 seeds (42, 7). Baseline = bigger block, fold 0: `e12_patch_big_fold0` (0.545) + `b3_big_seed7_fold0`.
-- [ ] `b3_big_fold1-4`: bigger block on folds 1-4 (fold 0 = `e12_patch_big_fold0`). Job:
-- [ ] `b3_predict_fold0-4`: cut-off 0.2-0.5, centre-weighting, largest vs most confident piece, on validation. Job:
-- [ ] Final test, bigger block, 5 folds, setting chosen on validation -> `results/test_scores_b3.csv`. Job:
-- [ ] `b3_big_seed7_fold0`: baseline repeat (seed 7). Job:
-- [ ] `b3_huge_fold0` + `_seed7`: even bigger block 80x224x224. Job:
-- [ ] `b3_long_fold0` + `_seed7`: 100,000 steps. Job:
-- [ ] `b3_fg50_fold0` + `_seed7`: half the blocks on tumour. Job:
-- [ ] `b3_tversky_fold0` + `_seed7`: Tversky loss (misses cost more). Job:
-- [ ] Always-missed test patients: listed from `results/test_scores_cutoff.csv`
+- [ ] `b3_big_fold1-4`: bigger block on folds 1-4 (fold 0 = `e12_patch_big_fold0`). Job: 3556775_[1-4]
+- [ ] `b3_predict_fold0-4`: cut-off 0.2-0.5, centre-weighting, largest vs most confident piece, on validation. Job: 3556776_[0-4] (waits for 3556775)
+- [ ] Final test, bigger block, 5 folds, setting chosen on validation -> `results/test_scores_b3.csv`. Job: 3556777 (waits for 3556776)
+- [ ] `b3_big_seed7_fold0`: baseline repeat (seed 7). Job: 3556778_0
+- [ ] `b3_huge_fold0` + `_seed7`: even bigger block 80x224x224. Job: 3556778 (tasks 1, 2)
+- [ ] `b3_long_fold0` + `_seed7`: 100,000 steps. Job: 3556778 (tasks 3, 4)
+- [ ] `b3_fg50_fold0` + `_seed7`: half the blocks on tumour. Job: 3556778 (tasks 5, 6)
+- [ ] `b3_tversky_fold0` + `_seed7`: Tversky loss (misses cost more). Job: 3556778 (tasks 7, 8)
+- [x] Always-missed test patients (neither model, Dice <= 0.1, from `results/test_scores_cutoff.csv`): 11 of 60.
+  LUNG1-063, 075, 076, 087, 098, 135, 156, 303, 311, 377, 404. Both models score 0.0 on all 11.
+  8 are small (0.8-12.4 cc): 063, 076, 087, 098, 135, 156, 311, 404. In 5 of these at least one model outlined something,
+  but in the wrong place (size +60% to +7500%): it kept the wrong piece. 3 are large (075 88 cc, 303 158 cc, 377 464 cc) and
+  both models find almost nothing: suspicious, check the scan and the doctor's outline lines up (look at them before trusting)
 - Not in batch 3: averaging our U-Net with nnU-Net needs nnU-Net's probability outputs (`--save_probabilities`) on validation and test: batch 4.
+
+## Batch 4: first two jobs, independent of batch 3 (built 2026-11-05)
+- [ ] `b4_nnunet_prob`: nnU-Net prediction again with probabilities saved, folds 0-4 on their own validation patients + 5-fold test -> `data/full/prob_nnunet/` (no training). Job:
+- [ ] `b4_swin_big_fold0`: Swin UNETR + bigger block 64x192x192 (our two best single changes together). Job:
+- Next in batch 4, after batch 3: average our U-Net with nnU-Net (chosen on validation, then the test)
 
 Later batches (need something first): E4d part 2 resampling (new data prep), E5, E7 and E8 (pre-trained weights), E10, E11, E13.
 
