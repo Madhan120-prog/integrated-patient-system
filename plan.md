@@ -256,8 +256,12 @@ later connect to the portal. Guide and experiment table: `research/tumor-ai/READ
 
 - [x] Pipeline: download, data check, DICOM to NIfTI + QC pictures, patient-level split
 - [x] Own 3D U-Net + training script, tested on 6 local patients
-- [ ] HPC setup and 50-patient run (E0, E1-small, E3-small)
-- [ ] Full 422-patient runs, then the rest of the experiment table
+- [x] HPC setup and 50-patient run (E0, E1-small, E3-small)
+- [x] Full runs on 415 patients + final test (2026-10-30): nnU-Net Dice 0.591, our U-Net 0.468
+- [x] Batches 1-2 (2026-11-05): cut-off 0.3 lifts our U-Net to 0.533 on test (nnU-Net 0.591); bigger block best change
+- [ ] Batches 3-4 running: bigger block on 5 folds, small-tumour ideas, Swin + bigger block, nnU-Net probabilities
+- [ ] Try stronger and pre-trained networks (nnU-Net ResEnc, MedNeXt, STU-Net); pick the winner on validation
+- [ ] Review tool: DICOM in -> AI outline -> doctor review -> RTSTRUCT out (plan: `research/tumor-ai/plan.md`)
 
 ---
 

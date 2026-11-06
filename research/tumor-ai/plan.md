@@ -106,6 +106,32 @@ Preparation, so new data lines up with what we have (same steps as `prep/01`-`03
 8. **Spacing**: keep native spacing like now (our model is built for 3 mm slices); flag scans with thin slices (~1 mm)
    and decide then whether to resample them to 3 mm.
 
+## Pick the final model from any network, not only ours (added 2026-11-06)
+Goal: the final tool is whichever model scores best on validation (then tested once), nnU-Net included. Our own U-Net
+stays as the learning reference. Same patients, folds and locked test for every model; choose on validation only.
+- [ ] **nnU-Net, stronger presets**: ResEnc M / L (`nnUNetPlannerResEncM/L`, the nnU-Net team's own 2024 recommendation), 5 folds
+- [ ] **nnU-Net, full length**: 1000 epochs (its default; we ran 250)
+- [ ] **nnU-Net, best combination**: 2D + 3D ensemble (`nnUNetv2_find_best_configuration`)
+- [ ] **Other networks**: MedNeXt, SegResNet (MONAI), STU-Net (pre-trained, nnU-Net based)
+- [ ] **Pre-trained on many CTs**: Swin UNETR self-supervised weights (E7), STU-Net, VISTA3D (check it has a lung tumour class)
+- [ ] **Doctor-guided (box or click)**: MedSAM / SAM-Med3D / nnInteractive (E8); a separate use (semi-automatic), compare apart
+- [ ] **Average the best two or three** (batch 4 starts this with our U-Net + nnU-Net)
+
+## After a winner: upload, review, download (added 2026-11-06)
+DICOM in, a doctor reviews the AI outline, a file the planning system opens comes out. Public DICOM only until
+hospital and university approve; the model runs locally (never a cloud AI service); every outline is a research draft.
+- [ ] **Step 1, `predict_dicom.py`** (command line): DICOM CT folder -> winning model -> `RTSTRUCT.dcm` (via `rt-utils`,
+  tied to that CT), plus `mask.nii.gz`, a few overview pictures and a small `summary.json` (tumour size, how sure)
+- [ ] **Step 2, small review page** (local, research): upload a zipped DICOM folder; view the CT slice by slice with the
+  AI outline on top (NiiVue, reads DICOM in the browser); slider for the cut-off; accept / reject / note;
+  download RTSTRUCT, mask and a one-page PDF. FastAPI endpoint + one React page, like the portal
+- [ ] **Step 3, inside the portal** (needs approval): "Tumour outline" in the patient chart; pick the CT from PACS
+  (`backend/pacs_gateway.py`) instead of uploading; reuse the DocAssist review pattern (AI draft -> doctor reviews ->
+  save to chart, AI original kept, audit log); explain at role levels (`/api/explain-levels`); dose effect via
+  `backend/radiation.py` (E13). The portal's file-upload analysis sends files to Gemini, so scans must NOT use that route
+- Where it runs: our U-Net is small and runs on a normal CPU in about a minute per CT; nnU-Net (5 folds) on CPU is
+  slower (minutes to tens of minutes); a GPU box at the hospital if needed
+
 ## Later: report learning and pelvis (added 2026-10-30, details in README section 6)
 - [ ] Apply for Stanford AIMI data use agreement for Merlin Plus (pelvis/abdomen CT + reports)
 - [ ] E14: report supervision (R-Super idea) on lung, using ReXGroundingCT / CT-RATE reports

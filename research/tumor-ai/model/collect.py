@@ -44,9 +44,12 @@ def ours(runs):
 def nnunet(root):
     rows = []
     for f in sorted(root.glob("*/*/fold_*/validation/summary.json")):
-        config, fold = f.parents[2].name.split("__")[-1], int(f.parents[1].name.split("_")[1])
-        rows.append({"name": f"nnunet_{config}_fold{fold}", "exp": "E1" if config == "3d_fullres" else "E2" if config == "2d" else "",
-                     "change": config, "model": "nnU-Net", "fold": fold,
+        trainer, plans, config = f.parents[2].name.split("__")
+        fold = int(f.parents[1].name.split("_")[1])
+        first = trainer == "nnUNetTrainer_250epochs" and plans == "nnUNetPlans"   # E1 / E2 as first run
+        name = f"nnunet_{config}" if first else f"nnunet_{config}_{trainer}_{plans}"
+        rows.append({"name": f"{name}_fold{fold}", "exp": ("E1" if config == "3d_fullres" else "E2" if config == "2d" else "") if first else "B4 nnU-Net",
+                     "change": f"{config} {trainer} {plans}", "model": "nnU-Net", "fold": fold,
                      "val_dice": round(json.loads(f.read_text())["foreground_mean"]["Dice"], 4),
                      "found": "", "size_vs_doctor_pct": "", "job": "", "finished": ""})
     return rows
