@@ -46,14 +46,14 @@ cut-off 0.3 on all 5 folds, then the final test; then work on small tumours.
 
 ## Batch 3: lock in the bigger block, then small tumours (built and submitted 2026-11-05)
 Every fold-0 idea runs with 2 seeds (42, 7). Baseline = bigger block, fold 0: `e12_patch_big_fold0` (0.545) + `b3_big_seed7_fold0`.
-- [ ] `b3_big_fold1-4`: bigger block on folds 1-4 (fold 0 = `e12_patch_big_fold0`). Job: 3556775_[1-4]
+- [x] `b3_big_fold1-4`: bigger block on folds 1-4 (fold 0 = `e12_patch_big_fold0`). Job: 3556775_[1-4], ~7 h each. **0.449 / 0.467 / 0.530 / 0.424**; with fold 0 (0.545) mean **0.483 vs E3 0.412 (+0.071), better on every fold** (+0.019 to +0.107). nnU-Net mean 0.527
 - [ ] `b3_predict_fold0-4`: cut-off 0.2-0.5, centre-weighting, largest vs most confident piece, on validation. Job: 3556776_[0-4] (waits for 3556775)
 - [ ] Final test, bigger block, 5 folds, setting chosen on validation -> `results/test_scores_b3.csv`. Job: 3556777 (waits for 3556776)
-- [ ] `b3_big_seed7_fold0`: baseline repeat (seed 7). Job: 3556778_0
-- [ ] `b3_huge_fold0` + `_seed7`: even bigger block 80x224x224. Job: 3556778 (tasks 1, 2)
-- [ ] `b3_long_fold0` + `_seed7`: 100,000 steps. Job: 3556778 (tasks 3, 4)
-- [ ] `b3_fg50_fold0` + `_seed7`: half the blocks on tumour. Job: 3556778 (tasks 5, 6)
-- [ ] `b3_tversky_fold0` + `_seed7`: Tversky loss (misses cost more). Job: 3556778 (tasks 7, 8)
+- [x] `b3_big_seed7_fold0`: baseline repeat (seed 7). Job: 3556778_0. **0.511** (seed 42: 0.545), baseline mean **0.528**
+- [x] `b3_huge_fold0` + `_seed7`: even bigger block 80x224x224. Job: 3556778 (tasks 1, 2), ~10 h. **0.558 / 0.548, mean 0.553 (+0.025)**: both seeds above both baseline seeds, small gain
+- [x] `b3_long_fold0` + `_seed7`: 100,000 steps. Job: 3556778 (tasks 3, 4), ~13 h. **0.556 / 0.577, mean 0.567 (+0.039)**: best idea, fits under-fitting
+- [x] `b3_fg50_fold0` + `_seed7`: half the blocks on tumour. Job: 3556778 (tasks 5, 6). **0.536 / 0.530, mean 0.533 (+0.005)**: no effect
+- [x] `b3_tversky_fold0` + `_seed7`: Tversky loss (misses cost more). Job: 3556778 (tasks 7, 8). **0.526 / 0.493, mean 0.509 (-0.019)**: no help
 - [x] Always-missed test patients (neither model, Dice <= 0.1, from `results/test_scores_cutoff.csv`): 11 of 60.
   LUNG1-063, 075, 076, 087, 098, 135, 156, 303, 311, 377, 404. Both models score 0.0 on all 11.
   8 are small (0.8-12.4 cc): 063, 076, 087, 098, 135, 156, 311, 404. In 5 of these at least one model outlined something,
@@ -62,12 +62,23 @@ Every fold-0 idea runs with 2 seeds (42, 7). Baseline = bigger block, fold 0: `e
 - Not in batch 3: averaging our U-Net with nnU-Net needs nnU-Net's probability outputs (`--save_probabilities`) on validation and test: batch 4.
 
 ## Batch 4: first two jobs, independent of batch 3 (built 2026-11-05)
-- [ ] `b4_nnunet_prob`: nnU-Net prediction again with probabilities saved, folds 0-4 on their own validation patients + 5-fold test -> `data/full/prob_nnunet/` (no training). Job: 3556788_[0-5] (tasks 0-4 validation folds, 5 test)
+- [x] `b4_nnunet_prob` (done, ~20 min per fold, 1 h 19 min test): nnU-Net prediction again with probabilities saved, folds 0-4 on their own validation patients + 5-fold test -> `data/full/prob_nnunet/` (no training). Job: 3556788_[0-5] (tasks 0-4 validation folds, 5 test)
 - [ ] `b4_swin_big_fold0`: Swin UNETR + bigger block 64x192x192 (our two best single changes together). Job: 3556789
 - [ ] `b4_resenc_prep` + `b4_resenc` folds 0-4: nnU-Net ResEnc L preset, 250 epochs like E1 (network is the only change). Job: prep 3556864, training 3556865_[0-4] (waits for prep)
-- [ ] `b4_nnunet_1000ep` folds 0-4: nnU-Net 3d_fullres at its normal 1000 epochs (E1 used 250). Job: 3556866_[0-4]
+- [ ] `b4_nnunet_1000ep` folds 0-4 (fold 0 done, 10 h 42 min: **0.650 vs E1 0.581, +0.069**): nnU-Net 3d_fullres at its normal 1000 epochs (E1 used 250). Job: 3556866_[0-4]
 - Not yet: nnU-Net 2D + 3D combined needs validation probabilities from the 2D run (re-run its validation with `--npz`)
 - Next in batch 4, after batch 3: average our U-Net with nnU-Net (chosen on validation, then the test)
+
+Reading after batch 3 (2026-11-07): the bigger block is real (better on all 5 folds, mean 0.483 vs 0.412). Of the new
+ideas only training longer clearly helps, for both models: our U-Net +0.039 (two seeds), nnU-Net 1000 epochs +0.069 on
+fold 0. Tumour share and Tversky do nothing. Both models were stopped too early. Fold-0 gap now: nnU-Net 1000 ep 0.650 vs our best 0.567.
+
+## Batch 5: train longer (built 2026-11-07)
+- [ ] `b5_long_fold1-4`: bigger block + 100,000 steps on folds 1-4 (fold 0 = `b3_long_fold0`): our U-Net's best recipe on 5 folds. Job:
+- [ ] `b5_predict_fold0-4`: cut-off, centre-weighting, piece choice on validation for that recipe (no test yet). Job:
+- [ ] `b5_vlong_fold0` + `_seed7`: bigger block, 200,000 steps (does even longer keep helping?). Job:
+- [ ] `b5_huge_long_fold0` + `_seed7`: even bigger block 80x224x224 + 100,000 steps (do the two gains add up?). Job:
+- Final test only once, for the final recipe (our best, nnU-Net best, or their average).
 
 Later batches (need something first): E4d part 2 resampling (new data prep), E5, E7 and E8 (pre-trained weights), E10, E11, E13.
 
