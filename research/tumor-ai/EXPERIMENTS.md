@@ -74,10 +74,10 @@ ideas only training longer clearly helps, for both models: our U-Net +0.039 (two
 fold 0. Tumour share and Tversky do nothing. Both models were stopped too early. Fold-0 gap now: nnU-Net 1000 ep 0.650 vs our best 0.567.
 
 ## Batch 5: train longer (built 2026-11-07)
-- [ ] `b5_long_fold1-4`: bigger block + 100,000 steps on folds 1-4 (fold 0 = `b3_long_fold0`): our U-Net's best recipe on 5 folds. Job:
-- [ ] `b5_predict_fold0-4`: cut-off, centre-weighting, piece choice on validation for that recipe (no test yet). Job:
-- [ ] `b5_vlong_fold0` + `_seed7`: bigger block, 200,000 steps (does even longer keep helping?). Job:
-- [ ] `b5_huge_long_fold0` + `_seed7`: even bigger block 80x224x224 + 100,000 steps (do the two gains add up?). Job:
+- [ ] `b5_long_fold1-4`: bigger block + 100,000 steps on folds 1-4 (fold 0 = `b3_long_fold0`): our U-Net's best recipe on 5 folds. Job: 3561162_[1-4]
+- [ ] `b5_predict_fold0-4`: cut-off, centre-weighting, piece choice on validation for that recipe (no test yet). Job: 3561163_[0-4] (waits for 3561162)
+- [ ] `b5_vlong_fold0` + `_seed7`: bigger block, 200,000 steps (does even longer keep helping?). Job: 3561164 (tasks 0, 1)
+- [ ] `b5_huge_long_fold0` + `_seed7`: even bigger block 80x224x224 + 100,000 steps (do the two gains add up?). Job: 3561164 (tasks 2, 3)
 - Final test only once, for the final recipe (our best, nnU-Net best, or their average).
 
 Later batches (need something first): E4d part 2 resampling (new data prep), E5, E7 and E8 (pre-trained weights), E10, E11, E13.
