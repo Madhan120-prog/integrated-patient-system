@@ -86,11 +86,11 @@ and beats it on small and medium tumours. But nnU-Net improved more: on 5-fold v
 Leader: nnU-Net ResEnc L. Next: ResEnc L at 1000 epochs, then average the best models, then one final test.
 
 ## Batch 6: next 4 experiments (planned 2026-11-10, not built yet; plain-words version in `plan.md`)
-- [ ] **6.1** Strongest nnU-Net: ResEnc L at 1000 epochs, 5 folds (E1 line: combines `b4_resenc` + `b4_nnunet_1000ep`). `batch6_resenc_1000ep.sbatch`. Job:
-- [ ] **6.2** Our best U-Net on all folds: even bigger block 80x224x224 + 100,000 steps, folds 1-4, then the setting search (E12 line, fold 0 = `b5_huge_long_fold0`). `batch6_folds` + `batch6_predict`. Job:
-- [ ] **6.3** Team up: average the best nnU-Net with our U-Net, mix chosen on validation (the batch 4 "average" step). `ensemble.py`; first with today's models: probabilities `batch6_nnunet_prob` (ResEnc L, 1000 ep), then `batch6_avg` (our b5 U-Net). Job:
-- [ ] **6.4** MedSAM2 with a box hint = **E8**; (a) box from the doctor's outline (best case), (b) box from our model's outline (real case, also **E5**: find, then outline). `medsam_box.py` + `batch6_medsam.sbatch`, fold 0 validation; separate `.venv-medsam2`. Job:
-- [ ] **6.5** E7 pre-trained: Swin UNETR from MONAI's self-supervised weights (~5,000 CTs) vs Swin from scratch (`b4_swin_big_fold0`), fold 0, 2 seeds; runs alongside 6.1-6.4. `train.py --pretrained`, `batch6_e7.sbatch` (+ a from-scratch seed-7 run). Job:
+- [ ] **6.1** Strongest nnU-Net: ResEnc L at 1000 epochs, 5 folds (E1 line: combines `b4_resenc` + `b4_nnunet_1000ep`). `batch6_resenc_1000ep.sbatch`. Job: 3587457_[0-4]
+- [ ] **6.2** Our best U-Net on all folds: even bigger block 80x224x224 + 100,000 steps, folds 1-4, then the setting search (E12 line, fold 0 = `b5_huge_long_fold0`). `batch6_folds` + `batch6_predict`. Job: 3587458_[1-4], predict 3587459_[0-4] (waits)
+- [ ] **6.3** Team up: average the best nnU-Net with our U-Net, mix chosen on validation (the batch 4 "average" step). `ensemble.py`; first with today's models: probabilities `batch6_nnunet_prob` (ResEnc L, 1000 ep), then `batch6_avg` (our b5 U-Net). Job: prob ResEnc L 3587460_[0-5], prob 1000 ep 3587461_[0-5], average 3587462_[0-4] (waits for both)
+- [ ] **6.4** MedSAM2 with a box hint = **E8**; (a) box from the doctor's outline (best case), (b) box from our model's outline (real case, also **E5**: find, then outline). `medsam_box.py` + `batch6_medsam.sbatch`, fold 0 validation; separate `.venv-medsam2` (set up 2026-11-10, torch 2.5.1). Job: 3587469_[0-1] (3587465 cancelled: environment was not ready)
+- [ ] **6.5** E7 pre-trained: Swin UNETR from MONAI's self-supervised weights (~5,000 CTs) vs Swin from scratch (`b4_swin_big_fold0`), fold 0, 2 seeds; runs alongside 6.1-6.4. `train.py --pretrained`, `batch6_e7.sbatch` (+ a from-scratch seed-7 run). Job: 3587463_[0-2]
 - Then one final test with the winner
 
 Later batches (need something first): E4d part 2 resampling (new data prep), E5, E7 and E8 (pre-trained weights), E10, E11, E13.
