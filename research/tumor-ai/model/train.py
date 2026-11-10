@@ -254,6 +254,7 @@ def main():
     ap.add_argument("--crop-body", action="store_true", help="E4h: training blocks only from the box around the body")
     ap.add_argument("--fg", type=float, default=1 / 3, help="share of training blocks centred on tumour (E3: 1/3)")
     ap.add_argument("--loss", choices=["dice", "tversky"], default="dice", help="tversky = misses cost more than extra outline")
+    ap.add_argument("--pretrained", default=None, help="E7: start Swin from weights learned on other CTs (MONAI model_swinvit.pt)")
     ap.add_argument("--exp", default="", help="experiment id for the record, e.g. E4b")
     ap.add_argument("--change", default="", help="what differs from the baseline, in words, for the record")
     # prediction-only experiments
@@ -314,10 +315,15 @@ def main():
         train = [crop_body(img, lab) for img, lab in train]
     val = {p: load(data, p) for p in fold["val"]}
     norm = zscore_norm(train) if a.norm == "zscore" else window_norm(*a.hu)
-    write_json(run / "settings.json", {**record, "fold": a.fold, "args": vars(a), "norm": norm,
+    pre = {"pretrained_sha256": hashlib.sha256(Path(a.pretrained).read_bytes()).hexdigest()[:12]} if a.pretrained else {}
+    write_json(run / "settings.json", {**record, **pre, "fold": a.fold, "args": vars(a), "norm": norm,
                                        "train_patients": train_ids, "val_patients": fold["val"]})
 
-    net = build(vars(a)).to(device)
+    net = build(vars(a))
+    if a.pretrained:        # E7: the Swin encoder starts from self-supervised weights; the decoder starts fresh
+        assert a.arch == "swin", "--pretrained needs --arch swin"
+        net.load_from(torch.load(a.pretrained, map_location="cpu", weights_only=False))
+    net = net.to(device)
     print(f"{run.name}: {a.exp} {a.change} | {sum(p.numel() for p in net.parameters()) / 1e6:.2f} M weights, "
           f"{len(train)} training / {len(val)} validation patients", flush=True)
     if a.opt == "sgd":      # nnU-Net: SGD, Nesterov momentum 0.99, weight decay 3e-5, gradients clipped at 12

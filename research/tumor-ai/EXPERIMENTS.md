@@ -47,8 +47,8 @@ cut-off 0.3 on all 5 folds, then the final test; then work on small tumours.
 ## Batch 3: lock in the bigger block, then small tumours (built and submitted 2026-11-05)
 Every fold-0 idea runs with 2 seeds (42, 7). Baseline = bigger block, fold 0: `e12_patch_big_fold0` (0.545) + `b3_big_seed7_fold0`.
 - [x] `b3_big_fold1-4`: bigger block on folds 1-4 (fold 0 = `e12_patch_big_fold0`). Job: 3556775_[1-4], ~7 h each. **0.449 / 0.467 / 0.530 / 0.424**; with fold 0 (0.545) mean **0.483 vs E3 0.412 (+0.071), better on every fold** (+0.019 to +0.107). nnU-Net mean 0.527
-- [ ] `b3_predict_fold0-4`: cut-off 0.2-0.5, centre-weighting, largest vs most confident piece, on validation. Job: 3556776_[0-4] (waits for 3556775)
-- [ ] Final test, bigger block, 5 folds, setting chosen on validation -> `results/test_scores_b3.csv`. Job: 3556777 (waits for 3556776)
+- [x] `b3_predict_fold0-4`: cut-off 0.2-0.5, centre-weighting, largest vs most confident piece, on validation. Job: 3556776_[0-4] (waits for 3556775)
+- [x] Final test, bigger block, 5 folds, setting chosen on validation -> `results/test_scores_b3.csv`. Job: 3556777. Setting chosen on validation: centre-weighted, cut-off 0.2, most confident piece. **Our U-Net 0.589 vs nnU-Net (E1) 0.591: tied.** Found 48/60 vs 47/60, size +6.8% vs -6.5%, HD95 10.2 vs 9.7 mm. Small 0.488 vs 0.449 and medium 0.673 vs 0.639 (ours ahead), large 0.610 vs 0.720 (nnU-Net ahead)
 - [x] `b3_big_seed7_fold0`: baseline repeat (seed 7). Job: 3556778_0. **0.511** (seed 42: 0.545), baseline mean **0.528**
 - [x] `b3_huge_fold0` + `_seed7`: even bigger block 80x224x224. Job: 3556778 (tasks 1, 2), ~10 h. **0.558 / 0.548, mean 0.553 (+0.025)**: both seeds above both baseline seeds, small gain
 - [x] `b3_long_fold0` + `_seed7`: 100,000 steps. Job: 3556778 (tasks 3, 4), ~13 h. **0.556 / 0.577, mean 0.567 (+0.039)**: best idea, fits under-fitting
@@ -63,9 +63,9 @@ Every fold-0 idea runs with 2 seeds (42, 7). Baseline = bigger block, fold 0: `e
 
 ## Batch 4: first two jobs, independent of batch 3 (built 2026-11-05)
 - [x] `b4_nnunet_prob` (done, ~20 min per fold, 1 h 19 min test): nnU-Net prediction again with probabilities saved, folds 0-4 on their own validation patients + 5-fold test -> `data/full/prob_nnunet/` (no training). Job: 3556788_[0-5] (tasks 0-4 validation folds, 5 test)
-- [ ] `b4_swin_big_fold0`: Swin UNETR + bigger block 64x192x192 (our two best single changes together). Job: 3556789
-- [ ] `b4_resenc_prep` + `b4_resenc` folds 0-4: nnU-Net ResEnc L preset, 250 epochs like E1 (network is the only change). Job: prep 3556864, training 3556865_[0-4] (waits for prep)
-- [ ] `b4_nnunet_1000ep` folds 0-4 (fold 0 done, 10 h 42 min: **0.650 vs E1 0.581, +0.069**): nnU-Net 3d_fullres at its normal 1000 epochs (E1 used 250). Job: 3556866_[0-4]
+- [x] `b4_swin_big_fold0`: Swin UNETR + bigger block 64x192x192 (our two best single changes together). Job: 3556789, 14 h 36 min. **0.531**, no gain over the bigger block alone (0.545 / 0.511) at twice the time: drop Swin
+- [x] `b4_resenc_prep` + `b4_resenc` folds 0-4 (~9 h 50 min each: **0.677 / 0.659 / 0.619 / 0.692 / 0.543, mean 0.638 vs E1 0.527, +0.111, better on every fold; best model so far**): nnU-Net ResEnc L preset, 250 epochs like E1 (network is the only change). Job: prep 3556864, training 3556865_[0-4] (waits for prep)
+- [x] `b4_nnunet_1000ep` folds 0-4 (~10 h 40 min each: **0.650 / 0.647 / 0.580 / 0.673 / 0.534, mean 0.616 vs E1 0.527, +0.089**, better on every fold): nnU-Net 3d_fullres at its normal 1000 epochs (E1 used 250). Job: 3556866_[0-4]
 - Not yet: nnU-Net 2D + 3D combined needs validation probabilities from the 2D run (re-run its validation with `--npz`)
 - Next in batch 4, after batch 3: average our U-Net with nnU-Net (chosen on validation, then the test)
 
@@ -74,11 +74,24 @@ ideas only training longer clearly helps, for both models: our U-Net +0.039 (two
 fold 0. Tumour share and Tversky do nothing. Both models were stopped too early. Fold-0 gap now: nnU-Net 1000 ep 0.650 vs our best 0.567.
 
 ## Batch 5: train longer (built 2026-11-07)
-- [ ] `b5_long_fold1-4`: bigger block + 100,000 steps on folds 1-4 (fold 0 = `b3_long_fold0`): our U-Net's best recipe on 5 folds. Job: 3561162_[1-4]
-- [ ] `b5_predict_fold0-4`: cut-off, centre-weighting, piece choice on validation for that recipe (no test yet). Job: 3561163_[0-4] (waits for 3561162)
-- [ ] `b5_vlong_fold0` + `_seed7`: bigger block, 200,000 steps (does even longer keep helping?). Job: 3561164 (tasks 0, 1)
-- [ ] `b5_huge_long_fold0` + `_seed7`: even bigger block 80x224x224 + 100,000 steps (do the two gains add up?). Job: 3561164 (tasks 2, 3)
+- [x] `b5_long_fold1-4` (~13 h each: **0.478 / 0.488 / 0.563 / 0.456**; with fold 0 (0.556) mean **0.508 vs bigger block 0.483, +0.025, better on every fold**): bigger block + 100,000 steps on folds 1-4 (fold 0 = `b3_long_fold0`): our U-Net's best recipe on 5 folds. Job: 3561162_[1-4]
+- [x] `b5_predict_fold0-4` (best on validation: **centre-weighted, cut-off 0.3, most confident piece, mean 0.579** vs 0.508 at plain 0.5; all 4 best settings use the most confident piece): cut-off, centre-weighting, piece choice on validation for that recipe (no test yet). Job: 3561163_[0-4] (waits for 3561162)
+- [x] `b5_vlong_fold0` + `_seed7` (~25 h each: **0.541 / 0.544, mean 0.542 vs 100k 0.567, -0.025**: longer than 100k does not help): bigger block, 200,000 steps (does even longer keep helping?). Job: 3561164 (tasks 0, 1)
+- [x] `b5_huge_long_fold0` + `_seed7` (~20 h each: **0.573 / 0.616, mean 0.594 vs 100k 0.567, +0.027**; the two gains add up; our best recipe): even bigger block 80x224x224 + 100,000 steps (do the two gains add up?). Job: 3561164 (tasks 2, 3)
 - Final test only once, for the final recipe (our best, nnU-Net best, or their average).
+
+Reading after batches 3-5 (2026-11-10): our bigger-block U-Net now ties the first nnU-Net on test (0.589 vs 0.591)
+and beats it on small and medium tumours. But nnU-Net improved more: on 5-fold validation ResEnc L 0.638 and 1000 epochs
+0.616, against E1 0.527 and our best 0.508 (cut-off 0.5; the cut-off choice adds a few points for ours). Swin adds nothing.
+Leader: nnU-Net ResEnc L. Next: ResEnc L at 1000 epochs, then average the best models, then one final test.
+
+## Batch 6: next 4 experiments (planned 2026-11-10, not built yet; plain-words version in `plan.md`)
+- [ ] **6.1** Strongest nnU-Net: ResEnc L at 1000 epochs, 5 folds (E1 line: combines `b4_resenc` + `b4_nnunet_1000ep`). `batch6_resenc_1000ep.sbatch`. Job:
+- [ ] **6.2** Our best U-Net on all folds: even bigger block 80x224x224 + 100,000 steps, folds 1-4, then the setting search (E12 line, fold 0 = `b5_huge_long_fold0`). `batch6_folds` + `batch6_predict`. Job:
+- [ ] **6.3** Team up: average the best nnU-Net with our U-Net, mix chosen on validation (the batch 4 "average" step). `ensemble.py`; first with today's models: probabilities `batch6_nnunet_prob` (ResEnc L, 1000 ep), then `batch6_avg` (our b5 U-Net). Job:
+- [ ] **6.4** MedSAM2 with a box hint = **E8**; (a) box from the doctor's outline (best case), (b) box from our model's outline (real case, also **E5**: find, then outline). `medsam_box.py` + `batch6_medsam.sbatch`, fold 0 validation; separate `.venv-medsam2`. Job:
+- [ ] **6.5** E7 pre-trained: Swin UNETR from MONAI's self-supervised weights (~5,000 CTs) vs Swin from scratch (`b4_swin_big_fold0`), fold 0, 2 seeds; runs alongside 6.1-6.4. `train.py --pretrained`, `batch6_e7.sbatch` (+ a from-scratch seed-7 run). Job:
+- Then one final test with the winner
 
 Later batches (need something first): E4d part 2 resampling (new data prep), E5, E7 and E8 (pre-trained weights), E10, E11, E13.
 
@@ -89,7 +102,7 @@ Later batches (need something first): E4d part 2 resampling (new data prep), E5,
 - [ ] **E6**: transformer (Swin UNETR)
 - [ ] **E7**: pre-trained and fine-tuned vs from scratch
 - [ ] **E8**: MedSAM with a box prompt
-- [ ] **E9**: 25 / 50 / 100% of training patients
+- [x] **E9**: 25 / 50 / 100% of training patients (batch 1: 0.448 / 0.416 / 0.450, more data did not help then)
 - [ ] **E10**: add Radiogenomics + Decathlon Lung (plan: `plan.md`, "After batch 3: more lung data")
 - [ ] **E11**: test on another dataset (outside test): NSCLC-Radiogenomics, before E10 (plan in `plan.md`)
 - [ ] **E12**: preparation settings (HU window, flip, block size)

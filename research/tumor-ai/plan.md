@@ -106,6 +106,27 @@ Preparation, so new data lines up with what we have (same steps as `prep/01`-`03
 8. **Spacing**: keep native spacing like now (our model is built for 3 mm slices); flag scans with thin slices (~1 mm)
    and decide then whether to resample them to 3 mm.
 
+## Next 4 experiments (revised 2026-11-10)
+Where we are: nnU-Net ResEnc L leads (0.638 on validation); our U-Net 0.579 at its best setting, 0.594 on fold 0 with
+the even bigger block; on test our U-Net already ties the first nnU-Net (0.589 vs 0.591) and is better on small tumours.
+- [ ] **1. Strongest nnU-Net**: ResEnc L trained 1000 epochs (its two best gains together), 5 folds
+- [ ] **2. Our best U-Net on all folds**: even bigger block + 100,000 steps, folds 1-4, then pick its best prediction setting
+- [ ] **3. Team up**: average the best nnU-Net with our U-Net (ours is better on small tumours); mix chosen on validation
+- [ ] **4. MedSAM2 (foundation model, box hint)**: (a) box from the doctor's outline = best case; (b) box from our model = real case. Scored apart, as a doctor-guided tool
+- [ ] **5. E7, pre-trained vs from scratch** (added, runs alongside): Swin UNETR starting from MONAI's weights
+  learned on ~5,000 CTs vs the same Swin from scratch (`b4_swin_big_fold0`, 0.531), fold 0, 2 seeds; STU-Net later
+- [ ] **Then one final test** with the winner, on the 60 locked patients
+- Later: STU-Net (second E7 model), outside data (E11), look at the 3 large always-missed patients
+
+Run side by side (no step waits for another, except where noted):
+- GPU now: 6.1 ResEnc L 1000 epochs, 6.2 our U-Net folds 1-4, E7 Swin pre-trained (one-time weight download first)
+- Build now, try on today's models: 6.3 averaging (ResEnc L 250 + nnU-Net 1000 + our U-Net), 6.4 MedSAM2 on validation
+  patients (one-time install + weight download)
+- Waits: 6.3 is re-run with the 6.1 / 6.2 models when they finish; the final test waits for everything
+- One-time setup on BigBlue (public files only): E7 weights `~/tumor-ai/weights/model_swinvit.pt` (MONAI release 0.8.1);
+  MedSAM2 in its OWN environment `~/tumor-ai/.venv-medsam2` (torch 2.5.1, code pinned to commit 332f30d, checkpoint
+  `MedSAM2_latest.pt`), so the main `.venv` and every other job stay unchanged
+
 ## Pick the final model from any network, not only ours (added 2026-11-06)
 Goal: the final tool is whichever model scores best on validation (then tested once), nnU-Net included. Our own U-Net
 stays as the learning reference. Same patients, folds and locked test for every model; choose on validation only.
