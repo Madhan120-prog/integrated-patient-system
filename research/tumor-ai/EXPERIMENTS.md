@@ -85,13 +85,19 @@ and beats it on small and medium tumours. But nnU-Net improved more: on 5-fold v
 0.616, against E1 0.527 and our best 0.508 (cut-off 0.5; the cut-off choice adds a few points for ours). Swin adds nothing.
 Leader: nnU-Net ResEnc L. Next: ResEnc L at 1000 epochs, then average the best models, then one final test.
 
-## Batch 6: next 4 experiments (planned 2026-11-10, not built yet; plain-words version in `plan.md`)
-- [ ] **6.1** Strongest nnU-Net: ResEnc L at 1000 epochs, 5 folds (E1 line: combines `b4_resenc` + `b4_nnunet_1000ep`). `batch6_resenc_1000ep.sbatch`. Job: 3587457_[0-4]
-- [ ] **6.2** Our best U-Net on all folds: even bigger block 80x224x224 + 100,000 steps, folds 1-4, then the setting search (E12 line, fold 0 = `b5_huge_long_fold0`). `batch6_folds` + `batch6_predict`. Job: 3587458_[1-4], predict 3587459_[0-4] (waits)
-- [ ] **6.3** Team up: average the best nnU-Net with our U-Net, mix chosen on validation (the batch 4 "average" step). `ensemble.py`; first with today's models: probabilities `batch6_nnunet_prob` (ResEnc L, 1000 ep), then `batch6_avg` (our b5 U-Net). Job: prob ResEnc L 3587460_[0-5], prob 1000 ep 3587461_[0-5], average 3587462_[0-4] (waits for both)
-- [ ] **6.4** MedSAM2 with a box hint = **E8**; (a) box from the doctor's outline (best case), (b) box from our model's outline (real case, also **E5**: find, then outline). `medsam_box.py` + `batch6_medsam.sbatch`, fold 0 validation; separate `.venv-medsam2` (set up 2026-11-10, torch 2.5.1). Job: 3587469_[0-1] (3587465 cancelled: environment was not ready)
-- [ ] **6.5** E7 pre-trained: Swin UNETR from MONAI's self-supervised weights (~5,000 CTs) vs Swin from scratch (`b4_swin_big_fold0`), fold 0, 2 seeds; runs alongside 6.1-6.4. `train.py --pretrained`, `batch6_e7.sbatch` (+ a from-scratch seed-7 run). Job: 3587463_[0-2]
+## Batch 6: next 4 experiments (planned 2026-11-10, all finished 2026-11-15; plain-words version in `plan.md`)
+- [x] **6.1** (**0.643** mean, 0.675/0.678/0.646/0.675/0.540; only +0.005 over 250 epochs for 4x the time) Strongest nnU-Net: ResEnc L at 1000 epochs, 5 folds (E1 line: combines `b4_resenc` + `b4_nnunet_1000ep`). `batch6_resenc_1000ep.sbatch`. Job: 3587457_[0-4]
+- [x] **6.2** (best setting plain 0.2 confident: **0.582** mean; the same as `b5_long` 0.579, so the bigger block adds nothing once the setting is tuned) Our best U-Net on all folds: even bigger block 80x224x224 + 100,000 steps, folds 1-4, then the setting search (E12 line, fold 0 = `b5_huge_long_fold0`). `batch6_folds` + `batch6_predict`. Job: 3587458_[1-4], predict 3587459_[0-4] (waits)
+- [x] **6.3** (v1: **0.659** with 25% ours + 75% nnU-Net pair, cut-off 0.3, confident piece; nnU-Net pair alone 0.649; beats it on 3 folds, ties 2) Team up: average the best nnU-Net with our U-Net, mix chosen on validation (the batch 4 "average" step). `ensemble.py`; first with today's models: probabilities `batch6_nnunet_prob` (ResEnc L, 1000 ep), then `batch6_avg` (our b5 U-Net). Job: prob ResEnc L 3587460_[0-5], prob 1000 ep 3587461_[0-5], average 3587462_[0-4] (waits for both)
+- [x] **6.4** (fold 0: doctor box **0.730**, 70/71 found, about 24% too big; box from our outline 0.613, 57/71, about the same as ours alone 0.621: our misses become MedSAM2's misses) MedSAM2 with a box hint = **E8**; (a) box from the doctor's outline (best case), (b) box from our model's outline (real case, also **E5**: find, then outline). `medsam_box.py` + `batch6_medsam.sbatch`, fold 0 validation; separate `.venv-medsam2` (set up 2026-11-10, torch 2.5.1). Job: 3587469_[0-1] (3587465 cancelled: environment was not ready)
+- [x] **6.5** (fold 0: pre-trained 0.575 / 0.559, mean 0.567, vs from scratch 0.529 / 0.531: pre-training **+0.04**, but still below our U-Net and ResEnc L; Swin dropped) E7 pre-trained: Swin UNETR from MONAI's self-supervised weights (~5,000 CTs) vs Swin from scratch (`b4_swin_big_fold0`), fold 0, 2 seeds; runs alongside 6.1-6.4. `train.py --pretrained`, `batch6_e7.sbatch` (+ a from-scratch seed-7 run). Job: 3587463_[0-2]
 - Then one final test with the winner
+
+Reading after batch 6 (2026-11-15), 5-fold validation means: average 25% ours + 75% nnU-Net 0.659 > nnU-Net pair 0.649
+> ResEnc L 1000 ep 0.643 > ResEnc L 250 ep 0.638 >> our U-Net 0.582. Our U-Net has levelled off near 0.58. With a box from
+the doctor, MedSAM2 is the best of all (0.730 on fold 0), so a semi-automatic path (doctor draws a box, AI outlines) is real.
+The average's mix was picked from 63 settings on the same patients, so its lead is a little optimistic; the test will tell.
+Next (6.6): average again with ResEnc L 1000 ep + our b6 U-Net; MedSAM2 with a box from the average (not our U-Net); then the final test.
 
 Later batches (need something first): E4d part 2 resampling (new data prep), E5, E7 and E8 (pre-trained weights), E10, E11, E13.
 

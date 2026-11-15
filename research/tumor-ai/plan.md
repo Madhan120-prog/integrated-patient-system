@@ -1,4 +1,4 @@
-# Small-scale plan: first results on university HPC
+# Lung Tumor Detection and Outlining with AI: plan
 
 > Last updated: 2026-10-27
 > Goal: prove the whole loop works on **50 patients** before spending days of GPU time on all 422.

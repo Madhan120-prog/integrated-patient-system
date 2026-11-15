@@ -1,4 +1,6 @@
-# Tumor AI: learning guide and experiment plan
+# Lung Tumor Detection and Outlining with AI
+
+_Learning guide and experiment plan_
 
 Goal: train AI models that **find and outline lung tumours on CT**, compare them fairly,
 and later explain each result at different levels (patient, doctor, physicist ...).

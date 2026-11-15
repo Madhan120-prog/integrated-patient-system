@@ -6,6 +6,8 @@
 
 --box doctor  (a) best case: box around the doctor's outline on the slice where the tumour is largest.
 --box ours    (b) real case: same, but from our U-Net's outline (it never sees the doctor's); no outline -> no box -> a miss.
+              Add --nnunet <folders> --weight w to take the box from the 6.3 average instead: w x ours + (1 - w) x nnU-Net
+              (w 0 = nnU-Net alone), made with --ours-setting, exactly as ensemble.py scores it.
 MedSAM2 only gets the plain CT and the box; the doctor's outline is used for the box in (a) and for scoring.
 It follows the tumour up and down from the box slice (MedSAM2's 3D CT recipe, medsam2_infer_3D_CT.py), keeps the
 largest piece, and is scored like every other run. Writes runs/<name>/ (refuses an existing name).
@@ -20,8 +22,9 @@ import numpy as np
 import torch
 from PIL import Image
 
-from train import HERE, HU_MAX, HU_MIN, build, code_fingerprint, dice, largest_piece, load, new_run_dir, one_piece, \
+from train import HERE, HU_MAX, HU_MIN, build, code_fingerprint, dice, largest_piece, load, new_run_dir, \
     predict_prob, write_json
+from ensemble import mask, nnunet_prob
 
 
 def box_on_largest_slice(mask, margin):
@@ -74,6 +77,8 @@ def main():
     ap.add_argument("--ours", default=None, help="--box ours: our finished run for this fold")
     ap.add_argument("--ours-setting", nargs=3, default=["gauss", "0.3", "confident"],
                     help="--box ours: how our outline is made (b5 best on validation: gauss 0.3 confident)")
+    ap.add_argument("--nnunet", nargs="+", default=None, help="--box ours: nnU-Net .npz folders for this fold -> box from the average")
+    ap.add_argument("--weight", type=float, default=0.25, help="with --nnunet: share of our U-Net in the average (b6_avg_v1 best: 0.25)")
     ap.add_argument("--margin", type=int, default=5, help="box margin in pixels")
     ap.add_argument("--checkpoint", default="../MedSAM2/checkpoints/MedSAM2_latest.pt")
     ap.add_argument("--cfg", default="configs/sam2.1_hiera_t512.yaml")
@@ -85,8 +90,10 @@ def main():
     run = new_run_dir(a.name)
     s = json.load(open(a.splits))
     ids = s["test"] if a.on == "test" else s["folds"][a.fold]["val"]
+    src = "the doctor" if a.box == "doctor" else a.ours if not a.nnunet else \
+        f"{a.weight} x {a.ours} + {1 - a.weight} x nnU-Net {', '.join(Path(f).parent.name for f in a.nnunet)}, {' '.join(a.ours_setting)}"
     record = {"name": a.name, "exp": "B6.4 / E8 MedSAM2", "model": "MedSAM2",
-              "change": f"box from {'the doctor' if a.box == 'doctor' else a.ours}, margin {a.margin} px, {Path(a.checkpoint).name}",
+              "change": f"box from {src}, margin {a.margin} px, {Path(a.checkpoint).name}",
               "job": os.environ.get("SLURM_JOB_ID"), "started": time.strftime("%Y-%m-%d %H:%M:%S"), "code": code_fingerprint(),
               "fold": a.fold, "scored_on": a.on, "args": vars(a)}
     write_json(run / "settings.json", record)
@@ -96,6 +103,7 @@ def main():
     net = None
     if a.box == "ours":
         ck = torch.load(HERE / "runs" / a.ours / "best.pt", map_location="cuda")
+        assert ck["args"]["fold"] == a.fold, f"{a.ours} was trained for fold {ck['args']['fold']}, not {a.fold}"
         net = build(ck["args"]).cuda().eval()
         net.load_state_dict(ck["model"])
 
@@ -106,7 +114,12 @@ def main():
             guide = lab
         else:
             g, c, h = a.ours_setting
-            guide = one_piece(predict_prob(net, img, ck["args"]["patch"], "cuda", ck.get("norm"), g == "gauss"), float(c), h)
+            prob = predict_prob(net, img, ck["args"]["patch"], "cuda", ck.get("norm"), g == "gauss")
+            if a.nnunet:
+                nn = nnunet_prob(a.nnunet, pid)
+                assert prob.shape == nn.shape == lab.shape, f"{pid}: shapes differ {prob.shape} {nn.shape} {lab.shape}"
+                prob = a.weight * prob + (1 - a.weight) * nn
+            guide = mask(prob, float(c), h)
         if guide.any():
             z, box = box_on_largest_slice(guide, a.margin)
             m, cov = medsam_outline(predictor, img, z, box), coverage(lab, box)
@@ -117,7 +130,7 @@ def main():
         print(pid, per[pid], flush=True)
 
     d = per.values()
-    rows = [{"variant": f"box_{a.box}", "val_dice": round(float(np.mean([r["dice"] for r in d])), 4),
+    rows = [{"variant": f"box_{a.box if not a.nnunet else f'avg_w{a.weight}'}", "val_dice": round(float(np.mean([r["dice"] for r in d])), 4),
              "found": sum(r["dice"] > 0.1 for r in d), "n_val": len(per),
              "median_vol_diff_pct": float(np.median([r["vol_diff_pct"] for r in d])),
              "mean_box_covers": round(float(np.mean([r["box_covers"] for r in d])), 3)}]
