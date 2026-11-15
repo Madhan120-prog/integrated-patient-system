@@ -99,6 +99,9 @@ the doctor, MedSAM2 is the best of all (0.730 on fold 0), so a semi-automatic pa
 The average's mix was picked from 63 settings on the same patients, so its lead is a little optimistic; the test will tell.
 Next (6.6): average again with ResEnc L 1000 ep + our b6 U-Net; MedSAM2 with a box from the average (not our U-Net); then the final test.
 
+- [ ] **6.6** Average again with the newest models: ResEnc L 1000 ep + nnU-Net 1000 ep + our b6 U-Net (`batch6_nnunet_prob` TAG=resencL1000, then `batch6_avg` OURS=b6 TAG=v2). Job: (not yet)
+- [ ] **6.7** E8 real case, better finder: MedSAM2 with the box from the average (task 0, w 0.25) and from the nnU-Net pair alone (task 1, w 0), fold 0. Beat 0.687 (average, no MedSAM2) to be worth it. `medsam_box.py --nnunet --weight`, `batch6_medsam_avg.sbatch`. Job: (not yet)
+
 Later batches (need something first): E4d part 2 resampling (new data prep), E5, E7 and E8 (pre-trained weights), E10, E11, E13.
 
 - [ ] **E2**: 2D vs 3D (nnU-Net)

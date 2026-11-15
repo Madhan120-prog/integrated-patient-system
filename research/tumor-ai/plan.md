@@ -106,15 +106,17 @@ Preparation, so new data lines up with what we have (same steps as `prep/01`-`03
 8. **Spacing**: keep native spacing like now (our model is built for 3 mm slices); flag scans with thin slices (~1 mm)
    and decide then whether to resample them to 3 mm.
 
-## Next 4 experiments (revised 2026-11-10)
+## Next 4 experiments (revised 2026-11-10, results 2026-11-15)
 Where we are: nnU-Net ResEnc L leads (0.638 on validation); our U-Net 0.579 at its best setting, 0.594 on fold 0 with
 the even bigger block; on test our U-Net already ties the first nnU-Net (0.589 vs 0.591) and is better on small tumours.
-- [ ] **1. Strongest nnU-Net**: ResEnc L trained 1000 epochs (its two best gains together), 5 folds
-- [ ] **2. Our best U-Net on all folds**: even bigger block + 100,000 steps, folds 1-4, then pick its best prediction setting
-- [ ] **3. Team up**: average the best nnU-Net with our U-Net (ours is better on small tumours); mix chosen on validation
-- [ ] **4. MedSAM2 (foundation model, box hint)**: (a) box from the doctor's outline = best case; (b) box from our model = real case. Scored apart, as a doctor-guided tool
-- [ ] **5. E7, pre-trained vs from scratch** (added, runs alongside): Swin UNETR starting from MONAI's weights
+- [x] **1. Strongest nnU-Net** (0.643, barely better than 250 epochs): ResEnc L trained 1000 epochs (its two best gains together), 5 folds
+- [x] **2. Our best U-Net on all folds** (0.582, levelled off): even bigger block + 100,000 steps, folds 1-4, then pick its best prediction setting
+- [x] **3. Team up** (0.659, the best so far): average the best nnU-Net with our U-Net (ours is better on small tumours); mix chosen on validation
+- [x] **4. MedSAM2 (foundation model, box hint)** (doctor box 0.730, the best of all; our box 0.613): (a) box from the doctor's outline = best case; (b) box from our model = real case. Scored apart, as a doctor-guided tool
+- [x] **5. E7, pre-trained vs from scratch** (pre-training +0.04, Swin still behind; dropped) (added, runs alongside): Swin UNETR starting from MONAI's weights
   learned on ~5,000 CTs vs the same Swin from scratch (`b4_swin_big_fold0`, 0.531), fold 0, 2 seeds; STU-Net later
+- [ ] **6. Team up again** with the newest models (ResEnc L 1000 + nnU-Net 1000 + our newest U-Net)
+- [ ] **7. MedSAM2 with the box from the team-up** (the better finder), fold 0
 - [ ] **Then one final test** with the winner, on the 60 locked patients
 - Later: STU-Net (second E7 model), outside data (E11), look at the 3 large always-missed patients
 
