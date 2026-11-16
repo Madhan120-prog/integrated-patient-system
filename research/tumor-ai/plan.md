@@ -115,9 +115,8 @@ the even bigger block; on test our U-Net already ties the first nnU-Net (0.589 v
 - [x] **4. MedSAM2 (foundation model, box hint)** (doctor box 0.730, the best of all; our box 0.613): (a) box from the doctor's outline = best case; (b) box from our model = real case. Scored apart, as a doctor-guided tool
 - [x] **5. E7, pre-trained vs from scratch** (pre-training +0.04, Swin still behind; dropped) (added, runs alongside): Swin UNETR starting from MONAI's weights
   learned on ~5,000 CTs vs the same Swin from scratch (`b4_swin_big_fold0`, 0.531), fold 0, 2 seeds; STU-Net later
-- [ ] **6. Team up again** with the newest models (ResEnc L 1000 + nnU-Net 1000 + our newest U-Net)
-- [ ] **7. MedSAM2 with the box from the team-up** (the better finder), fold 0
-- [ ] **Then one final test** with the winner, on the 60 locked patients
+- [x] **6. Team up again** done: 0.653, same mix wins (stable). **7. MedSAM2 with the team-up's box**: 0.638, worse than the team-up alone (0.687 on fold 0); MedSAM2 stays a doctor-guided tool
+- [ ] **Then one final test** with the winner, on the 60 locked patients (`jobs/final_test.sbatch`, built 2026-11-16)
 - Later: STU-Net (second E7 model), outside data (E11), look at the 3 large always-missed patients
 
 Run side by side (no step waits for another, except where noted):

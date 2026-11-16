@@ -2,6 +2,9 @@
 
 Our U-Net: the 5 fold models' tumour probabilities are averaged (nnU-Net does the same with its folds).
 Both models then keep only the largest tumour piece, so they are compared the same way.
+With --nnunet-prob (saved nnU-Net test probabilities, several folders are averaged) it also scores the nnU-Net
+models alone and the batch 6 AVERAGE: weight x ours + (1 - weight) x nnU-Net, with the same cut-off and piece
+(all chosen on validation, never on test). See jobs/final_test.sbatch.
 
     python evaluate.py --data ../data/full/nnunet/Dataset001_LungGTV --splits ../data/full/splits.json \
         --ours full_e3_fold0 full_e3_fold1 full_e3_fold2 full_e3_fold3 full_e3_fold4 \
@@ -17,6 +20,7 @@ import SimpleITK as sitk
 import torch
 from scipy import ndimage
 
+from ensemble import nnunet_prob
 from train import build, largest_piece, one_piece, predict_prob
 
 SIZE_GROUPS = [("small", 0, 20), ("medium", 20, 100), ("large", 100, float("inf"))]   # tumour volume, cc
@@ -52,6 +56,8 @@ def main():
     ap.add_argument("--splits", required=True)
     ap.add_argument("--ours", nargs="*", default=[], help="run names under runs/, one per fold")
     ap.add_argument("--nnunet-pred", default=None, help="folder of nnUNetv2_predict outputs for the test patients")
+    ap.add_argument("--nnunet-prob", nargs="*", default=[], help="folders of nnU-Net TEST .npz probabilities (averaged)")
+    ap.add_argument("--weight", type=float, default=0.25, help="share of our U-Net in the average (chosen on validation)")
     ap.add_argument("--out", required=True)
     ap.add_argument("--cutoff", type=float, default=0.5, help="our U-Net: tumour cut-off (choose it on validation, never on test)")
     ap.add_argument("--gauss", action="store_true", help="our U-Net: centre-weighted blocks")
@@ -76,6 +82,13 @@ def main():
         if nets:
             prob = np.mean([predict_prob(n, img.astype(np.int16), p, device, nm, a.gauss) for n, p, nm in nets], axis=0)
             rows.append({"patient": pid, "model": "our U-Net", **scores(one_piece(prob, a.cutoff, a.piece), gt, spacing)})
+        if a.nnunet_prob:
+            nn = nnunet_prob(a.nnunet_prob, pid)
+            assert nn.shape == gt.shape, f"{pid}: nnU-Net {nn.shape} vs scan {gt.shape}"
+            rows.append({"patient": pid, "model": "nnU-Net", **scores(one_piece(nn, a.cutoff, a.piece), gt, spacing)})
+            if nets:
+                avg = a.weight * prob + (1 - a.weight) * nn
+                rows.append({"patient": pid, "model": "average", **scores(one_piece(avg, a.cutoff, a.piece), gt, spacing)})
         if a.nnunet_pred:
             pred, _ = read(Path(a.nnunet_pred) / f"{pid}.nii.gz")
             rows.append({"patient": pid, "model": "nnU-Net", **scores(largest_piece(pred > 0), gt, spacing)})
