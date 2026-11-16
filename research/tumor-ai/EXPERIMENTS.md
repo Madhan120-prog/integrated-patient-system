@@ -99,8 +99,8 @@ the doctor, MedSAM2 is the best of all (0.730 on fold 0), so a semi-automatic pa
 The average's mix was picked from 63 settings on the same patients, so its lead is a little optimistic; the test will tell.
 Next (6.6): average again with ResEnc L 1000 ep + our b6 U-Net; MedSAM2 with a box from the average (not our U-Net); then the final test.
 
-- [ ] **6.6** Average again with the newest models: ResEnc L 1000 ep + nnU-Net 1000 ep + our b6 U-Net (`batch6_nnunet_prob` TAG=resencL1000, then `batch6_avg` OURS=b6 TAG=v2). Job: (not yet)
-- [ ] **6.7** E8 real case, better finder: MedSAM2 with the box from the average (task 0, w 0.25) and from the nnU-Net pair alone (task 1, w 0), fold 0. Beat 0.687 (average, no MedSAM2) to be worth it. `medsam_box.py --nnunet --weight`, `batch6_medsam_avg.sbatch`. Job: (not yet)
+- [x] **6.6** (**0.653**, the same mix wins again: 25% ours, cut-off 0.3, confident piece; folds 0.672/0.693/0.666/0.666/0.568; v1 was 0.659, so newer models add nothing; the recipe is stable) Average again with the newest models: ResEnc L 1000 ep + nnU-Net 1000 ep + our b6 U-Net (`batch6_nnunet_prob` TAG=resencL1000, then `batch6_avg` OURS=b6 TAG=v2). Job: prob 3601423_[0-5], average 3601429_[0-4]
+- [x] **6.7** (fold 0: box from the average 0.638, from nnU-Net alone 0.629; the average without MedSAM2 scores 0.687, so MedSAM2 makes it WORSE without a doctor's box; keep MedSAM2 only as a doctor-guided tool) E8 real case, better finder: MedSAM2 with the box from the average (task 0, w 0.25) and from the nnU-Net pair alone (task 1, w 0), fold 0. Beat 0.687 (average, no MedSAM2) to be worth it. `medsam_box.py --nnunet --weight`, `batch6_medsam_avg.sbatch`. Job: 3601430_[0-1] (3609326 = accidental repeat, refuses existing names)
 
 Later batches (need something first): E4d part 2 resampling (new data prep), E5, E7 and E8 (pre-trained weights), E10, E11, E13.
 

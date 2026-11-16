@@ -259,9 +259,11 @@ later connect to the portal. Guide and experiment table: `research/tumor-ai/READ
 - [x] HPC setup and 50-patient run (E0, E1-small, E3-small)
 - [x] Full runs on 415 patients + final test (2026-10-30): nnU-Net Dice 0.591, our U-Net 0.468
 - [x] Batches 1-2 (2026-11-05): cut-off 0.3 lifts our U-Net to 0.533 on test (nnU-Net 0.591); bigger block best change
-- [ ] Batches 3-4 running: bigger block on 5 folds, small-tumour ideas, Swin + bigger block, nnU-Net probabilities
-- [ ] Try stronger and pre-trained networks (nnU-Net ResEnc, MedNeXt, STU-Net); pick the winner on validation
-- [ ] Review tool: DICOM in -> AI outline -> doctor review -> RTSTRUCT out (plan: `research/tumor-ai/plan.md`)
+- [x] Batches 3-6 (2026-11-15): best = 25% our U-Net + 75% nnU-Net ResEnc L, 0.659 on validation; MedSAM2 with a doctor's box 0.730
+- [ ] Final tuning (6.6, 6.7), then the one final test
+- [x] Try stronger and pre-trained networks (ResEnc L leads; pre-trained Swin +0.04 but behind); STU-Net later
+- [x] Review tool prototype (2026-11-15): DICOM in -> AI outline -> doctor review -> RTSTRUCT out, local page (`research/tumor-ai/prototype/`)
+- [ ] Load the real models from BigBlue into the prototype and demo on a fair (fold-0 validation) patient
 
 ---
 

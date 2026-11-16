@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+python-multipart
+nnunetv2
+setuptools
+rt-utils
+pydicom
+SimpleITK

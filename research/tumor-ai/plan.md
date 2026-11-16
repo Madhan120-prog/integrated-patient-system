@@ -143,9 +143,9 @@ stays as the learning reference. Same patients, folds and locked test for every 
 ## After a winner: upload, review, download (added 2026-11-06)
 DICOM in, a doctor reviews the AI outline, a file the planning system opens comes out. Public DICOM only until
 hospital and university approve; the model runs locally (never a cloud AI service); every outline is a research draft.
-- [ ] **Step 1, `predict_dicom.py`** (command line): DICOM CT folder -> winning model -> `RTSTRUCT.dcm` (via `rt-utils`,
+- [x] **Step 1, `predict_dicom.py`** (built 2026-11-15 as `prototype/engine.py`; tested on a sample, RTSTRUCT reads back exactly) (command line): DICOM CT folder -> winning model -> `RTSTRUCT.dcm` (via `rt-utils`,
   tied to that CT), plus `mask.nii.gz`, a few overview pictures and a small `summary.json` (tumour size, how sure)
-- [ ] **Step 2, small review page** (local, research): upload a zipped DICOM folder; view the CT slice by slice with the
+- [x] **Step 2, small review page** (built 2026-11-15: `prototype/`, see its README; own canvas viewer instead of NiiVue, no internet needed; waits for the real models from BigBlue) (local, research): upload a zipped DICOM folder; view the CT slice by slice with the
   AI outline on top (NiiVue, reads DICOM in the browser); slider for the cut-off; accept / reject / note;
   download RTSTRUCT, mask and a one-page PDF. FastAPI endpoint + one React page, like the portal
 - [ ] **Step 3, inside the portal** (needs approval): "Tumour outline" in the patient chart; pick the CT from PACS

@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tumour Review Desk</title>
+<style>
+:root{
+  --desk:#121211; --desk2:#1a1918; --desk3:#24221f; --line:#2e2b27; --dim:#8a8478; --text:#e8e2d4;
+  --amber:#ffb000; --cyan:#3cd3ff;
+  --paper:#f2ede2; --paper2:#e9e2d3; --ink:#1e1c19; --ink2:#6a6357; --rule:#cbc1ad; --red:#b3312a; --green:#2e6a3b;
+  --serif:"Iowan Old Style","Charter","Palatino Linotype",Palatino,Georgia,serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,system-ui,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;height:100%}
+body{background:var(--desk);color:var(--text);font:14px/1.45 var(--sans);overflow:hidden}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+button:focus-visible,input:focus-visible,textarea:focus-visible,a:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+
+/* ---------- header ---------- */
+header{height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;border-bottom:1px solid var(--line)}
+.eyebrow{font:11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
+h1{margin:4px 0 0;font:500 19px/1.1 var(--serif);letter-spacing:.01em}
+.stamp{font:600 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:#e2554b;border:2px solid #e2554b;
+  padding:6px 10px;transform:rotate(-2.5deg);outline:1px solid #e2554b;outline-offset:2px;opacity:.85;white-space:nowrap}
+
+/* ---------- three columns ---------- */
+main{display:grid;grid-template-columns:232px minmax(0,1fr) 384px;height:calc(100vh - 58px)}
+
+/* rail */
+.rail{border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.drop{margin:14px;border:1px dashed #4a463f;padding:14px 12px;text-align:center;transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--amber);background:#ffb00010}
+.drop b{display:block;font:500 15px/1.2 var(--serif);margin-bottom:4px}
+.drop p{margin:0 0 10px;color:var(--dim);font-size:12px}
+.drop .row{display:flex;gap:6px;justify-content:center}
+.chip{font:12px/1 var(--mono);border:1px solid #4a463f;padding:6px 8px;color:var(--text)}
+.chip:hover{border-color:var(--text)}
+.chip[aria-pressed=true]{background:var(--text);color:var(--desk);border-color:var(--text)}
+.prog{height:2px;background:var(--line);margin-top:10px;display:none}
+.prog i{display:block;height:100%;width:0;background:var(--amber)}
+.label{font:11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--dim);padding:6px 16px 8px}
+.cases{overflow:auto;flex:1;padding-bottom:12px}
+.case{display:grid;grid-template-columns:10px 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;padding:9px 16px;border-left:2px solid transparent}
+.case:hover{background:var(--desk2)}
+.case[aria-current=true]{background:var(--desk3);border-left-color:var(--amber)}
+.case .id{font:13px/1.2 var(--mono)}
+.case .when{font-size:11px;color:var(--dim)}
+.case .st{font:10px/1 var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--dim)}
+.dot{width:8px;height:8px;border:1.5px solid var(--dim)}
+.dot.running{border-color:var(--amber);background:var(--amber);animation:blink 1s steps(2) infinite}
+.dot.done{border-color:var(--text)}
+.dot.accepted{background:#5fae6e;border-color:#5fae6e}
+.dot.rejected{background:#e2554b;border-color:#e2554b}
+.dot.changes{background:var(--amber);border-color:var(--amber)}
+.dot.failed{border-color:#e2554b}
+@keyframes blink{50%{opacity:.25}}
+.railfoot{padding:12px 16px;border-top:1px solid var(--line);font-size:11px;color:var(--dim)}
+
+/* viewer */
+.viewer{display:flex;flex-direction:column;min-width:0;min-height:0;background:#000}
+.tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px 14px;background:var(--desk);border-bottom:1px solid var(--line)}
+.tools .sep{width:1px;height:18px;background:var(--line);margin:0 4px}
+.tools .sp{flex:1}
+.keys{font:11px/1 var(--mono);color:var(--dim)}
+kbd{font:11px/1 var(--mono);border:1px solid #4a463f;border-bottom-width:2px;padding:1px 4px;color:var(--text)}
+.vp{position:relative;flex:1;min-height:0;overflow:hidden;cursor:crosshair}
+.vp canvas{position:absolute;inset:0;width:100%;height:100%}
+.corner{position:absolute;font:12px/1.5 var(--mono);color:#e8e2d4;background:#000000b3;padding:5px 8px;pointer-events:none;white-space:pre}
+.tl{top:12px;left:14px}.tr{top:12px;right:14px;text-align:right}.bl{bottom:12px;left:14px}.br{bottom:12px;right:14px;text-align:right}
+.scalebar{height:6px;border:1px solid #cfc9bb;border-top:0;margin:4px 0 0 auto}
+.readout{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font:12px/1 var(--mono);color:var(--text);background:#000c;padding:6px 10px;border:1px solid var(--line);pointer-events:none;display:none;white-space:nowrap}
+.cover{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--desk);padding:24px}
+.log{width:min(640px,100%);font:13px/1.7 var(--mono);color:#cfc9bb}
+.log .t{color:var(--dim);margin-right:12px}
+.log .cur::after{content:"▌";color:var(--amber);animation:blink 1s steps(2) infinite}
+.log .err{color:#ff7b70}
+.log h2{font:500 22px/1.2 var(--serif);color:var(--text);margin:0 0 14px}
+.intro{width:min(720px,100%)}
+.intro h2{font:500 28px/1.15 var(--serif);margin:0 0 8px}
+.intro p{color:var(--dim);margin:0 0 26px;max-width:560px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line)}
+.steps div{padding:14px 14px 0 0}
+.steps b{display:block;font:11px/1 var(--mono);color:var(--amber);letter-spacing:.12em;margin-bottom:8px}
+.steps span{font:15px/1.3 var(--serif)}
+.steps small{display:block;color:var(--dim);margin-top:6px;font-size:12px}
+.ribbon{height:78px;position:relative;background:var(--desk);border-top:1px solid var(--line);cursor:ew-resize}
+.ribbon canvas{position:absolute;inset:0;width:100%;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:18px;align-items:center;padding:8px 14px;background:var(--desk);border-top:1px solid var(--line);font-size:12px;color:var(--dim)}
+.sw{display:inline-block;width:22px;height:0;vertical-align:middle;margin-right:7px}
+.sw.ai{border-top:2.5px solid var(--amber)}.sw.dr{border-top:2px dashed var(--cyan)}.sw.rg{border-top:1px solid #ffb00066;box-shadow:0 3px 0 -2px #ffb00044}
+
+/* worksheet */
+.sheet{background:var(--paper);color:var(--ink);overflow:auto;padding:22px 24px 30px;
+  background-image:linear-gradient(var(--paper2) 1px,transparent 1px);background-size:100% 28px;background-position:0 -1px}
+.sheet h2{font:500 22px/1.15 var(--serif);margin:0}
+.sheet .sub{font:11px/1.4 var(--mono);color:var(--ink2);margin:6px 0 18px;letter-spacing:.04em}
+.sec{background:var(--paper);margin:0 -8px 18px;padding:12px 8px 4px;border-top:2px solid var(--ink)}
+.sec h3{display:flex;gap:10px;align-items:baseline;margin:0 0 10px;font:600 12px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase}
+.sec h3 .no{font:500 20px/1 var(--serif);letter-spacing:0}
+.f{display:flex;align-items:baseline;gap:6px;margin:0 0 7px;font-size:13px}
+.f .k{color:var(--ink2);white-space:nowrap}
+.f .lead{flex:1;border-bottom:1px dotted var(--rule);transform:translateY(-3px);min-width:12px}
+.f .v{font:13px/1.3 var(--mono);text-align:right}
+.big{font:500 44px/1 var(--serif);letter-spacing:-.01em}
+.big small{font:13px var(--sans);color:var(--ink2);margin-left:6px}
+.slider{width:100%;accent-color:var(--ink);margin:10px 0 2px}
+.ticks{display:flex;justify-content:space-between;font:10px/1 var(--mono);color:var(--ink2)}
+.hint{font-size:12px;color:var(--ink2);margin:8px 0 6px}
+.note{font-size:12px;line-height:1.45;padding:8px 10px;border-left:3px solid var(--ink2);background:#0000000a;margin:4px 0 10px}
+.note.bad{border-color:var(--red);color:#7b1f19}.note.good{border-color:var(--green);color:#204a29}
+svg text{font-family:var(--mono)}
+.dec{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:10px}
+.dec button{border:1.5px solid var(--ink);padding:9px 4px;font:600 12px/1.1 var(--sans);background:transparent;color:var(--ink)}
+.dec button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+.sheet input[type=text],.sheet textarea{width:100%;font:13px/1.4 var(--sans);border:0;border-bottom:1.5px solid var(--ink);background:transparent;padding:6px 2px;color:var(--ink);resize:vertical}
+.sheet textarea{border:1.5px solid var(--rule);margin-top:8px;min-height:56px;padding:6px 8px}
+.sign{margin-top:10px;width:100%;background:var(--ink);color:var(--paper);padding:10px;font:600 13px/1 var(--sans)}
+.sign:disabled{opacity:.35;cursor:not-allowed}
+.signed{font:600 12px/1.4 var(--mono);letter-spacing:.1em;text-transform:uppercase;border:2.5px solid currentColor;padding:8px 12px;display:inline-block;transform:rotate(-2deg);margin:4px 0 10px}
+.signed.accepted{color:var(--green)}.signed.rejected{color:var(--red)}.signed.changes{color:#8a5a00}
+.dl{display:grid;gap:6px}
+.dl a,.dl button{display:flex;justify-content:space-between;align-items:center;border:1.5px solid var(--ink);padding:9px 12px;color:var(--ink);text-decoration:none;font-size:13px;text-align:left}
+.dl a:hover,.dl button:hover{background:var(--ink);color:var(--paper)}
+.dl small{font:11px var(--mono);opacity:.7}
+.fine{font-size:11px;color:var(--ink2);margin-top:18px;line-height:1.5}
+.blank{color:var(--ink2);font:15px/1.5 var(--serif);margin-top:30px}
+#printShot{display:none}
+
+@media (max-width:1100px){
+  body{overflow:auto}
+  main{grid-template-columns:1fr;height:auto}
+  .rail{border-right:0;border-bottom:1px solid var(--line)}
+  .cases{max-height:180px}
+  .viewer{height:78vh}
+  .steps{grid-template-columns:1fr 1fr}
+}
+@media (max-width:560px){header{padding:0 12px}.stamp{display:none}.tools .keys{display:none}}
+@media print{
+  body{background:#fff;overflow:visible}
+  header .stamp{color:#b3312a;border-color:#b3312a;outline-color:#b3312a}
+  header{color:#000;border-color:#999}
+  .rail,.viewer,.no-print{display:none!important}
+  main{display:block;height:auto}
+  .sheet{background:#fff;overflow:visible;padding:0}
+  #printShot{display:block;width:60%;margin:0 0 14px;border:1px solid #999}
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="eyebrow">Research prototype · runs on this computer</div>
+    <h1>Lung Tumor Detection and Outlining with AI</h1>
+  </div>
+  <div class="stamp" aria-label="Research draft, not for treatment">Research draft · not for treatment</div>
+</header>
+
+<main>
+  <!-- left: new scan + list -->
+  <aside class="rail">
+    <div class="drop" id="drop">
+      <b>New scan</b>
+      <p>Drop a zipped DICOM folder of one CT. The doctor's RTSTRUCT, if included, is used for comparison.</p>
+      <div class="row">
+        <button class="chip" id="pickZip">Choose .zip</button>
+        <button class="chip" id="pickDir">Choose folder</button>
+      </div>
+      <div class="prog" id="prog"><i></i></div>
+      <input type="file" id="zipIn" accept=".zip,application/zip" hidden>
+      <input type="file" id="dirIn" webkitdirectory multiple hidden>
+    </div>
+    <div class="label">Scans</div>
+    <div class="cases" id="cases"></div>
+    <div class="railfoot">Public data only, until the hospital and university approve.</div>
+  </aside>
+
+  <!-- centre: the film viewer -->
+  <section class="viewer" aria-label="CT viewer">
+    <div class="tools">
+      <button class="chip" data-win="lung" aria-pressed="true">Lung</button>
+      <button class="chip" data-win="soft" aria-pressed="false">Soft tissue</button>
+      <span class="sep"></span>
+      <button class="chip" id="tDoc" aria-pressed="true">Doctor</button>
+      <button class="chip" id="tRings" aria-pressed="true">Sureness rings</button>
+      <button class="chip" id="tDiff" aria-pressed="false">Where they differ</button>
+      <button class="chip" id="tZoom" aria-pressed="false">Zoom to tumour</button>
+      <span class="sp"></span>
+      <span class="keys"><kbd>↑</kbd><kbd>↓</kbd> slice · <kbd>[</kbd><kbd>]</kbd> sureness · <kbd>Z</kbd> zoom · <kbd>D</kbd> doctor · <kbd>W</kbd> window</span>
+    </div>
+    <div class="vp" id="vp">
+      <canvas id="cv"></canvas>
+      <div class="corner tl" id="cTL"></div>
+      <div class="corner tr" id="cTR"></div>
+      <div class="corner bl" id="cBL"></div>
+      <div class="corner br" id="cBR"><span id="sbTxt">5 cm</span><div class="scalebar" id="sb"></div></div>
+      <div class="readout" id="readout"></div>
+      <div class="cover" id="cover">
+        <div class="intro" id="intro">
+          <h2>A second reader for lung tumours.</h2>
+          <p>The AI draws a first outline of the main tumour on a CT. A doctor checks it slice by slice, decides how sure the AI must be, signs it off, and takes away a file the planning system opens.</p>
+          <div class="steps">
+            <div><b>01</b><span>Drop a CT</span><small>zipped DICOM folder</small></div>
+            <div><b>02</b><span>AI outlines</span><small>nnU-Net + our U-Net, on this computer</small></div>
+            <div><b>03</b><span>Doctor reviews</span><small>scroll, compare, choose sureness</small></div>
+            <div><b>04</b><span>Take away</span><small>RTSTRUCT for the planning system</small></div>
+          </div>
+        </div>
+        <div class="log" id="log" hidden></div>
+      </div>
+    </div>
+    <div class="ribbon" id="ribbon" title="Each column is one slice: AI outline area (amber), doctor's (blue line). Click or drag to move."><canvas id="rb"></canvas></div>
+    <div class="legend">
+      <span><i class="sw ai"></i>AI outline at the chosen sureness</span>
+      <span><i class="sw rg"></i>AI at 10% · 50% · 90% sure (like height lines on a map)</span>
+      <span id="lgDoc"><i class="sw dr"></i>Doctor's outline</span>
+    </div>
+  </section>
+
+  <!-- right: the worksheet -->
+  <aside class="sheet" id="sheet">
+    <div class="blank" id="blank">Choose a scan on the left, or drop a new one.<br>Its worksheet appears here.</div>
+    <div id="ws" hidden>
+      <img id="printShot" alt="CT slice with the AI outline">
+      <h2 id="wsTitle">Patient</h2>
+      <div class="sub" id="wsSub"></div>
+
+      <div class="sec">
+        <h3><span class="no">1</span>The scan</h3>
+        <div class="f"><span class="k">Patient</span><span class="lead"></span><span class="v" id="fPid"></span></div>
+        <div class="f"><span class="k">Slices</span><span class="lead"></span><span class="v" id="fSlices"></span></div>
+        <div class="f"><span class="k">Pixel / slice gap</span><span class="lead"></span><span class="v" id="fSpacing"></span></div>
+        <div class="f"><span class="k">Read in</span><span class="lead"></span><span class="v" id="fTime"></span></div>
+        <div class="hint" id="fModels"></div>
+        <div class="note" id="fRole"></div>
+      </div>
+
+      <div class="sec">
+        <h3><span class="no">2</span>How sure must the AI be?</h3>
+        <div class="big"><span id="kVal">30%</span><small>to draw a spot inside the outline</small></div>
+        <input class="slider" id="kIn" type="range" min="0" max="8" step="1" value="2" aria-label="How sure the AI must be">
+        <div class="ticks"><span>10%</span><span>50%</span><span>90%</span></div>
+        <div class="hint">Lower draws a bigger, more generous outline; higher a tighter one. Our tests picked 30%.</div>
+        <svg id="chart" width="100%" height="120" role="img" aria-label="Outline size at each sureness level"></svg>
+      </div>
+
+      <div class="sec">
+        <h3><span class="no">3</span>What the AI found</h3>
+        <div class="f"><span class="k">Tumour found</span><span class="lead"></span><span class="v" id="rFound"></span></div>
+        <div class="f"><span class="k">Volume</span><span class="lead"></span><span class="v" id="rCc"></span></div>
+        <div class="f"><span class="k">Size, side × front-back × up-down</span><span class="lead"></span><span class="v" id="rSize"></span></div>
+        <div class="f"><span class="k">Seen on</span><span class="lead"></span><span class="v" id="rSl"></span></div>
+        <div class="f"><span class="k">AI sureness inside</span><span class="lead"></span><span class="v" id="rSure"></span></div>
+        <div id="vsDoc">
+          <div class="f"><span class="k">Overlap with the doctor</span><span class="lead"></span><span class="v" id="rDice"></span></div>
+          <div class="f"><span class="k">Size vs the doctor's</span><span class="lead"></span><span class="v" id="rVd"></span></div>
+          <div class="hint">Overlap (Dice): 1.00 means the same outline; our models average about 0.65 on unseen patients.</div>
+        </div>
+      </div>
+
+      <div class="sec no-print-if-empty">
+        <h3><span class="no">4</span>Doctor's sign-off</h3>
+        <div id="signedBox"></div>
+        <div id="signForm">
+          <div class="dec" role="group" aria-label="Decision">
+            <button data-d="accepted" aria-pressed="false">Accept draft</button>
+            <button data-d="needs changes" aria-pressed="false">Needs changes</button>
+            <button data-d="rejected" aria-pressed="false">Reject</button>
+          </div>
+          <label class="hint" for="who">Reviewer</label>
+          <input type="text" id="who" placeholder="Name or initials" maxlength="60">
+          <textarea id="note" placeholder="Note (optional): what to fix, why rejected…" maxlength="2000" aria-label="Note"></textarea>
+          <button class="sign" id="signBtn" disabled>Sign at <span id="signK">30%</span></button>
+        </div>
+      </div>
+
+      <div class="sec no-print">
+        <h3><span class="no">5</span>Take away</h3>
+        <div class="dl">
+          <a id="dRt" href="#">RTSTRUCT for the planning system <small id="dRtK">30%</small></a>
+          <a id="dMask" href="#">Outline as a mask (NIfTI) <small>.nii.gz</small></a>
+          <a id="dSum" href="#">Numbers (JSON) <small>.json</small></a>
+          <button id="dPrint">Print this worksheet <small>PDF</small></button>
+        </div>
+      </div>
+      <div class="fine">AI output is a research draft for review, not a diagnosis or a treatment plan. Everything on this page runs on this computer; no scan is sent to any online service.</div>
+    </div>
+  </aside>
+</main>
+
+<script>
+"use strict";
+const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+const api = async (p, o) => { const r = await fetch(p, o); if (!r.ok) throw new Error((await r.text()) || r.status); return r.json(); };
+const WIN = { lung: { L: -600, W: 1500, name: "Lung" }, soft: { L: 40, W: 400, name: "Soft tissue" } };
+const S = { id: null, sum: null, ct: null, ai: null, doc: null, z: 0, k: 2, win: "lung", showDoc: true, rings: true,
+            diff: false, zoom: false, aiArea: null, docArea: null, poll: null, decision: null, view: null };
+const cv = $("#cv"), ctx = cv.getContext("2d"), rb = $("#rb"), rctx = rb.getContext("2d");
+const off = document.createElement("canvas"), octx = off.getContext("2d");
+const tint = document.createElement("canvas"), tctx = tint.getContext("2d");
+let lut, img, tImg;
+const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+                set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+
+/* ---------- case list ---------- */
+function dotClass(c) {
+  if (c.state !== "done") return c.state;
+  return { accepted: "accepted", rejected: "rejected", "needs changes": "changes" }[c.review] || "done";
+}
+function stLabel(c) {
+  return c.state === "done" ? (c.review || "to review") : c.state;
+}
+async function refreshList() {
+  let list = [];
+  try { list = await api("/api/cases"); } catch { return; }
+  $("#cases").innerHTML = list.length ? "" : '<div class="label" style="text-transform:none;letter-spacing:0">No scans yet.</div>';
+  for (const c of list) {
+    const b = document.createElement("button");
+    b.className = "case"; b.setAttribute("aria-current", c.id === S.id);
+    b.innerHTML = `<i class="dot ${dotClass(c)}"></i><span><span class="id"></span><br><span class="when"></span></span><span class="st"></span>`;
+    b.querySelector(".id").textContent = c.patient || "reading…";
+    b.querySelector(".when").textContent = c.received || c.id.slice(0, 13);
+    b.querySelector(".st").textContent = stLabel(c);
+    b.onclick = () => openCase(c.id);
+    $("#cases").append(b);
+  }
+}
+
+/* ---------- upload ---------- */
+function upload(files) {
+  if (!files.length) return;
+  const fd = new FormData();
+  for (const f of files) fd.append("files", f, "x");
+  const x = new XMLHttpRequest(), bar = $("#prog");
+  bar.style.display = "block";
+  x.upload.onprogress = e => { if (e.lengthComputable) bar.firstElementChild.style.width = (100 * e.loaded / e.total) + "%"; };
+  x.onload = () => {
+    bar.style.display = "none"; bar.firstElementChild.style.width = 0;
+    if (x.status !== 200) { alert("Upload failed: " + x.responseText); return; }
+    const { id } = JSON.parse(x.responseText); refreshList(); openCase(id);
+  };
+  x.onerror = () => { bar.style.display = "none"; alert("Upload failed: is the review desk still running?"); };
+  x.open("POST", "/api/cases"); x.send(fd);
+}
+$("#pickZip").onclick = () => $("#zipIn").click();
+$("#pickDir").onclick = () => $("#dirIn").click();
+$("#zipIn").onchange = e => { upload([...e.target.files]); e.target.value = ""; };
+$("#dirIn").onchange = e => { upload([...e.target.files]); e.target.value = ""; };
+const drop = $("#drop");
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => {
+  const files = [...e.dataTransfer.files].filter(f => f.size > 0);
+  if (!files.length) { alert("That looks like a folder. Zip it first, or use “Choose folder”."); return; }
+  upload(files);
+});
+
+/* ---------- open a case ---------- */
+async function openCase(id) {
+  clearTimeout(S.poll);
+  Object.assign(S, { id, sum: null, ct: null, ai: null, doc: null, decision: null });
+  $$(".case").forEach(b => b.setAttribute("aria-current", false));
+  refreshList();
+  $("#intro").hidden = true; $("#log").hidden = false; $("#cover").hidden = false;
+  $("#ws").hidden = true; $("#blank").hidden = false; $("#blank").textContent = "Reading…";
+  let c;
+  try { c = await api("/api/cases/" + id); } catch (e) { showLog({ log: [], error: String(e) }, "Could not open this scan"); return; }
+  if (c.status.state !== "done") return watch(id);
+  await loadVolumes(c);
+}
+function showLog(st, title) {
+  const el = $("#log");
+  el.innerHTML = `<h2></h2>`; el.querySelector("h2").textContent = title;
+  st.log.forEach(([t, m], i) => {
+    const d = document.createElement("div");
+    d.innerHTML = `<span class="t"></span><span></span>`;
+    d.firstChild.textContent = t; d.lastChild.textContent = m;
+    if (i === st.log.length - 1 && !st.error) d.className = "cur";
+    el.append(d);
+  });
+  if (st.error) { const d = document.createElement("div"); d.className = "err"; d.textContent = "Stopped: " + st.error; el.append(d); }
+}
+async function watch(id) {
+  if (S.id !== id) return;
+  let c;
+  try { c = await api("/api/cases/" + id); } catch { S.poll = setTimeout(() => watch(id), 1500); return; }
+  const st = c.status;
+  showLog(st, st.state === "queued" ? "Waiting for the scan before it…" : st.state === "failed" ? "This scan could not be read" : "The AI is reading the scan");
+  $("#blank").textContent = st.state === "failed" ? "No worksheet: the scan stopped." : "The worksheet fills in when the AI is done.";
+  if (st.state === "done") { refreshList(); return loadVolumes(c); }
+  if (st.state !== "failed") S.poll = setTimeout(() => watch(id), 1000);
+  else refreshList();
+}
+async function fetchBin(url, label) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(label + ": " + r.status);
+  const total = +r.headers.get("content-length"), buf = new Uint8Array(total);
+  const rd = r.body.getReader(); let got = 0;
+  for (;;) {
+    const { done, value } = await rd.read(); if (done) break;
+    buf.set(value, got); got += value.length;
+    $("#log").innerHTML = `<h2>Opening the scan</h2><div class="cur"><span class="t">${label}</span>${(got / 1e6).toFixed(0)} of ${(total / 1e6).toFixed(0)} MB</div>`;
+  }
+  return buf.buffer;
+}
+async function loadVolumes(c) {
+  const id = c.id, s = c.summary;
+  try {
+    const ct = new Int16Array(await fetchBin(`/api/cases/${id}/ct.bin`, "CT"));
+    const ai = s.ai_shape[0] ? new Uint16Array(await fetchBin(`/api/cases/${id}/ai.bin`, "AI outline")) : null;
+    const doc = s.has_doctor && s.doctor_shape[0] ? new Uint8Array(await fetchBin(`/api/cases/${id}/doctor.bin`, "doctor")) : null;
+    if (S.id !== id) return;
+    Object.assign(S, { sum: s, ct, ai, doc, k: s.cuts.indexOf(s.default_cut), zoom: false });
+  } catch (e) { showLog({ log: [], error: String(e) }, "Could not open this scan"); return; }
+  const [Z, Y, X] = s.shape;
+  off.width = X; off.height = Y; img = octx.createImageData(X, Y);
+  tint.width = X; tint.height = Y; tImg = tctx.createImageData(X, Y);
+  areas();
+  const a = S.aiArea[S.k], d = S.docArea, src = a.some(v => v) ? a : d.some(v => v) ? d : null;
+  S.z = src ? src.indexOf(Math.max(...src)) : Z >> 1;
+  $("#cover").hidden = true;
+  fillSheet(c);
+  setToggle("#tZoom", false);
+  resize();
+}
+
+/* ---------- per-slice areas, for the ribbon ---------- */
+function areas() {
+  const s = S.sum, Z = s.shape[0];
+  S.aiArea = s.cuts.map(() => new Float32Array(Z));
+  S.docArea = new Float32Array(Z);
+  if (S.ai) {
+    const [cz, cy, cx] = s.ai_shape, n = cy * cx;
+    for (let z = 0; z < cz; z++) for (let i = 0; i < n; i++) {
+      const v = S.ai[z * n + i];
+      if (v) for (let k = 0; k < 9; k++) if (v >> k & 1) S.aiArea[k][z + s.ai_lo[0]]++;
+    }
+  }
+  if (S.doc) {
+    const [dz, dy, dx] = s.doctor_shape, n = dy * dx;
+    for (let z = 0; z < dz; z++) { let t = 0; for (let i = 0; i < n; i++) t += S.doc[z * n + i]; S.docArea[z + s.doctor_lo[0]] = t; }
+  }
+}
+
+/* ---------- drawing ---------- */
+function buildLut() {
+  const { L, W } = WIN[S.win], lo = L - W / 2;
+  lut = new Uint8ClampedArray(65536);
+  for (let i = 0; i < 65536; i++) lut[i] = (i - 32768 - lo) / W * 255;
+}
+function aiBit(x, y, z, k) {
+  const s = S.sum; if (!S.ai) return 0;
+  const [cz, cy, cx] = s.ai_shape, [z0, y0, x0] = s.ai_lo;
+  x -= x0; y -= y0; z -= z0;
+  if (x < 0 || y < 0 || z < 0 || x >= cx || y >= cy || z >= cz) return 0;
+  return S.ai[(z * cy + y) * cx + x] >> k & 1;
+}
+function docBit(x, y, z) {
+  const s = S.sum; if (!S.doc) return 0;
+  const [dz, dy, dx] = s.doctor_shape, [z0, y0, x0] = s.doctor_lo;
+  x -= x0; y -= y0; z -= z0;
+  if (x < 0 || y < 0 || z < 0 || x >= dx || y >= dy || z >= dz) return 0;
+  return S.doc[(z * dy + y) * dx + x];
+}
+function edges(test, lo, shape) {
+  // outline along pixel edges: each inside pixel with an outside neighbour adds that side
+  const p = new Path2D(), [, y0, x0] = lo, [, h, w] = shape;
+  for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) {
+    if (!test(x, y)) continue;
+    if (!test(x - 1, y)) { p.moveTo(x, y); p.lineTo(x, y + 1); }
+    if (!test(x + 1, y)) { p.moveTo(x + 1, y); p.lineTo(x + 1, y + 1); }
+    if (!test(x, y - 1)) { p.moveTo(x, y); p.lineTo(x + 1, y); }
+    if (!test(x, y + 1)) { p.moveTo(x, y + 1); p.lineTo(x + 1, y + 1); }
+  }
+  return p;
+}
+function view() {
+  const s = S.sum, [, Y, X] = s.shape, ay = s.spacing[1] / s.spacing[0], W = cv.width, H = cv.height;
+  let bx = 0, by = 0, bw = X, bh = Y;
+  if (S.zoom) {
+    const lo = S.ai ? s.ai_lo : s.doctor_lo, sh = S.ai ? s.ai_shape : s.doctor_shape, m = 40;
+    bx = lo[2] - m; by = lo[1] - m; bw = sh[2] + 2 * m; bh = sh[1] + 2 * m;
+  }
+  const sc = Math.min(W / bw, H / (bh * ay)) * (S.zoom ? 0.9 : 0.98);
+  return { sc, ay, ox: W / 2 - (bx + bw / 2) * sc, oy: H / 2 - (by + bh / 2) * sc * ay };
+}
+function draw() {
+  if (!S.sum) return;
+  const s = S.sum, [Z, Y, X] = s.shape, z = S.z, plane = X * Y, base = z * plane, d = img.data, dpr = devicePixelRatio || 1;
+  for (let i = 0; i < plane; i++) { const g = lut[S.ct[base + i] + 32768]; d[4 * i] = d[4 * i + 1] = d[4 * i + 2] = g; d[4 * i + 3] = 255; }
+  octx.putImageData(img, 0, 0);
+  const v = S.view = view();
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = "#000"; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(off, v.ox, v.oy, X * v.sc, Y * v.sc * v.ay);
+  ctx.setTransform(v.sc, 0, 0, v.sc * v.ay, v.ox, v.oy);
+  const px = dpr / v.sc;                                         // one screen pixel, in image pixels
+  const hasDoc = S.doc && S.showDoc;
+  if (S.diff && S.ai && S.doc) {                                 // AI-only amber, doctor-only blue
+    const t = tImg.data; t.fill(0);
+    const lo = [Math.min(s.ai_lo[1], s.doctor_lo[1]), Math.min(s.ai_lo[2], s.doctor_lo[2])];
+    const hi = [Math.max(s.ai_lo[1] + s.ai_shape[1], s.doctor_lo[1] + s.doctor_shape[1]),
+                Math.max(s.ai_lo[2] + s.ai_shape[2], s.doctor_lo[2] + s.doctor_shape[2])];
+    for (let y = lo[0]; y < hi[0]; y++) for (let x = lo[1]; x < hi[1]; x++) {
+      const a = aiBit(x, y, z, S.k), b = docBit(x, y, z); if (a === b) continue;
+      const j = 4 * (y * X + x);
+      if (a) { t[j] = 255; t[j + 1] = 176; t[j + 2] = 0; } else { t[j] = 60; t[j + 1] = 211; t[j + 2] = 255; }
+      t[j + 3] = 120;
+    }
+    tctx.putImageData(tImg, 0, 0);
+    ctx.imageSmoothingEnabled = false; ctx.drawImage(tint, 0, 0); ctx.imageSmoothingEnabled = true;
+  }
+  if (S.ai && z >= s.ai_lo[0] && z < s.ai_lo[0] + s.ai_shape[0]) {
+    if (S.rings) for (const k of [0, 4, 8]) {                    // 10%, 50%, 90%: a few contour lines, like a height map
+      if (k === S.k || !S.aiArea[k][z]) continue;
+      ctx.strokeStyle = `rgba(255,176,0,${0.3 + k * 0.04})`; ctx.lineWidth = px; ctx.setLineDash(k === 0 ? [2 * px, 2 * px] : []);
+      ctx.stroke(edges((x, y) => aiBit(x, y, z, k), s.ai_lo, s.ai_shape)); ctx.setLineDash([]);
+    }
+    if (S.aiArea[S.k][z]) {
+      const p = edges((x, y) => aiBit(x, y, z, S.k), s.ai_lo, s.ai_shape);
+      ctx.strokeStyle = "#ffb000"; ctx.lineWidth = 2.2 * px; ctx.lineCap = "square"; ctx.stroke(p);
+    }
+  }
+  if (hasDoc && S.docArea[z]) {
+    ctx.strokeStyle = "#3cd3ff"; ctx.lineWidth = 1.6 * px; ctx.setLineDash([4 * px, 3 * px]);
+    ctx.stroke(edges((x, y) => docBit(x, y, z), s.doctor_lo, s.doctor_shape)); ctx.setLineDash([]);
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  corners(); ribbon();
+}
+function corners() {
+  const s = S.sum, c = s.per_cut[S.k], w = WIN[S.win];
+  $("#cTL").textContent = `${s.patient}\nAI draft · ${Math.round(s.cuts[S.k] * 100)}% sure` + (c.found ? `\n${c.cc} cc` : "\nno tumour found");
+  $("#cTR").textContent = `slice ${S.z + 1} / ${s.shape[0]}\n${(S.z * s.spacing[2]).toFixed(1)} mm from first\n${S.zoom ? "zoomed to tumour" : "whole slice"}`;
+  $("#cBL").textContent = `${w.name} window\nL ${w.L}  W ${w.W}`;
+  const cssPerMm = S.view.sc / s.spacing[0] / (devicePixelRatio || 1), mm = S.zoom ? 20 : 50;
+  $("#sb").style.width = (mm * cssPerMm) + "px"; $("#sbTxt").textContent = mm / 10 + " cm";
+}
+function ribbon() {
+  const s = S.sum, Z = s.shape[0], W = rb.width, H = rb.height, dpr = devicePixelRatio || 1, bw = W / Z;
+  rctx.fillStyle = "#121211"; rctx.fillRect(0, 0, W, H);
+  const pad = 16 * dpr, h = H - pad - 6 * dpr;
+  const max = Math.max(1, ...S.aiArea[0], ...S.docArea);
+  for (let z = 0; z < Z; z++) {
+    const g = S.aiArea[0][z] / max * h, a = S.aiArea[S.k][z] / max * h;
+    if (g) { rctx.fillStyle = "#ffb00030"; rctx.fillRect(z * bw, H - pad - g, Math.max(1, bw - 1), g); }
+    if (a) { rctx.fillStyle = "#ffb000"; rctx.fillRect(z * bw, H - pad - a, Math.max(1, bw - 1), a); }
+  }
+  if (S.doc && S.showDoc) {
+    rctx.strokeStyle = "#3cd3ff"; rctx.lineWidth = 1.5 * dpr; rctx.beginPath();
+    for (let z = 0; z < Z; z++) { const y = H - pad - S.docArea[z] / max * h; z ? rctx.lineTo(z * bw, y) : rctx.moveTo(0, y); rctx.lineTo((z + 1) * bw, y); }
+    rctx.stroke();
+  }
+  rctx.fillStyle = "#2e2b27"; rctx.fillRect(0, H - pad, W, dpr);
+  rctx.fillStyle = "#8a8478"; rctx.font = `${10 * dpr}px ui-monospace,Menlo,monospace`; rctx.textBaseline = "middle";
+  rctx.textAlign = "left"; rctx.fillText("FEET", 6 * dpr, H - pad / 2);
+  rctx.textAlign = "right"; rctx.fillText("HEAD", W - 6 * dpr, H - pad / 2);
+  rctx.textAlign = "center"; rctx.fillText("each column = one slice · amber = AI outline area · blue = doctor", W / 2, H - pad / 2);
+  const x = (S.z + 0.5) * bw;
+  rctx.fillStyle = "#e8e2d4"; rctx.fillRect(x - dpr, 0, 2 * dpr, H - pad);
+}
+function resize() {
+  const dpr = devicePixelRatio || 1;
+  for (const c of [cv, rb]) { const r = c.getBoundingClientRect(); c.width = Math.max(1, r.width * dpr); c.height = Math.max(1, r.height * dpr); }
+  draw();
+}
+new ResizeObserver(resize).observe($("#vp"));
+new ResizeObserver(resize).observe($("#ribbon"));
+
+/* ---------- worksheet ---------- */
+function fillSheet(c) {
+  const s = c.summary;
+  $("#blank").hidden = true; $("#ws").hidden = false;
+  $("#wsTitle").textContent = s.patient;
+  $("#wsSub").textContent = `CASE ${c.id} · READ ${s.finished}`;
+  $("#fPid").textContent = s.patient;
+  $("#fSlices").textContent = `${s.shape[0]} × ${s.shape[2]}×${s.shape[1]}`;
+  $("#fSpacing").textContent = `${s.spacing[0].toFixed(2)} mm / ${s.spacing[2].toFixed(1)} mm`;
+  $("#fTime").textContent = s.seconds < 120 ? `${s.seconds} s` : `${(s.seconds / 60).toFixed(1)} min`;
+  $("#fModels").textContent = "Read by " + s.models + ".";
+  const role = $("#fRole"); role.textContent = s.role_text;
+  role.className = "note " + ({ fair: "good", outside: "good", trained: "bad", test: "bad" }[s.role] || "");
+  $("#vsDoc").hidden = !s.has_doctor; $("#lgDoc").hidden = !s.has_doctor; $("#tDoc").hidden = !s.has_doctor; $("#tDiff").hidden = !s.has_doctor;
+  const who = store.get("reviewer"); if (who) $("#who").value = who;
+  $("#note").value = ""; S.decision = null; $$(".dec button").forEach(b => b.setAttribute("aria-pressed", false));
+  showSigned(c.review);
+  $("#dSum").href = `/api/cases/${c.id}/download/summary`;
+  setK(S.k);
+}
+function setK(k) {
+  if (!S.sum) return;
+  S.k = Math.max(0, Math.min(8, k));
+  const s = S.sum, c = s.per_cut[S.k], pct = Math.round(s.cuts[S.k] * 100) + "%";
+  $("#kIn").value = S.k; $("#kVal").textContent = pct; $("#signK").textContent = pct; $("#dRtK").textContent = pct;
+  $("#rFound").textContent = c.found ? "yes" : "no";
+  $("#rCc").textContent = c.found ? `${c.cc} cc` : "–";
+  $("#rSize").textContent = c.found ? c.size_mm.join(" × ") + " mm" : "–";
+  $("#rSl").textContent = c.found ? `${c.slices} slices` : "–";
+  $("#rSure").textContent = c.found ? Math.round(c.sure * 100) + "% on average" : "–";
+  if (s.has_doctor) {
+    $("#rDice").textContent = c.dice == null ? "–" : c.dice.toFixed(2);
+    $("#rVd").textContent = c.vs_doctor_pct == null ? "–" : (c.vs_doctor_pct > 0 ? "+" : "") + c.vs_doctor_pct + "%";
+  }
+  $("#dRt").href = `/api/cases/${S.id}/download/rtstruct?cut=${s.cuts[S.k]}`;
+  $("#dMask").href = `/api/cases/${S.id}/download/mask?cut=${s.cuts[S.k]}`;
+  chart(); draw();
+}
+function chart() {
+  const s = S.sum, svg = $("#chart"), W = svg.clientWidth || 330, H = 120, n = 9, bw = (W - 8) / n;
+  const max = Math.max(1, ...s.per_cut.map(c => c.cc));
+  let h = "";
+  s.per_cut.forEach((c, i) => {
+    const bh = c.cc / max * 62, x = 4 + i * bw, on = i === S.k;
+    h += `<g data-k="${i}" style="cursor:pointer"><rect x="${x}" y="0" width="${bw}" height="${H}" fill="transparent"/>
+      <rect x="${x + 3}" y="${82 - bh}" width="${bw - 6}" height="${bh}" fill="${on ? "#1e1c19" : "#cbc1ad"}"/>
+      <text x="${x + bw / 2}" y="${78 - bh}" text-anchor="middle" font-size="9" fill="${on ? "#1e1c19" : "#6a6357"}">${c.cc ? Math.round(c.cc) : ""}</text>
+      <text x="${x + bw / 2}" y="96" text-anchor="middle" font-size="9" fill="#6a6357">${Math.round(c.cut * 100)}</text></g>`;
+  });
+  if (s.has_doctor) {
+    const pts = s.per_cut.map((c, i) => `${4 + i * bw + bw / 2},${82 - (c.dice || 0) * 62}`).join(" ");
+    h += `<polyline points="${pts}" fill="none" stroke="#0e7fa6" stroke-width="1.5"/>`;
+    s.per_cut.forEach((c, i) => h += `<circle cx="${4 + i * bw + bw / 2}" cy="${82 - (c.dice || 0) * 62}" r="${i === S.k ? 3.5 : 2}" fill="#0e7fa6"/>`);
+  }
+  h += `<text x="4" y="112" font-size="9" fill="#6a6357">bars: volume (cc) at each sureness %${s.has_doctor ? " · blue: overlap" : ""}</text>`;
+  svg.innerHTML = h;
+  svg.querySelectorAll("g[data-k]").forEach(g => g.onclick = () => setK(+g.dataset.k));
+}
+function showSigned(r) {
+  const box = $("#signedBox");
+  if (!r) { box.innerHTML = ""; $("#signForm").hidden = false; return; }
+  const cls = { accepted: "accepted", rejected: "rejected", "needs changes": "changes" }[r.decision];
+  box.innerHTML = `<div class="signed ${cls}"></div><div class="hint"></div><button class="chip" style="color:var(--ink);border-color:var(--ink)">Review again</button>`;
+  box.querySelector(".signed").textContent = `${r.decision} · ${r.reviewer || "unnamed"} · ${r.signed} · at ${Math.round(r.cut * 100)}%`;
+  box.querySelector(".hint").textContent = r.note || "";
+  box.querySelector("button").onclick = () => { box.innerHTML = ""; $("#signForm").hidden = false; };
+  $("#signForm").hidden = true;
+}
+$$(".dec button").forEach(b => b.onclick = () => {
+  S.decision = b.dataset.d; $$(".dec button").forEach(x => x.setAttribute("aria-pressed", x === b)); $("#signBtn").disabled = false;
+});
+$("#signBtn").onclick = async () => {
+  const reviewer = $("#who").value.trim(); store.set("reviewer", reviewer);
+  try {
+    const r = await api(`/api/cases/${S.id}/review`, { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: S.decision, cut: S.sum.cuts[S.k], note: $("#note").value, reviewer }) });
+    showSigned(r); refreshList();
+  } catch (e) { alert("Could not save the sign-off: " + e.message); }
+};
+$("#dPrint").onclick = () => { $("#printShot").src = cv.toDataURL("image/png"); setTimeout(() => print(), 50); };
+
+/* ---------- controls ---------- */
+function setToggle(sel, on) { $(sel).setAttribute("aria-pressed", on); }
+$$("[data-win]").forEach(b => b.onclick = () => setWin(b.dataset.win));
+function setWin(w) { S.win = w; $$("[data-win]").forEach(b => b.setAttribute("aria-pressed", b.dataset.win === w)); buildLut(); draw(); }
+$("#tDoc").onclick = () => { S.showDoc = !S.showDoc; setToggle("#tDoc", S.showDoc); draw(); };
+$("#tRings").onclick = () => { S.rings = !S.rings; setToggle("#tRings", S.rings); draw(); };
+$("#tDiff").onclick = () => { S.diff = !S.diff; setToggle("#tDiff", S.diff); draw(); };
+$("#tZoom").onclick = () => { if (!S.ai && !S.doc) return; S.zoom = !S.zoom; setToggle("#tZoom", S.zoom); draw(); };
+$("#kIn").oninput = e => setK(+e.target.value);
+function setZ(z) { if (!S.sum) return; S.z = Math.max(0, Math.min(S.sum.shape[0] - 1, z)); draw(); }
+$("#vp").addEventListener("wheel", e => { e.preventDefault(); setZ(S.z + Math.sign(e.deltaY)); }, { passive: false });
+addEventListener("keydown", e => {
+  if (["INPUT", "TEXTAREA"].includes(document.activeElement.tagName) || !S.sum) return;
+  const k = e.key;
+  if (k === "ArrowUp" || k === "ArrowRight") setZ(S.z + 1);
+  else if (k === "ArrowDown" || k === "ArrowLeft") setZ(S.z - 1);
+  else if (k === "PageUp") setZ(S.z + 10); else if (k === "PageDown") setZ(S.z - 10);
+  else if (k === "[") setK(S.k - 1); else if (k === "]") setK(S.k + 1);
+  else if (k === "z" || k === "Z") $("#tZoom").click();
+  else if (k === "d" || k === "D") $("#tDoc").click();
+  else if (k === "r" || k === "R") $("#tRings").click();
+  else if (k === "f" || k === "F") $("#tDiff").click();
+  else if (k === "w" || k === "W") setWin(S.win === "lung" ? "soft" : "lung");
+  else return;
+  e.preventDefault();
+});
+const ro = $("#readout");
+cv.addEventListener("mousemove", e => {
+  if (!S.sum || !S.view) return;
+  const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1, v = S.view, [, Y, X] = S.sum.shape;
+  const x = Math.floor(((e.clientX - r.left) * dpr - v.ox) / v.sc), y = Math.floor(((e.clientY - r.top) * dpr - v.oy) / (v.sc * v.ay));
+  if (x < 0 || y < 0 || x >= X || y >= Y) { ro.style.display = "none"; return; }
+  const hu = S.ct[S.z * X * Y + y * X + x];
+  let top = -1; for (let k = 8; k >= 0; k--) if (aiBit(x, y, S.z, k)) { top = k; break; }
+  const sure = top < 0 ? "AI: under 10% sure" : `AI: at least ${Math.round(S.sum.cuts[top] * 100)}% sure`;
+  ro.textContent = `${hu} HU · ${sure}` + (S.doc ? (docBit(x, y, S.z) ? " · inside doctor's outline" : "") : "");
+  ro.style.display = "block";
+});
+cv.addEventListener("mouseleave", () => ro.style.display = "none");
+let drag = false;
+const rbZ = e => { const r = rb.getBoundingClientRect(); setZ(Math.floor((e.clientX - r.left) / r.width * S.sum.shape[0])); };
+rb.addEventListener("pointerdown", e => { if (!S.sum) return; drag = true; rb.setPointerCapture(e.pointerId); rbZ(e); });
+rb.addEventListener("pointermove", e => { if (drag) rbZ(e); });
+rb.addEventListener("pointerup", () => drag = false);
+
+buildLut();
+refreshList();
+setInterval(refreshList, 4000);
+</script>
+</body>
+</html>
