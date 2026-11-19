@@ -108,11 +108,11 @@ Preparation, so new data lines up with what we have (same steps as `prep/01`-`03
 
 ## E10 now: more, different lung data (planned 2026-11-16)
 Goal: does training on other hospitals' scans make the model better on new hospitals, without getting worse on Lung1?
-- [ ] **1. Get the data** (CPU; scripts built 2026-11-16: `prep/10_radiogenomics.py download`, `prep/11_msd_lung.py download`, run on the login node): NSCLC-Radiogenomics (TCIA, CT + DICOM SEG) with `00_download.py --collection`;
+- [x] **1. Get the data** (CPU; scripts built 2026-11-16: `prep/10_radiogenomics.py download`, `prep/11_msd_lung.py download`, run on the login node): NSCLC-Radiogenomics (TCIA, CT + DICOM SEG) with `00_download.py --collection`;
   MSD Task06 Lung (NIfTI archive). Check counts, licences, and patients shared between the two
-- [ ] **2. Prepare it** like Lung1 (job 3615830, 2026-11-18; built 2026-11-16 and rehearsed on fake data: SEG and MSD read back exactly, repeats dropped, split rules checked; `jobs/e10_prep.sbatch` runs 10/11 convert + `12_combine.py`): new SEG reader (`highdicom`), MSD check of HU and orientation, primary tumour only,
+- [x] **2. Prepare it** like Lung1 (job 3615830 done 2026-11-19: Radiogenomics 143 of 144 usable (RG-R01-119 left out: uneven slice gaps), 125 thin-slice; MSD 63 of 63, 55 thin-slice; 12 MSD scans were repeats of Radiogenomics patients and dropped; built 2026-11-16 and rehearsed on fake data: SEG and MSD read back exactly, repeats dropped, split rules checked; `jobs/e10_prep.sbatch` runs 10/11 convert + `12_combine.py`): new SEG reader (`highdicom`), MSD check of HU and orientation, primary tumour only,
   QC pictures, flag thin-slice scans; one combined nnU-Net dataset `Dataset002_LungMulti`
-- [ ] **3. Split** (done by `12_combine.py`): Radiogenomics half A = **outside test** (locked, used once); half B + MSD = extra training.
+- [x] **3. Split** (done by `12_combine.py`: Dataset002 = 355 Lung1 + 71 Radiogenomics B + 51 MSD = 477; outside test A = 72; Lung1 test 60 untouched): Radiogenomics half A = **outside test** (locked, used once); half B + MSD = extra training.
   Lung1 folds and its 60 test patients stay exactly as they are; new cases only ever join the training side
 - [ ] **4. E11 first, the "before" number**: today's final recipe on outside test A, no retraining (`jobs/e11_outside.sbatch`, built 2026-11-19: also scores ResEnc L 250 ep alone + ours, the like-for-like "before" for step 5)
 - [ ] **5. E10, the "after" number** (`e10_nnunet_prep` -> `e10_nnunet` folds 0-4, `e10_unet` folds 0-4, then `e10_outside` once; built 2026-11-19): retrain nnU-Net ResEnc L (250 ep, 5 folds) + our U-Net on Lung1 + new data;
