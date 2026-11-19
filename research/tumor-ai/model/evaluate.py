@@ -59,6 +59,7 @@ def main():
     ap.add_argument("--nnunet-prob", nargs="*", default=[], help="folders of nnU-Net TEST .npz probabilities (averaged)")
     ap.add_argument("--weight", type=float, default=0.25, help="share of our U-Net in the average (chosen on validation)")
     ap.add_argument("--out", required=True)
+    ap.add_argument("--key", default="test", help="which patient list in --splits to score (outside_test = E11)")
     ap.add_argument("--cutoff", type=float, default=0.5, help="our U-Net: tumour cut-off (choose it on validation, never on test)")
     ap.add_argument("--gauss", action="store_true", help="our U-Net: centre-weighted blocks")
     ap.add_argument("--piece", choices=["largest", "confident"], default="largest", help="our U-Net: which piece to keep")
@@ -76,7 +77,7 @@ def main():
         nets.append((net.eval(), ck["args"]["patch"], ck.get("norm")))
 
     rows = []
-    for pid in json.load(open(a.splits))["test"]:
+    for pid in json.load(open(a.splits))[a.key]:
         img, spacing = read(data / "imagesTr" / f"{pid}_0000.nii.gz")
         gt, _ = read(data / "labelsTr" / f"{pid}.nii.gz")
         if nets:

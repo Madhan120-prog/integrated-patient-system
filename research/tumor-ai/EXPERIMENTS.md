@@ -113,7 +113,7 @@ Later batches (need something first): E4d part 2 resampling (new data prep), E5,
 - [ ] **E7**: pre-trained and fine-tuned vs from scratch
 - [ ] **E8**: MedSAM with a box prompt
 - [x] **E9**: 25 / 50 / 100% of training patients (batch 1: 0.448 / 0.416 / 0.450, more data did not help then)
-- [ ] **E10**: add Radiogenomics + Decathlon Lung (data scripts built 2026-11-16: `prep/10`-`12`, `jobs/e10_prep.sbatch`; Radiogenomics on TCIA: 211 patients, 144 outlined; MSD Task06: 9.2 GB archive) (plan: `plan.md`, "After batch 3: more lung data")
-- [ ] **E11**: test on another dataset (outside test): NSCLC-Radiogenomics, before E10 (plan in `plan.md`)
+- [ ] **E10**: add Radiogenomics + Decathlon Lung (data scripts built 2026-11-16: `prep/10`-`12`, `jobs/e10_prep.sbatch`; Radiogenomics on TCIA: 211 patients, 144 outlined; MSD Task06: 9.2 GB archive; downloaded 2026-11-18: 144 outlines + 144 CTs, 20.4 GB; prep job 3615830) (plan: `plan.md`, "After batch 3: more lung data")
+- [ ] **E11**: test on another dataset (outside test): NSCLC-Radiogenomics, before E10 (jobs built 2026-11-19: `e11_outside` = before; E10 = `e10_nnunet_prep`, `e10_nnunet`, `e10_unet`, `e10_outside` = after; `evaluate.py --key outside_test`) (plan in `plan.md`)
 - [ ] **E12**: preparation settings (HU window, flip, block size)
 - [ ] **E13**: do outline errors change the dose?
