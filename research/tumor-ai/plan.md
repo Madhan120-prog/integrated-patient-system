@@ -106,7 +106,20 @@ Preparation, so new data lines up with what we have (same steps as `prep/01`-`03
 8. **Spacing**: keep native spacing like now (our model is built for 3 mm slices); flag scans with thin slices (~1 mm)
    and decide then whether to resample them to 3 mm.
 
-## Next 4 experiments (revised 2026-11-10, results 2026-11-15)
+## E10 now: more, different lung data (planned 2026-11-16)
+Goal: does training on other hospitals' scans make the model better on new hospitals, without getting worse on Lung1?
+- [ ] **1. Get the data** (CPU; scripts built 2026-11-16: `prep/10_radiogenomics.py download`, `prep/11_msd_lung.py download`, run on the login node): NSCLC-Radiogenomics (TCIA, CT + DICOM SEG) with `00_download.py --collection`;
+  MSD Task06 Lung (NIfTI archive). Check counts, licences, and patients shared between the two
+- [ ] **2. Prepare it** like Lung1 (built 2026-11-16 and rehearsed on fake data: SEG and MSD read back exactly, repeats dropped, split rules checked; `jobs/e10_prep.sbatch` runs 10/11 convert + `12_combine.py`): new SEG reader (`highdicom`), MSD check of HU and orientation, primary tumour only,
+  QC pictures, flag thin-slice scans; one combined nnU-Net dataset `Dataset002_LungMulti`
+- [ ] **3. Split** (done by `12_combine.py`): Radiogenomics half A = **outside test** (locked, used once); half B + MSD = extra training.
+  Lung1 folds and its 60 test patients stay exactly as they are; new cases only ever join the training side
+- [ ] **4. E11 first, the "before" number**: today's final recipe on outside test A, no retraining
+- [ ] **5. E10, the "after" number**: retrain nnU-Net ResEnc L (250 ep, 5 folds) + our U-Net on Lung1 + new data;
+  score on Lung1 validation folds (vs 0.638 / 0.582) and once on outside test A (vs step 4)
+- Lung1 test was already used for the final test, so it is NOT reused to choose anything here
+
+
 Where we are: nnU-Net ResEnc L leads (0.638 on validation); our U-Net 0.579 at its best setting, 0.594 on fold 0 with
 the even bigger block; on test our U-Net already ties the first nnU-Net (0.589 vs 0.591) and is better on small tumours.
 - [x] **1. Strongest nnU-Net** (0.643, barely better than 250 epochs): ResEnc L trained 1000 epochs (its two best gains together), 5 folds
@@ -116,7 +129,7 @@ the even bigger block; on test our U-Net already ties the first nnU-Net (0.589 v
 - [x] **5. E7, pre-trained vs from scratch** (pre-training +0.04, Swin still behind; dropped) (added, runs alongside): Swin UNETR starting from MONAI's weights
   learned on ~5,000 CTs vs the same Swin from scratch (`b4_swin_big_fold0`, 0.531), fold 0, 2 seeds; STU-Net later
 - [x] **6. Team up again** done: 0.653, same mix wins (stable). **7. MedSAM2 with the team-up's box**: 0.638, worse than the team-up alone (0.687 on fold 0); MedSAM2 stays a doctor-guided tool
-- [ ] **Then one final test** with the winner, on the 60 locked patients (`jobs/final_test.sbatch`, built 2026-11-16)
+- [x] **Then one final test** with the winner (done 2026-11-18: average 0.677, nnU-Net alone 0.692, ours alone 0.599; details in EXPERIMENTS.md), on the 60 locked patients (`jobs/final_test.sbatch`, built 2026-11-16)
 - Later: STU-Net (second E7 model), outside data (E11), look at the 3 large always-missed patients
 
 Run side by side (no step waits for another, except where noted):
