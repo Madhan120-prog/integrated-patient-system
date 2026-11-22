@@ -88,5 +88,7 @@ Writes `out/AI_outline_<patient>_cut30.dcm` (RTSTRUCT, ROI `GTV_AI_DRAFT`), `out
 | `engine.py` | DICOM in → models → outlines at every sureness level → numbers → RTSTRUCT / mask |
 | `server.py` | local web server: upload, one scan at a time in the background, review, downloads |
 | `static/index.html` | the page (one file, no internet needed) |
+| `levels.py` | "Explain this result" for four readers (patient, physician, physicist, AI) from measured facts and fixed templates, no language model; `--self-check` |
+| `levels_eval.py` | the four-level texts on a whole patient set, for the paper (`jobs/levels_eval.sbatch`) |
 | `make_sample.py` | turns a NIfTI case back into a DICOM CT + doctor's RTSTRUCT, for trying it out |
 | `cases/`, `inbox/`, `models/`, `samples/` | scans, models and results: git-ignored, never committed |

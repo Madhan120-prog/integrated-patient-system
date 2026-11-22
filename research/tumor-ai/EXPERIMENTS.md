@@ -117,3 +117,11 @@ Later batches (need something first): E4d part 2 resampling (new data prep), E5,
 - [x] **E11**: test on another dataset (outside test): NSCLC-Radiogenomics, before E10 (E11 done 2026-11-21 (job 3616425, 72 outside patients, mostly small: 52 small / 15 medium / 5 large): **final recipe 0.670**, found 66/72, HD95 4.8 mm, but outlines **24% smaller** than these doctors draw; nnU-Net pair alone 0.670; our U-Net 0.519, 57/72, 37% too small (thin slices). Like-for-like before E10: ResEnc L 250 ep alone **0.672**, 65/72. The tool holds up at another hospital (Lung1 test 0.677); small tumours even better here (0.647 vs 0.581); jobs built 2026-11-19: `e11_outside` = before; E10 = `e10_nnunet_prep`, `e10_nnunet`, `e10_unet`, `e10_outside` = after; `evaluate.py --key outside_test`) (plan in `plan.md`)
 - [ ] **E12**: preparation settings (HU window, flip, block size)
 - [ ] **E13**: do outline errors change the dose?
+- [ ] **XAI levels** (built 2026-11-21; spec `private/TUMOR_XAI_LEVELS_SPEC.md`): "Explain this result" for patient / physician /
+  physicist / AI reviewer, fixed templates filled from measured facts (no language model). `prototype/levels.py`
+  (facts, templates, `check()`, self-check), review-desk route `/api/cases/<id>/explain` + card (patient text only after
+  "accepted" at that cut-off), `prototype/levels_eval.py` + `jobs/levels_eval.sbatch` -> `results/levels_eval_{fold0,test}.csv`.
+  Self-check passed (synthetic sphere: side and part right with both header directions, volume 7.1 vs 7.2 cc, diameter 25 vs 24 mm);
+  side checked on LUNG1-006 against the heart (left). Code trial on the 6 laptop patients with the weak demo U-Net (not a result):
+  24/24 texts clean, same side 6/6, same part 5/6, reading grade patient 3.7 vs physician 6.4 / physicist 6.6 / AI 6.7,
+  four texts in 0.25 ms. **Real numbers: job pending** (1. clean texts, 2. side/part/volume/diameter vs the doctor, 3. grades, 4. ms)

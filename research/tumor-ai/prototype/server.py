@@ -21,6 +21,7 @@ from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
 import engine
+import levels
 
 CASES = engine.HERE / "cases"
 INBOX = engine.HERE / "inbox"
@@ -157,9 +158,37 @@ def download(cid: str, kind: str, cut: float = engine.DEFAULT_CUT):
         f = engine.write_mask(c, cut)
     elif kind == "summary":
         f = c / "summary.json"
+    elif kind == "explain":
+        s = json.loads((c / "summary.json").read_text())
+        f = c / "out" / f"explanations_{s['patient']}_cut{int(cut * 100)}.json"
+        f.parent.mkdir(exist_ok=True)
+        f.write_text(json.dumps(explained(c, cut), indent=2))
     else:
         raise HTTPException(404)
     return FileResponse(f, filename=f.name)
+
+
+def explained(c: Path, cut: float) -> dict:
+    """The four texts, facts and check notes. The patient text is only given out once the doctor accepted the
+    outline at this same cut-off (it describes that outline)."""
+    out = levels.build(c, cut)
+    r = c / "review.json"
+    rev = json.loads(r.read_text()) if r.exists() else None
+    ok = bool(rev and rev["decision"] == "accepted" and rev["cut"] == cut)
+    out["patient_locked"] = not ok
+    if not ok:
+        out["patient"], out["notes"]["patient"] = None, []
+        out["lock_reason"] = ("Released after sign-off." if not rev or rev["decision"] != "accepted" else
+                              f"Released for the accepted outline at {int(rev['cut'] * 100)}%.")
+    return out
+
+
+@app.get("/api/cases/{cid}/explain")
+def explain(cid: str, cut: float = engine.DEFAULT_CUT):
+    c = case_dir(cid)
+    if cut not in engine.CUTS or not (c / "summary.json").exists():
+        raise HTTPException(400, "unknown cut-off or case not finished")
+    return explained(c, cut)
 
 
 def main():
