@@ -19,6 +19,7 @@ P=data/full/nnunet_pre/Dataset002_LungMulti
 mkdir -p $P
 .venv/bin/nnUNetv2_extract_fingerprint -d 2 --verify_dataset_integrity -np 8
 .venv/bin/nnUNetv2_move_plans_between_datasets -s 1 -t 2 -sp nnUNetResEncUNetLPlans -tp nnUNetResEncUNetLPlans
+cp data/full/nnunet/Dataset002_LungMulti/dataset.json $P/    # planning normally copies it; moving plans does not
 .venv/bin/nnUNetv2_preprocess -d 2 -plans_name nnUNetResEncUNetLPlans -c 3d_fullres -np 8
 cp data/full/splits_final_multi.json $P/splits_final.json
 .venv/bin/python -c "
