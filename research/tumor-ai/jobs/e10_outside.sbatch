@@ -6,9 +6,9 @@
 #SBATCH --mem=64G
 #SBATCH --time=2-00:00:00
 #SBATCH --output=logs/%x_%j.out
-# E10 on outside test A, ONCE, after all e10_nnunet and e10_unet folds finished. The same recipe as E11's
-# like-for-like row (0.25 ours + 0.75 ResEnc L 250 ep, cut-off 0.3, confident piece), only the models are retrained.
-# Compare with results/outside_A_e11_resencL.csv. Nothing is chosen on these patients.
+# E10 on outside test A, ONCE, after all 5 e10_nnunet folds finished: ResEnc L 250 ep retrained with the new data,
+# cut-off 0.3, confident piece. Compare with the nnU-Net row of results/outside_A_e11_resencL.csv (0.672).
+# Our U-Net is left out (E11: 0.519 on these mostly thin-slice scans; it works at native spacing). Nothing is chosen here.
 module load python/3.12.9/gcc.8.5.0
 cd ~/tumor-ai
 set -e
@@ -21,5 +21,4 @@ mkdir -p $OUT
     -tr nnUNetTrainer_250epochs -p nnUNetResEncUNetLPlans -f 0 1 2 3 4 --save_probabilities
 cd model
 ../.venv/bin/python -u evaluate.py --data ../data/full/outside_A --splits ../data/full/splits_multi.json --key outside_test \
-    --ours e10_unet_fold0 e10_unet_fold1 e10_unet_fold2 e10_unet_fold3 e10_unet_fold4 --gauss --cutoff 0.3 --piece confident \
-    --nnunet-prob ../$OUT --weight 0.25 --out ../results/outside_A_e10.csv
+    --cutoff 0.3 --piece confident --nnunet-prob ../$OUT --out ../results/outside_A_e10.csv
