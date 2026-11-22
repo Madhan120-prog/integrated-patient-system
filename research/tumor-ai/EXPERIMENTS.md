@@ -124,4 +124,4 @@ Later batches (need something first): E4d part 2 resampling (new data prep), E5,
   Self-check passed (synthetic sphere: side and part right with both header directions, volume 7.1 vs 7.2 cc, diameter 25 vs 24 mm);
   side checked on LUNG1-006 against the heart (left). Code trial on the 6 laptop patients with the weak demo U-Net (not a result):
   24/24 texts clean, same side 6/6, same part 5/6, reading grade patient 3.7 vs physician 6.4 / physicist 6.6 / AI 6.7,
-  four texts in 0.25 ms. **Real numbers: job pending** (1. clean texts, 2. side/part/volume/diameter vs the doctor, 3. grades, 4. ms)
+  four texts in 0.25 ms. **Real numbers: job 3617739 (submitted 2026-11-21)** (1. clean texts, 2. side/part/volume/diameter vs the doctor, 3. grades, 4. ms)

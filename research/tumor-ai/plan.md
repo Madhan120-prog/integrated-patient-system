@@ -184,11 +184,25 @@ version: nnU-Net `checkpoint_final`, our U-Net `best.pt` (best on its own valida
 - [ ] **v1**: Lung1 only, the final-test recipe (0.677 test, 0.670 outside). Short paper + prototype. Freeze now
 - [ ] **v1.1**: E10, nnU-Net ResEnc L 250 ep on Lung1 + Radiogenomics B + MSD (our U-Net not retrained). Freeze when the 5 folds finish
 - [ ] **v2**: + NSCLC-Cetuximab (RTOG 0617, 490 patients, CT + RTSTRUCT + dose, 42.65 GB). Full paper later
-  1. Access: TCIA lists it as NIH controlled access (images and RT structures not downloadable from TCIA as of 2026-11-21);
-     older route: NCTN Data Archive request for NCT00533949. Read the NIH controlled-access policy, the NCTN data licence
-     and the TCIA usage policy BEFORE requesting: can a model trained on it be shared, used in a tool, published?
+  1. Access (checked 2026-11-21): TCIA stopped hosting controlled data on 2025-07-08; requests now go through **dbGaP**
+     (needs the trial's PHS number, on TCIA's Clinical Trials page), download via NCI CRDC + TCIA Data Retriever.
+     Only a faculty-level PI may submit (students cannot): **Dr. Dasgupta submits, the student is added to the project**.
+     No timeline stated; plan on weeks, not days. Data-use agreement (DUA) terms not yet read (licence PDF link moved):
+     check sharing models / tool use / publication rules before requesting
   2. Check the RTSTRUCTs really hold a primary GTV and how they are named
   3. Before any training: lock a new test slice (whole sites if sites are identified; else a random 20%), used once
   4. Switching rule, fixed now: v2 replaces v1 only if, on the same validation patients, it is better beyond the 95% range
      AND not worse on Lung1 or on small tumours; then confirmed once on the new locked slice. Lung1 test and outside A are
      reported, never used to choose
+
+## Outside test 2: Anhui Chest Hospital (planned 2026-11-22)
+Science Data Bank doi 10.57760/sciencedb.29318, CC0, one hospital (Hefei, China), Siemens SOMATOM Definition AS+.
+ASLS26: 449 stage III-IV, radiotherapy GTVs by 2+ radiation oncologists (consensus) = our kind of outline; 19.9 GB.
+ESLS26: 730 stage I-II adenocarcinoma, diagnostic outlines by radiologists (not GTVs); 64.5 GB: small-tumour test later.
+Zips are marked "not for bots": download in a browser, copy to `~/tumor-ai/data/anhui/`. The sheet has no histology per
+patient, so the 74 small-cell cases cannot be separated (stated as a limitation).
+- [ ] 1. `jobs/anhui_prep.sbatch` (`prep/13_anhui.py`): unzip, convert, place each mask by header / index / head-feet flip
+  (whichever looks like a lung tumour; unclear = left out), count mask pieces (lymph nodes?), QC pictures
+- [ ] 2. Look at counts, pieces and QC pictures before scoring
+- [ ] 3. `jobs/anhui_v1.sbatch`, ONCE: v1 unchanged + each model alone + four-level explanations. Nothing chosen here
+- Later (v2): lock a test slice of ASLS26 before any training on the rest

@@ -32,12 +32,13 @@ from ensemble import nnunet_prob  # noqa: E402
 from train import build, predict_prob  # noqa: E402
 
 ROLE = {"fold0": "Not used to train this model: a fair check",
-        "test": "Locked test patient: not used to train or choose the model"}
+        "test": "Locked test patient: not used to train or choose the model",
+        "outside": "Outside hospital: never used to train or choose the model"}
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--set", choices=["fold0", "test"], required=True)
+    ap.add_argument("--set", choices=["fold0", "test", "outside"], required=True, help="outside = the 'test' list of an outside splits file")
     ap.add_argument("--data", required=True, help="nnU-Net dataset folder with imagesTr/ and labelsTr/")
     ap.add_argument("--splits", required=True)
     ap.add_argument("--runs", default=str(ROOT / "model" / "runs"), help="folder holding our U-Net runs")
