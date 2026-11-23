@@ -124,4 +124,19 @@ Later batches (need something first): E4d part 2 resampling (new data prep), E5,
   Self-check passed (synthetic sphere: side and part right with both header directions, volume 7.1 vs 7.2 cc, diameter 25 vs 24 mm);
   side checked on LUNG1-006 against the heart (left). Code trial on the 6 laptop patients with the weak demo U-Net (not a result):
   24/24 texts clean, same side 6/6, same part 5/6, reading grade patient 3.7 vs physician 6.4 / physicist 6.6 / AI 6.7,
-  four texts in 0.25 ms. **Real numbers: job 3617739 (submitted 2026-11-21)** (1. clean texts, 2. side/part/volume/diameter vs the doctor, 3. grades, 4. ms)
+  four texts in 0.25 ms.
+  **Results, job 3617739 (2026-11-22), cut-off 0.3, v1 recipe:**
+
+  | | fold-0 val (71, fold-0 models) | locked test (60, final models) |
+  |---|---|---|
+  | AI found / compared | 71 / 71 | 59 / 60 |
+  | texts with no unsupported number or flag | 284/284 | 240/240 |
+  | same side as doctor's outline | 96% | 93% |
+  | same part (upper/middle/lower) | 87% | 85% |
+  | volume error, median | 10.0 cc (18%) | 5.9 cc (18%) |
+  | longest diameter error, median | 5 mm | 4 mm |
+  | reading grade: patient / physician / physicist / AI | 3.7 / 6.4 / 6.6 / 6.3 | 3.7 / 6.4 / 6.6 / 6.6 |
+  | time: facts / four texts + checks (median) | 108 ms / 0.27 ms | 102 ms / 0.29 ms |
+
+  Side misses (4% / 7%) are worth a look in the CSVs (`results/levels_eval_{fold0,test}.csv`, `same_side`): tumours
+  near the midline, or the AI's piece on the other lung. Patient text stays below grade 6 (common target for patient leaflets).

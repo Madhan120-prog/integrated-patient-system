@@ -115,7 +115,7 @@ Goal: does training on other hospitals' scans make the model better on new hospi
 - [x] **3. Split** (done by `12_combine.py`: Dataset002 = 355 Lung1 + 71 Radiogenomics B + 51 MSD = 477; outside test A = 72; Lung1 test 60 untouched): Radiogenomics half A = **outside test** (locked, used once); half B + MSD = extra training.
   Lung1 folds and its 60 test patients stay exactly as they are; new cases only ever join the training side
 - [x] **4. E11 first, the "before" number**: today's final recipe on outside test A, no retraining (E11 done 2026-11-21 (job 3616425, 72 outside patients, mostly small: 52 small / 15 medium / 5 large): **final recipe 0.670**, found 66/72, HD95 4.8 mm, but outlines **24% smaller** than these doctors draw; nnU-Net pair alone 0.670; our U-Net 0.519, 57/72, 37% too small (thin slices). Like-for-like before E10: ResEnc L 250 ep alone **0.672**, 65/72. The tool holds up at another hospital (Lung1 test 0.677); small tumours even better here (0.647 vs 0.581); job 3616425; `jobs/e11_outside.sbatch`, built 2026-11-19: also scores ResEnc L 250 ep alone + ours, the like-for-like "before" for step 5)
-- [ ] **5. E10, the "after" number** (`e10_nnunet_prep` 3616426 cancelled: fresh planning picked 1.25 mm slices, so the prep now reuses Dataset001's ResEnc L plan and only the data changes; 3616436 failed (moved plans lack dataset.json, now copied in), resubmitted; prep 3617659 -> training 3617660_[0-4] (2026-11-21); `e10_outside` scores nnU-Net only; `e10_unet` DROPPED after E11 (0.519 outside): 125/143 + 55/63 new scans have thin slices (~1.25 mm) and our U-Net works at native spacing, decide after E11; then `e10_outside` once; built 2026-11-19): retrain nnU-Net ResEnc L (250 ep, 5 folds) + our U-Net on Lung1 + new data;
+- [ ] **5. E10, the "after" number** (`e10_nnunet_prep` 3616426 cancelled: fresh planning picked 1.25 mm slices, so the prep now reuses Dataset001's ResEnc L plan and only the data changes; 3616436 failed (moved plans lack dataset.json, now copied in), resubmitted; prep 3617659 -> training 3617660_[0-4] (2026-11-21); all 5 folds done 2026-11-22 (~9 h 52 m each; fold val 0.670 / 0.633 / 0.624 / ? / ?, not comparable with v1 folds); `e10_outside` submitted as 3618138; `e10_outside` scores nnU-Net only; `e10_unet` DROPPED after E11 (0.519 outside): 125/143 + 55/63 new scans have thin slices (~1.25 mm) and our U-Net works at native spacing, decide after E11; then `e10_outside` once; built 2026-11-19): retrain nnU-Net ResEnc L (250 ep, 5 folds) + our U-Net on Lung1 + new data;
   score on Lung1 validation folds (vs 0.638 / 0.582) and once on outside test A (vs step 4)
 - Lung1 test was already used for the final test, so it is NOT reused to choose anything here
 
@@ -181,7 +181,7 @@ hospital and university approve; the model runs locally (never a cloud AI servic
 A version = fixed weights + recipe (mix, cut-off, piece rule) + the patients it was trained on, frozen read-only in
 `~/tumor-ai/versions/<name>/` with a MANIFEST (sha256) by `jobs/freeze_version.sh`. Checkpoint rule, the same for every
 version: nnU-Net `checkpoint_final`, our U-Net `best.pt` (best on its own validation patients); never picked on test patients.
-- [ ] **v1**: Lung1 only, the final-test recipe (0.677 test, 0.670 outside). Short paper + prototype. Freeze now
+- [x] **v1**: Lung1 only, the final-test recipe (0.677 test, 0.670 outside). Short paper + prototype. Frozen 2026-11-21 22:06 in `versions/v1` (25 files, sha256 MANIFEST)
 - [ ] **v1.1**: E10, nnU-Net ResEnc L 250 ep on Lung1 + Radiogenomics B + MSD (our U-Net not retrained). Freeze when the 5 folds finish
 - [ ] **v2**: + NSCLC-Cetuximab (RTOG 0617, 490 patients, CT + RTSTRUCT + dose, 42.65 GB). Full paper later
   1. Access (checked 2026-11-21): TCIA stopped hosting controlled data on 2025-07-08; requests now go through **dbGaP**
@@ -201,8 +201,10 @@ ASLS26: 449 stage III-IV, radiotherapy GTVs by 2+ radiation oncologists (consens
 ESLS26: 730 stage I-II adenocarcinoma, diagnostic outlines by radiologists (not GTVs); 64.5 GB: small-tumour test later.
 Zips are marked "not for bots": download in a browser, copy to `~/tumor-ai/data/anhui/`. The sheet has no histology per
 patient, so the 74 small-cell cases cannot be separated (stated as a limitation).
-- [ ] 1. `jobs/anhui_prep.sbatch` (`prep/13_anhui.py`): unzip, convert, place each mask by header / index / head-feet flip
+- [x] 1. `jobs/anhui_prep.sbatch` (`prep/13_anhui.py`): unzip, convert, place each mask by header / index / head-feet flip
   (whichever looks like a lung tumour; unclear = left out), count mask pieces (lymph nodes?), QC pictures
+  Job 3617790: 447/449 usable (315, 390: alignment unclear), all placed by header, tumour-likeness median 0.36;
+  37 with >1 piece. 49 scored <0.15 but none scored clearly better flipped (mostly large tumours touching tissue).
 - [ ] 2. Look at counts, pieces and QC pictures before scoring
-- [ ] 3. `jobs/anhui_v1.sbatch`, ONCE: v1 unchanged + each model alone + four-level explanations. Nothing chosen here
+- [ ] 3. (submitted 2026-11-22, job 3617819) `jobs/anhui_v1.sbatch`, ONCE: v1 unchanged + each model alone + four-level explanations. Nothing chosen here
 - Later (v2): lock a test slice of ASLS26 before any training on the rest
