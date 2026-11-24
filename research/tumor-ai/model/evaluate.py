@@ -63,6 +63,8 @@ def main():
     ap.add_argument("--cutoff", type=float, default=0.5, help="our U-Net: tumour cut-off (choose it on validation, never on test)")
     ap.add_argument("--gauss", action="store_true", help="our U-Net: centre-weighted blocks")
     ap.add_argument("--piece", choices=["largest", "confident"], default="largest", help="our U-Net: which piece to keep")
+    ap.add_argument("--part", default=None, help="K/N: score only every N-th patient starting at K (split a long run over "
+                    "several GPUs; join the parts with merge_scores.py)")
     a = ap.parse_args()
     if Path(a.out).exists():
         raise SystemExit(f"{a.out} already exists (results are never overwritten). Use a new --out.")
@@ -77,7 +79,11 @@ def main():
         nets.append((net.eval(), ck["args"]["patch"], ck.get("norm")))
 
     rows = []
-    for pid in json.load(open(a.splits))[a.key]:
+    pids = json.load(open(a.splits))[a.key]
+    if a.part:
+        k, n = map(int, a.part.split("/"))
+        pids = pids[k::n]
+    for pid in pids:
         img, spacing = read(data / "imagesTr" / f"{pid}_0000.nii.gz")
         gt, _ = read(data / "labelsTr" / f"{pid}.nii.gz")
         if nets:
@@ -101,6 +107,10 @@ def main():
         w.writeheader()
         w.writerows(rows)
 
+    summary(rows, a.out)
+
+
+def summary(rows, out):
     print(f"\n{'model':<10} {'group':<7} {'n':>3} {'Dice':>6} {'HD95 mm':>8} {'vol diff %':>10} {'found':>6}")
     for model in dict.fromkeys(r["model"] for r in rows):
         for group, lo, hi in [("all", 0, float("inf"))] + SIZE_GROUPS:
@@ -109,7 +119,8 @@ def main():
                 print(f"{model:<10} {group:<7} {len(g):>3} {np.mean([r['dice'] for r in g]):>6.3f} "
                       f"{np.nanmedian([r['hd95_mm'] for r in g]):>8.1f} {np.median([r['vol_diff_pct'] for r in g]):>10.1f} "
                       f"{sum(r['found'] for r in g):>3}/{len(g)}")
-    print(f"\nper-patient scores -> {a.out}  (HD95 and volume difference are medians)")
+    print(f"\nper-patient scores -> {out}  (HD95 and volume difference are medians)")
+
 
 
 if __name__ == "__main__":

@@ -115,7 +115,7 @@ Goal: does training on other hospitals' scans make the model better on new hospi
 - [x] **3. Split** (done by `12_combine.py`: Dataset002 = 355 Lung1 + 71 Radiogenomics B + 51 MSD = 477; outside test A = 72; Lung1 test 60 untouched): Radiogenomics half A = **outside test** (locked, used once); half B + MSD = extra training.
   Lung1 folds and its 60 test patients stay exactly as they are; new cases only ever join the training side
 - [x] **4. E11 first, the "before" number**: today's final recipe on outside test A, no retraining (E11 done 2026-11-21 (job 3616425, 72 outside patients, mostly small: 52 small / 15 medium / 5 large): **final recipe 0.670**, found 66/72, HD95 4.8 mm, but outlines **24% smaller** than these doctors draw; nnU-Net pair alone 0.670; our U-Net 0.519, 57/72, 37% too small (thin slices). Like-for-like before E10: ResEnc L 250 ep alone **0.672**, 65/72. The tool holds up at another hospital (Lung1 test 0.677); small tumours even better here (0.647 vs 0.581); job 3616425; `jobs/e11_outside.sbatch`, built 2026-11-19: also scores ResEnc L 250 ep alone + ours, the like-for-like "before" for step 5)
-- [ ] **5. E10, the "after" number** (`e10_nnunet_prep` 3616426 cancelled: fresh planning picked 1.25 mm slices, so the prep now reuses Dataset001's ResEnc L plan and only the data changes; 3616436 failed (moved plans lack dataset.json, now copied in), resubmitted; prep 3617659 -> training 3617660_[0-4] (2026-11-21); all 5 folds done 2026-11-22 (~9 h 52 m each; fold val 0.670 / 0.633 / 0.624 / ? / ?, not comparable with v1 folds); `e10_outside` submitted as 3618138; `e10_outside` scores nnU-Net only; `e10_unet` DROPPED after E11 (0.519 outside): 125/143 + 55/63 new scans have thin slices (~1.25 mm) and our U-Net works at native spacing, decide after E11; then `e10_outside` once; built 2026-11-19): retrain nnU-Net ResEnc L (250 ep, 5 folds) + our U-Net on Lung1 + new data;
+- [x] **5. E10, the "after" number** (done 2026-11-23: **0.741** on outside test A (job 3618138, 72 patients: small 0.734, medium 0.727, large 0.859), found 68/72, HD95 3.0 mm, volume -5.8% (before: 0.672, 65/72, outlines ~24% too small). Caveat: Radiogenomics B is the same hospital as outside A, so this shows more data from a hospital fixes that hospital; Anhui (v2) tests a truly new one; `e10_nnunet_prep` 3616426 cancelled: fresh planning picked 1.25 mm slices, so the prep now reuses Dataset001's ResEnc L plan and only the data changes; 3616436 failed (moved plans lack dataset.json, now copied in), resubmitted; prep 3617659 -> training 3617660_[0-4] (2026-11-21); all 5 folds done 2026-11-22 (~9 h 52 m each; fold val 0.670 / 0.633 / 0.624 / ? / ?, not comparable with v1 folds); `e10_outside` submitted as 3618138; `e10_outside` scores nnU-Net only; `e10_unet` DROPPED after E11 (0.519 outside): 125/143 + 55/63 new scans have thin slices (~1.25 mm) and our U-Net works at native spacing, decide after E11; then `e10_outside` once; built 2026-11-19): retrain nnU-Net ResEnc L (250 ep, 5 folds) + our U-Net on Lung1 + new data;
   score on Lung1 validation folds (vs 0.638 / 0.582) and once on outside test A (vs step 4)
 - Lung1 test was already used for the final test, so it is NOT reused to choose anything here
 
@@ -182,8 +182,16 @@ A version = fixed weights + recipe (mix, cut-off, piece rule) + the patients it 
 `~/tumor-ai/versions/<name>/` with a MANIFEST (sha256) by `jobs/freeze_version.sh`. Checkpoint rule, the same for every
 version: nnU-Net `checkpoint_final`, our U-Net `best.pt` (best on its own validation patients); never picked on test patients.
 - [x] **v1**: Lung1 only, the final-test recipe (0.677 test, 0.670 outside). Short paper + prototype. Frozen 2026-11-21 22:06 in `versions/v1` (25 files, sha256 MANIFEST)
-- [ ] **v1.1**: E10, nnU-Net ResEnc L 250 ep on Lung1 + Radiogenomics B + MSD (our U-Net not retrained). Freeze when the 5 folds finish
-- [ ] **v2**: + NSCLC-Cetuximab (RTOG 0617, 490 patients, CT + RTSTRUCT + dose, 42.65 GB). Full paper later
+- [x] **v1.1** (frozen 2026-11-23, versions/v1.1, 9 files, 5.2 GB): E10, nnU-Net ResEnc L 250 ep on Lung1 + Radiogenomics B + MSD (our U-Net not retrained). Freeze when the 5 folds finish (folds and outside test done 2026-11-23: outside A 0.741 vs v1's 0.672; ready to freeze)
+- [ ] **v2**: Lung1 + E10 data + Anhui ASLS26 (~315 train, ~135 locked test). Decided 2026-11-22: **Cetuximab dropped**
+  (dbGaP access too slow and PI-only); the notes below are kept for reference only. Steps 3-4 still apply to Anhui.
+  **Built 2026-11-22, tested on fake data:** `prep/14_v2.py` locks 30% of usable Anhui (size-balanced, seed 42, ~134) as
+  v2's test BEFORE training; ~313 join the training side of E10's folds (validation = same Lung1 patients); multi-piece
+  training masks keep the largest piece (Lung1 = primary only); test masks untouched. Run order:
+  - [ ] `sbatch jobs/v2_prep.sbatch` (CPU, after anhui_prep; can run now)
+  - [ ] `sbatch --dependency=afterok:<prep> jobs/v2_nnunet.sbatch` (5 folds, ~10 h each)
+  - [ ] `sbatch jobs/v2_test.sbatch` ONCE after all folds + anhui_v1: ResEnc L on v1 / E10 / v2 data + v1 recipe on the
+    locked Anhui slice, and v2 on outside A
   1. Access (checked 2026-11-21): TCIA stopped hosting controlled data on 2025-07-08; requests now go through **dbGaP**
      (needs the trial's PHS number, on TCIA's Clinical Trials page), download via NCI CRDC + TCIA Data Retriever.
      Only a faculty-level PI may submit (students cannot): **Dr. Dasgupta submits, the student is added to the project**.
@@ -206,5 +214,5 @@ patient, so the 74 small-cell cases cannot be separated (stated as a limitation)
   Job 3617790: 447/449 usable (315, 390: alignment unclear), all placed by header, tumour-likeness median 0.36;
   37 with >1 piece. 49 scored <0.15 but none scored clearly better flipped (mostly large tumours touching tissue).
 - [ ] 2. Look at counts, pieces and QC pictures before scoring
-- [ ] 3. (submitted 2026-11-22, job 3617819) `jobs/anhui_v1.sbatch`, ONCE: v1 unchanged + each model alone + four-level explanations. Nothing chosen here
+- [ ] 3. (submitted 2026-11-22, job 3617819; too slow for its 2-day limit: 75/447 scored after 31.7 h, so step 2 is rerun split over 8 GPUs with `jobs/anhui_v1_parts.sbatch`, joined by `model/merge_scores.py`, built 2026-11-23) `jobs/anhui_v1.sbatch`, ONCE: v1 unchanged + each model alone + four-level explanations. Nothing chosen here
 - Later (v2): lock a test slice of ASLS26 before any training on the rest
