@@ -188,8 +188,8 @@ version: nnU-Net `checkpoint_final`, our U-Net `best.pt` (best on its own valida
   **Built 2026-11-22, tested on fake data:** `prep/14_v2.py` locks 30% of usable Anhui (size-balanced, seed 42, ~134) as
   v2's test BEFORE training; ~313 join the training side of E10's folds (validation = same Lung1 patients); multi-piece
   training masks keep the largest piece (Lung1 = primary only); test masks untouched. Run order:
-  - [ ] `sbatch jobs/v2_prep.sbatch` (CPU; submitted 2026-11-23, job 3622372)
-  - [ ] `sbatch --dependency=afterok:<prep> jobs/v2_nnunet.sbatch` (5 folds, ~10 h each)
+  - [ ] `sbatch jobs/v2_prep.sbatch` (CPU; job 3622372 done 2026-11-24 in 10 min: 790 cases preprocessed, spacing and patch match Dataset001)
+  - [x] `sbatch --dependency=afterok:<prep> jobs/v2_nnunet.sbatch` (job 3622375, all 5 folds done 2026-11-24, ~9 h 50 m each; compare with v1 on the same validation patients: `model/compare_folds.py`)
   - [ ] `sbatch jobs/v2_test.sbatch` ONCE after all folds + anhui_v1: ResEnc L on v1 / E10 / v2 data + v1 recipe on the
     locked Anhui slice, and v2 on outside A
   1. Access (checked 2026-11-21): TCIA stopped hosting controlled data on 2025-07-08; requests now go through **dbGaP**
@@ -214,5 +214,5 @@ patient, so the 74 small-cell cases cannot be separated (stated as a limitation)
   Job 3617790: 447/449 usable (315, 390: alignment unclear), all placed by header, tumour-likeness median 0.36;
   37 with >1 piece. 49 scored <0.15 but none scored clearly better flipped (mostly large tumours touching tissue).
 - [ ] 2. Look at counts, pieces and QC pictures before scoring
-- [ ] 3. (submitted 2026-11-22, job 3617819; cancelled 2026-11-23 after 275/447 scored (~15 patients/h, it would likely have finished; the count was misread as 75); step 2 rerun split over 8 GPUs (job 3622368) with `jobs/anhui_v1_parts.sbatch`, joined by `model/merge_scores.py`, built 2026-11-23) `jobs/anhui_v1.sbatch`, ONCE: v1 unchanged + each model alone + four-level explanations. Nothing chosen here
+- [x] 3. **Result 2026-11-24 (results/anhui_asls_v1.csv, 447 patients): v1 recipe 0.594**, found 368/447, HD95 18.9 mm, outlines 28% smaller than these doctors draw (small 0.524, n=58; medium 0.553, n=183; large 0.649, n=206); nnU-Net pair alone 0.549, 340/447; our U-Net alone 0.495, 341/447. A clear drop from Lung1 test 0.677 and outside A 0.670; the average helps more here (+0.045) than on Lung1. Breakdown (describing, not choosing): one-piece masks 0.601 (n=410, 71 missed) vs multi-piece 0.516 (n=37, 8 missed); tumour-likeness <0.15 0.411 (n=49, **19 missed**) vs >=0.15 0.616 (n=398, 60 missed): 11% of patients hold 24% of the misses, so some of those masks may sit off the tumour or the tumour touches other tissue. (submitted 2026-11-22, job 3617819; cancelled 2026-11-23 after 275/447 scored (~15 patients/h, it would likely have finished; the count was misread as 75); step 2 rerun split over 8 GPUs (job 3622368, all 8 parts done 2026-11-24, ~1 h 25 m each) with `jobs/anhui_v1_parts.sbatch`, joined by `model/merge_scores.py`, built 2026-11-23) `jobs/anhui_v1.sbatch`, ONCE: v1 unchanged + each model alone + four-level explanations. Nothing chosen here
 - Later (v2): lock a test slice of ASLS26 before any training on the rest
