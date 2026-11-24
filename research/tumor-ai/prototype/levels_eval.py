@@ -95,6 +95,9 @@ def main():
         d = levels.describe(gt, [0, 0, 0], img, lung)
 
         r = {"set": a.set, "patient": pid, "ai_found": f["found"], "doc_found": d["found"], "dice": row["dice"]}
+        if f["found"]:   # what the physician / physicist levels say about certainty (paper: does it warn when wrong?)
+            r.update(sure_pct=f.get("sure_pct"), edge_uncertain_pct=f.get("edge_uncertain_pct"),
+                     size_group=f.get("size_group"))
         if f["found"] and d["found"]:
             r.update(ai_side=f["side"], doc_side=d["side"], same_side=f["side"] == d["side"],
                      ai_part=f["part"], doc_part=d["part"], same_part=f["part"] == d["part"],
