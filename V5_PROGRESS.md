@@ -632,6 +632,15 @@ paid tier or the guardrails above plus a narrow, rehearsed question list.
   each answer used. Every print and download is written to the audit log
   (`POST /api/export-log/{id}`). Checkpoint: `pytest` 200 passed; build compiled.
 
+- Tumour outline link (research, 2026-11-24): chart → Imaging → "Tumour outline
+  (research)", physicians only. Opens the local tumour review desk
+  (`research/tumor-ai/prototype`, 127.0.0.1:8765) for this patient on a PUBLIC demo
+  scan (both pages say it is not the patient's CT); the doctor's sign-off shows back
+  in the chart and "Save sign-off to the chart" adds it as a chart note through the
+  existing `/api/chart-notes` (audit-logged). No portal backend change; scans never
+  touch the portal or any cloud AI. Works only when portal and desk run on the same
+  computer. Checked in the browser on P1001.
+
 ## Open items noticed during Stage 1
 - Demo timelines are dated 2025 and labs stop months before the last imaging,
   so "since last visit" will look stale. Decide in Stage 3 whether to shift

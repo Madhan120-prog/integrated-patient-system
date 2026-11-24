@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import AskPanel, { SECTION_SCOPE } from '../components/AskPanel';
 import RadiationPlan from '../components/RadiationPlan';
 import ExplainLevels from '../components/ExplainLevels';
+import TumourOutline from '../components/TumourOutline';
 import {
   StatTile, FindingCard, RangeGauge, Sparkline, LabTrendChart, SystemsTimeline, TreatmentTimeline, DocAssistOrb,
   SYSTEM_COLORS, RANGE_LETTER, RANGE_WORD, formatDate, logExport, download,
@@ -775,6 +776,7 @@ const ChartPage = () => {
             <Panel title="Imaging and tracings" note="MRI, CT, X-ray and ECG. Select one to enlarge, or drag it into DocAssist.">
               <ImageGallery items={images} onOpen={setViewing} onDragStudy={() => setAskOpen(true)} />
             </Panel>
+            {isPhysician && <TumourOutline patientId={profile.patient_id} onSaved={(n) => setNotes((x) => [n, ...x])} />}
           </Section>
 
           <Section id="Treatment">

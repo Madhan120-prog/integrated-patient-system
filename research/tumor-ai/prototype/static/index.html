@@ -794,6 +794,21 @@ rb.addEventListener("pointerup", () => drag = false);
 
 buildLut();
 refreshList();
+
+/* ---------- opened from the patient portal: /?portal=<patient id> ---------- */
+const PORTAL = new URLSearchParams(location.search).get("portal");
+if (PORTAL && /^[A-Za-z0-9_-]{1,40}$/.test(PORTAL)) {
+  const bar = document.createElement("div");
+  bar.setAttribute("role", "note");
+  bar.style.cssText = "background:#fff4d6;color:#5a4300;border-bottom:1px solid #e3c46b;padding:6px 16px;font-size:13px";
+  bar.textContent = `Opened from the patient portal for patient ${PORTAL}. This is a public demo scan, not this patient's own CT ` +
+    "(research only, until the hospital approves). Sign off here, then go back to the portal and press Refresh.";
+  document.body.prepend(bar);
+  (async () => {
+    const list = await api(`/api/portal/${PORTAL}`);
+    openCase(list.length ? list[0].id : (await api(`/api/portal/${PORTAL}/demo`, { method: "POST" })).id);
+  })().catch(e => alert("Could not open the demo scan: " + e.message));
+}
 setInterval(refreshList, 4000);
 </script>
 </body>

@@ -160,7 +160,8 @@ hospital and university approve; the model runs locally (never a cloud AI servic
 - [x] **Step 2, small review page** (built 2026-11-15: `prototype/`, see its README; own canvas viewer instead of NiiVue, no internet needed; waits for the real models from BigBlue) (local, research): upload a zipped DICOM folder; view the CT slice by slice with the
   AI outline on top (NiiVue, reads DICOM in the browser); slider for the cut-off; accept / reject / note;
   download RTSTRUCT, mask and a one-page PDF. FastAPI endpoint + one React page, like the portal
-- [ ] **Step 3, inside the portal** (needs approval): "Tumour outline" in the patient chart; pick the CT from PACS
+- [x] **Step 3a, small link (built 2026-11-24, tested locally on P1001)**: chart → Imaging → "Tumour outline (research)" opens the local review desk (`/?portal=<id>`), which outlines a PUBLIC demo scan for that patient (both pages say it is not their CT); the sign-off shows back in the chart (desk `GET /api/portal/<id>`, read-only to the portal) and "Save sign-off to the chart" puts it on the chart as a note (existing `/chart-notes`, audit-logged). Physicians only; works only when the portal runs on the same computer. Files: `prototype/server.py`, `prototype/static/index.html`, `frontend/src/components/TumourOutline.jsx`, `ChartPage.jsx`
+- [ ] **Step 3b, full, inside the portal** (needs approval): "Tumour outline" in the patient chart; pick the CT from PACS
   (`backend/pacs_gateway.py`) instead of uploading; reuse the DocAssist review pattern (AI draft -> doctor reviews ->
   save to chart, AI original kept, audit log); explain at role levels (`/api/explain-levels`); dose effect via
   `backend/radiation.py` (E13). The portal's file-upload analysis sends files to Gemini, so scans must NOT use that route
@@ -189,7 +190,7 @@ version: nnU-Net `checkpoint_final`, our U-Net `best.pt` (best on its own valida
   v2's test BEFORE training; ~313 join the training side of E10's folds (validation = same Lung1 patients); multi-piece
   training masks keep the largest piece (Lung1 = primary only); test masks untouched. Run order:
   - [ ] `sbatch jobs/v2_prep.sbatch` (CPU; job 3622372 done 2026-11-24 in 10 min: 790 cases preprocessed, spacing and patch match Dataset001)
-  - [x] `sbatch --dependency=afterok:<prep> jobs/v2_nnunet.sbatch` (job 3622375, all 5 folds done 2026-11-24, ~9 h 50 m each; compare with v1 on the same validation patients: `model/compare_folds.py`)
+  - [x] `sbatch --dependency=afterok:<prep> jobs/v2_nnunet.sbatch` (job 3622375, all 5 folds done 2026-11-24, ~9 h 50 m each; compare with v1 on the same validation patients: `model/compare_folds.py`; **result 2026-11-24: v2 is WORSE on the same 355 Lung1 validation patients**: 0.623 vs v1 0.638, difference -0.015 (95% range -0.030 to -0.001), better/worse on 144/189; small tumours (<20 cc, n=128) 0.518 vs 0.557, -0.039 (95% range -0.071 to -0.009). By the switching rule **v1 stays the model**; v2_test still runs once to describe what Anhui data does at Anhui)
   - [ ] `sbatch jobs/v2_test.sbatch` ONCE after all folds + anhui_v1: ResEnc L on v1 / E10 / v2 data + v1 recipe on the
     locked Anhui slice, and v2 on outside A
   1. Access (checked 2026-11-21): TCIA stopped hosting controlled data on 2025-07-08; requests now go through **dbGaP**

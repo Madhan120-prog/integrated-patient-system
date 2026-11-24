@@ -17,6 +17,7 @@ from typing import List
 
 import uvicorn
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
@@ -26,6 +27,9 @@ import levels
 CASES = engine.HERE / "cases"
 INBOX = engine.HERE / "inbox"
 app = FastAPI(title="Tumour outline review desk (research prototype)")
+# The patient portal, when it runs on this same computer, may READ a linked patient's result (GET only).
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"], allow_methods=["GET"])
+PORTAL_ID = r"[A-Za-z0-9_-]{1,40}"
 jobs: "queue.Queue[str]" = queue.Queue()
 _models = None
 
@@ -189,6 +193,51 @@ def explain(cid: str, cut: float = engine.DEFAULT_CUT):
     if cut not in engine.CUTS or not (c / "summary.json").exists():
         raise HTTPException(400, "unknown cut-off or case not finished")
     return explained(c, cut)
+
+
+# ── Link from the patient portal (research demo) ─────────────────────────────────────────────────────────────
+# The portal opens /?portal=<its patient id>. Until scans come from the hospital's PACS (needs approval), the linked
+# case is a PUBLIC demo scan (samples/*.zip), never that patient's own CT; both pages say so.
+def portal_cases(pid: str) -> list:
+    if not re.fullmatch(PORTAL_ID, pid):
+        raise HTTPException(400, "bad portal patient id")
+    out = []
+    for c in sorted((p for p in CASES.iterdir() if p.is_dir()), reverse=True) if CASES.exists() else []:
+        st = status(c)
+        if st.get("portal") != pid:
+            continue
+        s, r = c / "summary.json", c / "review.json"
+        s = json.loads(s.read_text()) if s.exists() else None
+        rev = json.loads(r.read_text()) if r.exists() else None
+        at = next((x for x in s["per_cut"] if x["cut"] == rev["cut"]), None) if s and rev else None
+        out.append({"id": c.name, "state": st["state"], "demo_scan": s and s["patient"], "review": rev,
+                    "volume_cc": at and at["cc"], "size_mm": at and at["size_mm"]})
+    return out
+
+
+@app.get("/api/portal/{pid}")
+def portal_list(pid: str):
+    return portal_cases(pid)
+
+
+@app.post("/api/portal/{pid}/demo")
+def portal_demo(pid: str):
+    """Start a demo case for this portal patient from the first public sample (or return the one already there)."""
+    have = portal_cases(pid)
+    if have:
+        return {"id": have[0]["id"]}
+    sample = next(iter(sorted((engine.HERE / "samples").glob("*.zip"))), None)
+    if not sample:
+        raise HTTPException(404, "no demo scan in prototype/samples/")
+    cid = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:4]
+    INBOX.mkdir(exist_ok=True)
+    shutil.copy(sample, INBOX / cid)
+    case = CASES / cid
+    case.mkdir(parents=True)
+    save_status(case, {"state": "queued", "portal": pid, "received": time.strftime("%Y-%m-%d %H:%M"),
+                       "log": [[time.strftime("%H:%M:%S"), f"Demo scan {sample.stem} for portal patient {pid}"]]})
+    jobs.put(cid)
+    return {"id": cid}
 
 
 def main():
