@@ -188,7 +188,7 @@ version: nnU-Net `checkpoint_final`, our U-Net `best.pt` (best on its own valida
   **Built 2026-11-22, tested on fake data:** `prep/14_v2.py` locks 30% of usable Anhui (size-balanced, seed 42, ~134) as
   v2's test BEFORE training; ~313 join the training side of E10's folds (validation = same Lung1 patients); multi-piece
   training masks keep the largest piece (Lung1 = primary only); test masks untouched. Run order:
-  - [ ] `sbatch jobs/v2_prep.sbatch` (CPU, after anhui_prep; can run now)
+  - [ ] `sbatch jobs/v2_prep.sbatch` (CPU; submitted 2026-11-23, job 3622372)
   - [ ] `sbatch --dependency=afterok:<prep> jobs/v2_nnunet.sbatch` (5 folds, ~10 h each)
   - [ ] `sbatch jobs/v2_test.sbatch` ONCE after all folds + anhui_v1: ResEnc L on v1 / E10 / v2 data + v1 recipe on the
     locked Anhui slice, and v2 on outside A
@@ -214,5 +214,5 @@ patient, so the 74 small-cell cases cannot be separated (stated as a limitation)
   Job 3617790: 447/449 usable (315, 390: alignment unclear), all placed by header, tumour-likeness median 0.36;
   37 with >1 piece. 49 scored <0.15 but none scored clearly better flipped (mostly large tumours touching tissue).
 - [ ] 2. Look at counts, pieces and QC pictures before scoring
-- [ ] 3. (submitted 2026-11-22, job 3617819; too slow for its 2-day limit: 75/447 scored after 31.7 h, so step 2 is rerun split over 8 GPUs with `jobs/anhui_v1_parts.sbatch`, joined by `model/merge_scores.py`, built 2026-11-23) `jobs/anhui_v1.sbatch`, ONCE: v1 unchanged + each model alone + four-level explanations. Nothing chosen here
+- [ ] 3. (submitted 2026-11-22, job 3617819; cancelled 2026-11-23 after 275/447 scored (~15 patients/h, it would likely have finished; the count was misread as 75); step 2 rerun split over 8 GPUs (job 3622368) with `jobs/anhui_v1_parts.sbatch`, joined by `model/merge_scores.py`, built 2026-11-23) `jobs/anhui_v1.sbatch`, ONCE: v1 unchanged + each model alone + four-level explanations. Nothing chosen here
 - Later (v2): lock a test slice of ASLS26 before any training on the rest
