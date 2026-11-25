@@ -6,8 +6,8 @@
 <title>Tumour Review Desk</title>
 <style>
 :root{
-  --desk:#121211; --desk2:#1a1918; --desk3:#24221f; --line:#2e2b27; --dim:#8a8478; --text:#e8e2d4;
-  --amber:#ffb000; --cyan:#3cd3ff;
+  --desk:#faf8f3; --desk2:#f0ece3; --desk3:#e6e0d3; --line:#d6cfc0; --dim:#5f594e; --text:#1e1c19;
+  --amber:#a35f00; --cyan:#0a7fa8;
   --paper:#f2ede2; --paper2:#e9e2d3; --ink:#1e1c19; --ink2:#6a6357; --rule:#cbc1ad; --red:#b3312a; --green:#2e6a3b;
   --serif:"Iowan Old Style","Charter","Palatino Linotype",Palatino,Georgia,serif;
   --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
@@ -74,10 +74,10 @@ kbd{font:11px/1 var(--mono);border:1px solid #4a463f;border-bottom-width:2px;pad
 .scalebar{height:6px;border:1px solid #cfc9bb;border-top:0;margin:4px 0 0 auto}
 .readout{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);font:12px/1 var(--mono);color:var(--text);background:#000c;padding:6px 10px;border:1px solid var(--line);pointer-events:none;display:none;white-space:nowrap}
 .cover{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--desk);padding:24px}
-.log{width:min(640px,100%);font:13px/1.7 var(--mono);color:#cfc9bb}
+.log{width:min(640px,100%);font:13px/1.7 var(--mono);color:#3a362f}
 .log .t{color:var(--dim);margin-right:12px}
 .log .cur::after{content:"▌";color:var(--amber);animation:blink 1s steps(2) infinite}
-.log .err{color:#ff7b70}
+.log .err{color:#b3312a}
 .log h2{font:500 22px/1.2 var(--serif);color:var(--text);margin:0 0 14px}
 .intro{width:min(720px,100%)}
 .intro h2{font:500 28px/1.15 var(--serif);margin:0 0 8px}
@@ -134,6 +134,8 @@ svg text{font-family:var(--mono)}
 .dl a,.dl button{display:flex;justify-content:space-between;align-items:center;border:1.5px solid var(--ink);padding:9px 12px;color:var(--ink);text-decoration:none;font-size:13px;text-align:left}
 .dl a:hover,.dl button:hover{background:var(--ink);color:var(--paper)}
 .dl small{font:11px var(--mono);opacity:.7}
+.tech{margin-top:14px;font-size:12px;color:var(--ink2)}.tech summary{cursor:pointer;font-weight:600;margin-bottom:6px}
+.dl.locked a{pointer-events:none;opacity:.4}
 .fine{font-size:11px;color:var(--ink2);margin-top:18px;line-height:1.5}
 .blank{color:var(--ink2);font:15px/1.5 var(--serif);margin-top:30px}
 #printShot{display:none}
@@ -192,12 +194,12 @@ svg text{font-family:var(--mono)}
       <button class="chip" data-win="lung" aria-pressed="true">Lung</button>
       <button class="chip" data-win="soft" aria-pressed="false">Soft tissue</button>
       <span class="sep"></span>
-      <button class="chip" id="tDoc" aria-pressed="true">Doctor</button>
-      <button class="chip" id="tRings" aria-pressed="true">Sureness rings</button>
-      <button class="chip" id="tDiff" aria-pressed="false">Where they differ</button>
+      <button class="chip" id="tDoc" aria-pressed="true">Doctor's outline</button>
+      <button class="chip" id="tRings" aria-pressed="true">Other sizes</button>
+      <button class="chip" id="tDiff" aria-pressed="false">AI vs doctor</button>
       <button class="chip" id="tZoom" aria-pressed="false">Zoom to tumour</button>
       <span class="sp"></span>
-      <span class="keys"><kbd>↑</kbd><kbd>↓</kbd> slice · <kbd>[</kbd><kbd>]</kbd> sureness · <kbd>Z</kbd> zoom · <kbd>D</kbd> doctor · <kbd>W</kbd> window</span>
+      <span class="keys"><kbd>↑</kbd><kbd>↓</kbd> slice · <kbd>[</kbd><kbd>]</kbd> outline size · <kbd>Z</kbd> zoom · <kbd>D</kbd> doctor · <kbd>W</kbd> window</span>
     </div>
     <div class="vp" id="vp">
       <canvas id="cv"></canvas>
@@ -209,12 +211,12 @@ svg text{font-family:var(--mono)}
       <div class="cover" id="cover">
         <div class="intro" id="intro">
           <h2>A second reader for lung tumours.</h2>
-          <p>The AI draws a first outline of the main tumour on a CT. A doctor checks it slice by slice, decides how sure the AI must be, signs it off, and takes away a file the planning system opens.</p>
+          <p>The AI draws a first outline of the main tumour on a CT. A doctor checks it slice by slice, adjusts it if needed, signs it off, and downloads a file for radiotherapy planning.</p>
           <div class="steps">
             <div><b>01</b><span>Drop a CT</span><small>zipped DICOM folder</small></div>
             <div><b>02</b><span>AI outlines</span><small>nnU-Net + our U-Net, on this computer</small></div>
-            <div><b>03</b><span>Doctor reviews</span><small>scroll, compare, choose sureness</small></div>
-            <div><b>04</b><span>Take away</span><small>RTSTRUCT for the planning system</small></div>
+            <div><b>03</b><span>Doctor reviews</span><small>scroll, compare, adjust, sign off</small></div>
+            <div><b>04</b><span>Download</span><small>a file for radiotherapy planning</small></div>
           </div>
         </div>
         <div class="log" id="log" hidden></div>
@@ -222,8 +224,8 @@ svg text{font-family:var(--mono)}
     </div>
     <div class="ribbon" id="ribbon" title="Each column is one slice: AI outline area (amber), doctor's (blue line). Click or drag to move."><canvas id="rb"></canvas></div>
     <div class="legend">
-      <span><i class="sw ai"></i>AI outline at the chosen sureness</span>
-      <span><i class="sw rg"></i>AI at 10% · 50% · 90% sure (like height lines on a map)</span>
+      <span><i class="sw ai"></i>AI outline</span>
+      <span><i class="sw rg"></i>Bigger and tighter versions (Other sizes)</span>
       <span id="lgDoc"><i class="sw dr"></i>Doctor's outline</span>
     </div>
   </section>
@@ -237,54 +239,31 @@ svg text{font-family:var(--mono)}
       <div class="sub" id="wsSub"></div>
 
       <div class="sec">
-        <h3><span class="no">1</span>The scan</h3>
-        <div class="f"><span class="k">Patient</span><span class="lead"></span><span class="v" id="fPid"></span></div>
-        <div class="f"><span class="k">Slices</span><span class="lead"></span><span class="v" id="fSlices"></span></div>
-        <div class="f"><span class="k">Pixel / slice gap</span><span class="lead"></span><span class="v" id="fSpacing"></span></div>
-        <div class="f"><span class="k">Read in</span><span class="lead"></span><span class="v" id="fTime"></span></div>
-        <div class="hint" id="fModels"></div>
-        <div class="note" id="fRole"></div>
-      </div>
-
-      <div class="sec">
-        <h3><span class="no">2</span>How sure must the AI be?</h3>
-        <div class="big"><span id="kVal">30%</span><small>to draw a spot inside the outline</small></div>
-        <input class="slider" id="kIn" type="range" min="0" max="8" step="1" value="2" aria-label="How sure the AI must be">
-        <div class="ticks"><span>10%</span><span>50%</span><span>90%</span></div>
-        <div class="hint">Lower draws a bigger, more generous outline; higher a tighter one. Our tests picked 30%.</div>
-        <svg id="chart" width="100%" height="120" role="img" aria-label="Outline size at each sureness level"></svg>
-      </div>
-
-      <div class="sec">
-        <h3><span class="no">3</span>What the AI found</h3>
+        <h3><span class="no">1</span>What the AI found</h3>
         <div class="f"><span class="k">Tumour found</span><span class="lead"></span><span class="v" id="rFound"></span></div>
         <div class="f"><span class="k">Volume</span><span class="lead"></span><span class="v" id="rCc"></span></div>
         <div class="f"><span class="k">Size, side × front-back × up-down</span><span class="lead"></span><span class="v" id="rSize"></span></div>
         <div class="f"><span class="k">Seen on</span><span class="lead"></span><span class="v" id="rSl"></span></div>
-        <div class="f"><span class="k">AI sureness inside</span><span class="lead"></span><span class="v" id="rSure"></span></div>
+        <div class="f"><span class="k">AI confidence inside the outline</span><span class="lead"></span><span class="v" id="rSure"></span></div>
         <div id="vsDoc">
-          <div class="f"><span class="k">Overlap with the doctor</span><span class="lead"></span><span class="v" id="rDice"></span></div>
+          <div class="f"><span class="k">Overlap with the doctor's outline</span><span class="lead"></span><span class="v" id="rDice"></span></div>
           <div class="f"><span class="k">Size vs the doctor's</span><span class="lead"></span><span class="v" id="rVd"></span></div>
-          <div class="hint">Overlap (Dice): 1.00 means the same outline; our models average about 0.65 on unseen patients.</div>
+          <div class="hint">Overlap: 1.00 means the same outline. Our models average about 0.65 on patients they never saw.</div>
         </div>
+        <div class="note" id="fRole"></div>
       </div>
 
-      <div class="sec" id="xSec">
-        <h3><span class="no">4</span>Explain this result</h3>
-        <div class="lvtabs no-print" role="group" aria-label="Explain for">
-          <button data-lv="patient" aria-pressed="false">Patient</button>
-          <button data-lv="physician" aria-pressed="true">Physician</button>
-          <button data-lv="physicist" aria-pressed="false">Physicist</button>
-          <button data-lv="ai" aria-pressed="false">AI / technical</button>
-        </div>
-        <div id="xPic"></div>
-        <p class="xtext" id="xText">…</p>
-        <div class="note warn" id="xNotes" hidden></div>
-        <div class="hint" id="xHint">Written from measured facts by fixed templates (no AI writing). Every number comes from the fact sheet.</div>
+      <div class="sec">
+        <h3><span class="no">2</span>Adjust the outline (optional)</h3>
+        <div class="big"><span id="kVal">30%</span><small>setting · 30% is the tested default</small></div>
+        <input class="slider" id="kIn" type="range" min="0" max="8" step="1" value="2" aria-label="Outline size setting">
+        <div class="ticks"><span>← bigger outline</span><span>tighter outline →</span></div>
+        <div class="hint">Drag left if the outline misses tumour, right if it takes in too much. The numbers above update as you move it.</div>
+        <svg id="chart" width="100%" height="120" role="img" aria-label="Outline volume at each setting"></svg>
       </div>
 
       <div class="sec no-print-if-empty">
-        <h3><span class="no">5</span>Doctor's sign-off</h3>
+        <h3><span class="no">3</span>Doctor's sign-off</h3>
         <div id="signedBox"></div>
         <div id="signForm">
           <div class="dec" role="group" aria-label="Decision">
@@ -295,20 +274,45 @@ svg text{font-family:var(--mono)}
           <label class="hint" for="who">Reviewer</label>
           <input type="text" id="who" placeholder="Name or initials" maxlength="60">
           <textarea id="note" placeholder="Note (optional): what to fix, why rejected…" maxlength="2000" aria-label="Note"></textarea>
-          <button class="sign" id="signBtn" disabled>Sign at <span id="signK">30%</span></button>
+          <button class="sign" id="signBtn" disabled>Sign off at setting <span id="signK">30%</span></button>
         </div>
       </div>
 
-      <div class="sec no-print">
-        <h3><span class="no">6</span>Take away</h3>
-        <div class="dl">
-          <a id="dRt" href="#">RTSTRUCT for the planning system <small id="dRtK">30%</small></a>
-          <a id="dMask" href="#">Outline as a mask (NIfTI) <small>.nii.gz</small></a>
-          <a id="dSum" href="#">Numbers (JSON) <small>.json</small></a>
-          <a id="dX" href="#">Explanations, four levels (JSON) <small id="dXK">30%</small></a>
-          <button id="dPrint">Print this worksheet <small>PDF</small></button>
+      <div class="sec" id="xSec">
+        <h3><span class="no">4</span>Explain it</h3>
+        <div class="lvtabs no-print" role="group" aria-label="Explain for">
+          <button data-lv="patient" aria-pressed="false">Patient</button>
+          <button data-lv="physician" aria-pressed="true">Doctor</button>
+          <button data-lv="physicist" aria-pressed="false">Physicist</button>
+          <button data-lv="ai" aria-pressed="false">Technical</button>
         </div>
+        <div id="xPic"></div>
+        <p class="xtext" id="xText">…</p>
+        <div class="note warn" id="xNotes" hidden></div>
+        <div class="hint" id="xHint">Written from the measured numbers by fixed templates, not by an AI.</div>
       </div>
+
+      <div class="sec no-print">
+        <h3><span class="no">5</span>Download</h3>
+        <div class="hint" id="dLock">The files unlock once the outline is accepted at this setting.</div>
+        <div class="dl" id="dFiles">
+          <a id="dRt" href="#">For radiotherapy planning <small>DICOM · <span id="dRtK">30%</span></small></a>
+          <a id="dMask" href="#">Outline as a 3D image, for research <small>.nii.gz</small></a>
+          <a id="dSum" href="#">All the numbers <small>.json</small></a>
+          <a id="dX" href="#">The four explanations <small>.json · <span id="dXK">30%</span></small></a>
+        </div>
+        <div class="dl" style="margin-top:8px"><button id="dPrint">Print this page <small>PDF</small></button></div>
+      </div>
+
+      <details class="tech">
+        <summary>Technical details</summary>
+        <div class="f"><span class="k">Scan</span><span class="lead"></span><span class="v" id="fPid"></span></div>
+        <div class="f"><span class="k">Slices</span><span class="lead"></span><span class="v" id="fSlices"></span></div>
+        <div class="f"><span class="k">Pixel / slice gap</span><span class="lead"></span><span class="v" id="fSpacing"></span></div>
+        <div class="f"><span class="k">AI took</span><span class="lead"></span><span class="v" id="fTime"></span></div>
+        <div class="hint" id="fModels"></div>
+        <div class="hint" id="fRoleTech"></div>
+      </details>
       <div class="fine">AI output is a research draft for review, not a diagnosis or a treatment plan. Everything on this page runs on this computer; no scan is sent to any online service.</div>
     </div>
   </aside>
@@ -577,26 +581,26 @@ function corners() {
 }
 function ribbon() {
   const s = S.sum, Z = s.shape[0], W = rb.width, H = rb.height, dpr = devicePixelRatio || 1, bw = W / Z;
-  rctx.fillStyle = "#121211"; rctx.fillRect(0, 0, W, H);
+  rctx.fillStyle = "#faf8f3"; rctx.fillRect(0, 0, W, H);
   const pad = 16 * dpr, h = H - pad - 6 * dpr;
   const max = Math.max(1, ...S.aiArea[0], ...S.docArea);
   for (let z = 0; z < Z; z++) {
     const g = S.aiArea[0][z] / max * h, a = S.aiArea[S.k][z] / max * h;
     if (g) { rctx.fillStyle = "#ffb00030"; rctx.fillRect(z * bw, H - pad - g, Math.max(1, bw - 1), g); }
-    if (a) { rctx.fillStyle = "#ffb000"; rctx.fillRect(z * bw, H - pad - a, Math.max(1, bw - 1), a); }
+    if (a) { rctx.fillStyle = "#e09400"; rctx.fillRect(z * bw, H - pad - a, Math.max(1, bw - 1), a); }
   }
   if (S.doc && S.showDoc) {
     rctx.strokeStyle = "#3cd3ff"; rctx.lineWidth = 1.5 * dpr; rctx.beginPath();
     for (let z = 0; z < Z; z++) { const y = H - pad - S.docArea[z] / max * h; z ? rctx.lineTo(z * bw, y) : rctx.moveTo(0, y); rctx.lineTo((z + 1) * bw, y); }
     rctx.stroke();
   }
-  rctx.fillStyle = "#2e2b27"; rctx.fillRect(0, H - pad, W, dpr);
-  rctx.fillStyle = "#8a8478"; rctx.font = `${10 * dpr}px ui-monospace,Menlo,monospace`; rctx.textBaseline = "middle";
+  rctx.fillStyle = "#d6cfc0"; rctx.fillRect(0, H - pad, W, dpr);
+  rctx.fillStyle = "#5f594e"; rctx.font = `${10 * dpr}px ui-monospace,Menlo,monospace`; rctx.textBaseline = "middle";
   rctx.textAlign = "left"; rctx.fillText("FEET", 6 * dpr, H - pad / 2);
   rctx.textAlign = "right"; rctx.fillText("HEAD", W - 6 * dpr, H - pad / 2);
   rctx.textAlign = "center"; rctx.fillText("each column = one slice · amber = AI outline area · blue = doctor", W / 2, H - pad / 2);
   const x = (S.z + 0.5) * bw;
-  rctx.fillStyle = "#e8e2d4"; rctx.fillRect(x - dpr, 0, 2 * dpr, H - pad);
+  rctx.fillStyle = "#1e1c19"; rctx.fillRect(x - dpr, 0, 2 * dpr, H - pad);
 }
 function resize() {
   const dpr = devicePixelRatio || 1;
@@ -617,12 +621,14 @@ function fillSheet(c) {
   $("#fSpacing").textContent = `${s.spacing[0].toFixed(2)} mm / ${s.spacing[2].toFixed(1)} mm`;
   $("#fTime").textContent = s.seconds < 120 ? `${s.seconds} s` : `${(s.seconds / 60).toFixed(1)} min`;
   $("#fModels").textContent = "Read by " + s.models + ".";
-  const role = $("#fRole"); role.textContent = s.role_text;
-  role.className = "note " + ({ fair: "good", outside: "good", trained: "bad", test: "bad" }[s.role] || "");
+  // only a real warning (this scan was used in training/testing) stays on the page; the rest goes to Technical details
+  const role = $("#fRole"), bad = s.role === "trained" || s.role === "test";
+  role.textContent = bad ? s.role_text : ""; role.hidden = !bad; role.className = "note bad";
+  $("#fRoleTech").textContent = bad ? "" : s.role_text;
   $("#vsDoc").hidden = !s.has_doctor; $("#lgDoc").hidden = !s.has_doctor; $("#tDoc").hidden = !s.has_doctor; $("#tDiff").hidden = !s.has_doctor;
   const who = store.get("reviewer"); if (who) $("#who").value = who;
   $("#note").value = ""; S.decision = null; $$(".dec button").forEach(b => b.setAttribute("aria-pressed", false));
-  showSigned(c.review);
+  S.rev = c.review; showSigned(c.review);
   $("#dSum").href = `/api/cases/${c.id}/download/summary`;
   setK(S.k);
 }
@@ -643,7 +649,11 @@ function setK(k) {
   $("#dRt").href = `/api/cases/${S.id}/download/rtstruct?cut=${s.cuts[S.k]}`;
   $("#dMask").href = `/api/cases/${S.id}/download/mask?cut=${s.cuts[S.k]}`;
   $("#dX").href = `/api/cases/${S.id}/download/explain?cut=${s.cuts[S.k]}`; $("#dXK").textContent = pct;
-  chart(); draw(); loadExplain();
+  dlLock(); chart(); draw(); loadExplain();
+}
+function dlLock() {   // ponytail: page-only lock, the server does not check; add a server check before real use
+  const ok = !!(S.rev && S.rev.decision === "accepted" && S.rev.cut === S.sum.cuts[S.k]);
+  $("#dFiles").classList.toggle("locked", !ok); $("#dLock").hidden = ok;
 }
 function chart() {
   const s = S.sum, svg = $("#chart"), W = svg.clientWidth || 330, H = 120, n = 9, bw = (W - 8) / n;
@@ -661,7 +671,7 @@ function chart() {
     h += `<polyline points="${pts}" fill="none" stroke="#0e7fa6" stroke-width="1.5"/>`;
     s.per_cut.forEach((c, i) => h += `<circle cx="${4 + i * bw + bw / 2}" cy="${82 - (c.dice || 0) * 62}" r="${i === S.k ? 3.5 : 2}" fill="#0e7fa6"/>`);
   }
-  h += `<text x="4" y="112" font-size="9" fill="#6a6357">bars: volume (cc) at each sureness %${s.has_doctor ? " · blue: overlap" : ""}</text>`;
+  h += `<text x="4" y="112" font-size="9" fill="#6a6357">bars: outline volume (cc) at each setting${s.has_doctor ? " · blue: overlap" : ""}</text>`;
   svg.innerHTML = h;
   svg.querySelectorAll("g[data-k]").forEach(g => g.onclick = () => setK(+g.dataset.k));
 }
@@ -683,7 +693,7 @@ $("#signBtn").onclick = async () => {
   try {
     const r = await api(`/api/cases/${S.id}/review`, { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ decision: S.decision, cut: S.sum.cuts[S.k], note: $("#note").value, reviewer }) });
-    showSigned(r); refreshList(); loadExplain();
+    S.rev = r; showSigned(r); dlLock(); refreshList(); loadExplain();
   } catch (e) { alert("Could not save the sign-off: " + e.message); }
 };
 $("#dPrint").onclick = () => { $("#printShot").src = cv.toDataURL("image/png"); setTimeout(() => print(), 50); };
@@ -729,7 +739,7 @@ function renderLevel() {
   let pic = "";
   if (lv === "patient" && !locked && f.found && f.side) pic = chestSvg(f);
   else if (lv === "physician" && f.found) pic = `<div class="hint">Viewer: slice ${f.largest_slice}, where the outline is largest.</div>`;
-  else if (lv === "physicist") pic = `<div class="hint">Viewer: sureness rings${S.sum.has_doctor ? " and where the AI and the doctor differ" : ""}.</div>`;
+  else if (lv === "physicist") pic = `<div class="hint">Viewer: other sizes${S.sum.has_doctor ? " and where the AI and the doctor differ" : ""}.</div>`;
   else if (lv === "ai") pic = `<div class="heatbar"></div><div class="ticks"><span>10%</span><span>how sure the AI is at each point</span><span>90%</span></div>`;
   $("#xPic").innerHTML = pic;
 }
