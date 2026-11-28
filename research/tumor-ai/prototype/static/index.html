@@ -629,7 +629,6 @@ function fillSheet(c) {
   const who = store.get("reviewer"); if (who) $("#who").value = who;
   $("#note").value = ""; S.decision = null; $$(".dec button").forEach(b => b.setAttribute("aria-pressed", false));
   S.rev = c.review; showSigned(c.review);
-  $("#dSum").href = `/api/cases/${c.id}/download/summary`;
   setK(S.k);
 }
 function setK(k) {
@@ -648,10 +647,11 @@ function setK(k) {
   }
   $("#dRt").href = `/api/cases/${S.id}/download/rtstruct?cut=${s.cuts[S.k]}`;
   $("#dMask").href = `/api/cases/${S.id}/download/mask?cut=${s.cuts[S.k]}`;
+  $("#dSum").href = `/api/cases/${S.id}/download/summary?cut=${s.cuts[S.k]}`;
   $("#dX").href = `/api/cases/${S.id}/download/explain?cut=${s.cuts[S.k]}`; $("#dXK").textContent = pct;
   dlLock(); chart(); draw(); loadExplain();
 }
-function dlLock() {   // ponytail: page-only lock, the server does not check; add a server check before real use
+function dlLock() {   // same rule as the server: files only for an outline accepted at this setting
   const ok = !!(S.rev && S.rev.decision === "accepted" && S.rev.cut === S.sum.cuts[S.k]);
   $("#dFiles").classList.toggle("locked", !ok); $("#dLock").hidden = ok;
 }

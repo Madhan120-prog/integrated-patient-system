@@ -156,6 +156,10 @@ def download(cid: str, kind: str, cut: float = engine.DEFAULT_CUT):
     c = case_dir(cid)
     if cut not in engine.CUTS or not (c / "summary.json").exists():
         raise HTTPException(400, "unknown cut-off or case not finished")
+    r = c / "review.json"
+    rev = json.loads(r.read_text()) if r.exists() else None
+    if not (rev and rev["decision"] == "accepted" and rev["cut"] == cut):
+        raise HTTPException(403, "files unlock once a doctor accepts the outline at this setting")
     if kind == "rtstruct":
         f = engine.write_rtstruct(c, cut)
     elif kind == "mask":

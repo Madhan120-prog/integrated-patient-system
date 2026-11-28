@@ -191,8 +191,10 @@ version: nnU-Net `checkpoint_final`, our U-Net `best.pt` (best on its own valida
   training masks keep the largest piece (Lung1 = primary only); test masks untouched. Run order:
   - [ ] `sbatch jobs/v2_prep.sbatch` (CPU; job 3622372 done 2026-11-24 in 10 min: 790 cases preprocessed, spacing and patch match Dataset001)
   - [x] `sbatch --dependency=afterok:<prep> jobs/v2_nnunet.sbatch` (job 3622375, all 5 folds done 2026-11-24, ~9 h 50 m each; compare with v1 on the same validation patients: `model/compare_folds.py`; **result 2026-11-24: v2 is WORSE on the same 355 Lung1 validation patients**: 0.623 vs v1 0.638, difference -0.015 (95% range -0.030 to -0.001), better/worse on 144/189; small tumours (<20 cc, n=128) 0.518 vs 0.557, -0.039 (95% range -0.071 to -0.009). By the switching rule **v1 stays the model**; v2_test still runs once to describe what Anhui data does at Anhui)
-  - [ ] `sbatch jobs/v2_test.sbatch` ONCE after all folds + anhui_v1: ResEnc L on v1 / E10 / v2 data + v1 recipe on the
-    locked Anhui slice, and v2 on outside A
+  - [x] `sbatch jobs/v2_test.sbatch` ONCE (job 3623533, done 2026-11-25, 14 h 36 m). Anhui locked slice, 134 patients:
+    ResEnc L on v1 data 0.422 (79 found), on E10 data 0.578 (111), on v2 data **0.677** (122, outlines only 5% small);
+    full v1 recipe 0.596 (111). v2 on outside A 0.725 (67/72) vs E10 0.741. Reading: data from the new hospital fixes
+    that hospital (+0.08 over v1) but costs a little elsewhere (Lung1 validation, outside A). Descriptive only, v1 stays.
   1. Access (checked 2026-11-21): TCIA stopped hosting controlled data on 2025-07-08; requests now go through **dbGaP**
      (needs the trial's PHS number, on TCIA's Clinical Trials page), download via NCI CRDC + TCIA Data Retriever.
      Only a faculty-level PI may submit (students cannot): **Dr. Dasgupta submits, the student is added to the project**.
