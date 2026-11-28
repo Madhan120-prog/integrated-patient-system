@@ -48,6 +48,7 @@ def main():
     ap.add_argument("--cut", type=float, default=engine.DEFAULT_CUT)
     ap.add_argument("--model-text", default="25% our U-Net + 75% nnU-Net (ResEnc L 250 ep + nnU-Net 1000 ep)")
     ap.add_argument("--key", default="test", help="with --set outside: which list of the splits file (outside A: outside_test)")
+    ap.add_argument("--part", default="", help="K/N: only every N-th patient starting at K (split over several GPUs)")
     ap.add_argument("--limit", type=int, default=0, help="first N patients only (a quick try)")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
@@ -58,6 +59,9 @@ def main():
 
     s = json.load(open(a.splits))
     pids = s["folds"][0]["val"] if a.set == "fold0" else s["test"] if a.set == "test" else s[a.key]
+    if a.part:
+        k, n = map(int, a.part.split("/"))
+        pids = pids[k::n]
     pids = pids[:a.limit] if a.limit else pids
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     nets = []
