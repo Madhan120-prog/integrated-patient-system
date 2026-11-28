@@ -49,6 +49,8 @@ def main():
     ap.add_argument("--model-text", default="25% our U-Net + 75% nnU-Net (ResEnc L 250 ep + nnU-Net 1000 ep)")
     ap.add_argument("--key", default="test", help="with --set outside: which list of the splits file (outside A: outside_test)")
     ap.add_argument("--part", default="", help="K/N: only every N-th patient starting at K (split over several GPUs)")
+    ap.add_argument("--patients", nargs="*", default=[], help="only these patients (they must be in the chosen set)")
+    ap.add_argument("--dump", default="", help="also write each patient's facts, texts, notes and doctor facts to this JSON")
     ap.add_argument("--limit", type=int, default=0, help="first N patients only (a quick try)")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
@@ -62,7 +64,11 @@ def main():
     if a.part:
         k, n = map(int, a.part.split("/"))
         pids = pids[k::n]
+    if a.patients:
+        assert set(a.patients) <= set(pids), f"not in --set {a.set}: {sorted(set(a.patients) - set(pids))}"
+        pids = [p for p in pids if p in a.patients]
     pids = pids[:a.limit] if a.limit else pids
+    dump = []
     device = "cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     nets = []
     for name in a.ours:
@@ -99,6 +105,8 @@ def main():
         t2 = time.perf_counter()
         d = levels.describe(gt, [0, 0, 0], img, lung)
 
+        if a.dump:
+            dump.append({"patient": pid, "set": a.set, "dice": row["dice"], "facts": f, "texts": out, "notes": notes, "doctor": d})
         r = {"set": a.set, "patient": pid, "ai_found": f["found"], "doc_found": d["found"], "dice": row["dice"]}
         if f["found"]:   # what the physician / physicist levels say about certainty (paper: does it warn when wrong?)
             r.update(sure_pct=f.get("sure_pct"), edge_uncertain_pct=f.get("edge_uncertain_pct"),
@@ -119,6 +127,9 @@ def main():
               f"{f.get('volume_cc')} vs {d.get('volume_cc')} cc", "notes:" if any(notes.values()) else "clean",
               *[n for v in notes.values() for n in v], flush=True)
 
+    if a.dump:
+        json.dump(dump, open(a.dump, "w"), indent=2, default=lambda o: o.item() if hasattr(o, "item") else str(o))
+        print(f"facts and texts -> {a.dump}")
     Path(a.out).parent.mkdir(parents=True, exist_ok=True)
     keys = list(dict.fromkeys(k for r in rows for k in r))
     with open(a.out, "w", newline="") as fh:

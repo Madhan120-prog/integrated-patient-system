@@ -195,7 +195,7 @@ version: nnU-Net `checkpoint_final`, our U-Net `best.pt` (best on its own valida
     ResEnc L on v1 data 0.422 (79 found), on E10 data 0.578 (111), on v2 data **0.677** (122, outlines only 5% small);
     full v1 recipe 0.596 (111). v2 on outside A 0.725 (67/72) vs E10 0.741. Reading: data from the new hospital fixes
     that hospital (+0.08 over v1) but costs a little elsewhere (Lung1 validation, outside A). Descriptive only, v1 stays.
-  - [ ] `sbatch jobs/levels_outside.sbatch` (job 3633843 cancelled before it started: ~13 h > 12 h limit; resubmitted split over 9 GPUs): Table III explanation checks at outside A (72) and B (447); anhui_v1 step 3,
+  - [ ] `sbatch jobs/levels_outside.sbatch` (job 3633843 cancelled before it started: ~13 h > 12 h limit; resubmitted split over 9 GPUs as job 3633844, array 0-8: parts 0-7 Anhui, 8 outside A; results/levels_parts/ + levels_eval_outside_A.csv): Table III explanation checks at outside A (72) and B (447); anhui_v1 step 3,
     lost when that job was cancelled. Built 2026-11-27 (`levels_eval.py --key`). All results so far: `RESULTS_FOR_PAPER.md`.
   1. Access (checked 2026-11-21): TCIA stopped hosting controlled data on 2025-07-08; requests now go through **dbGaP**
      (needs the trial's PHS number, on TCIA's Clinical Trials page), download via NCI CRDC + TCIA Data Retriever.
